@@ -1,4 +1,4 @@
-package com.lexiflow.common.convention.errorcode;
+package com.btea.lexiflow.common.convention.errorcode;
 
 import lombok.AllArgsConstructor;
 
@@ -23,11 +23,13 @@ public enum BaseErrorCode implements IErrorCode {
     USER_NOT_FOUND("0002301", "用户不存在"),
     TOKEN_INVALID("0002302", "Token已失效，请重新登录"),
     PASSWORD_ERROR("0002303", "密码错误"),
+    PASSWORD_NOT_MATCH("0002304", "两次密码不一致"),
+    USER_NOT_FOUND_OR_PASSWORD_ERROR("0002305", "用户不存在或密码错误"),
 
     // 文件存储与解析（0003xxx）
     FILE_UPLOAD_FAILED("0003300", "文件上传失败"),
     FILE_PARSE_FAILED("0003301", "文件解析失败"),
-    FILE_NOT_FOUND("00043302", "文件不存在"),
+    FILE_NOT_FOUND("00033302", "文件不存在"),
 
     // 文章处理（0004xxx）
     ARTICLE_NOT_FOUND("0004300", "文章不存在或无权访问"),
