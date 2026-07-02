@@ -1,6 +1,6 @@
-package com.lexiflow.infrastructure.web.config;
+package com.btea.lexiflow.infrastructure.web.config;
 
-import com.lexiflow.infrastructure.web.interceptor.AuthInterceptor;
+import com.btea.lexiflow.infrastructure.web.interceptor.AuthInterceptor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
@@ -23,8 +23,8 @@ public class WebMvcConfig implements WebMvcConfigurer {
         registry.addInterceptor(authInterceptor)
                 .addPathPatterns("/**")
                 .excludePathPatterns(
-                        "/user/register",
-                        "/user/login"
+                        "/lexiflow/auth/login",
+                        "/lexiflow/auth/register"
                 );
     }
 
