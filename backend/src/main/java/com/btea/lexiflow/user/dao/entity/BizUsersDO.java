@@ -1,4 +1,4 @@
-package com.lexiflow.user.dao.entity;
+package com.btea.lexiflow.user.dao.entity;
 
 import com.baomidou.mybatisplus.annotation.FieldFill;
 import com.baomidou.mybatisplus.annotation.IdType;
@@ -44,6 +44,11 @@ public class BizUsersDO {
      * 密码哈希值
      */
     private String passwordHash;
+
+    /**
+     * 头像
+     */
+    private String avatar;
 
     /**
      * 账号等级：-1=禁用, 0=Free, 1=Plus, 2=Pro, 3=Organization
