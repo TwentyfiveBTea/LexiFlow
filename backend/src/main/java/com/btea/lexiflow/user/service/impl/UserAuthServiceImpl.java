@@ -13,7 +13,6 @@ import com.btea.lexiflow.user.dto.req.UserLoginReqDTO;
 import com.btea.lexiflow.user.dto.req.UserRegisterReqDTO;
 import com.btea.lexiflow.user.dto.resp.UserLoginRespDTO;
 import com.btea.lexiflow.user.service.UserAuthService;
-import lombok.Builder;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -25,7 +24,6 @@ import org.springframework.stereotype.Service;
  */
 @Service
 @Slf4j
-@Builder
 @RequiredArgsConstructor
 public class UserAuthServiceImpl implements UserAuthService {
 
