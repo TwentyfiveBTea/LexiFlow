@@ -7,6 +7,7 @@ import com.btea.lexiflow.common.convention.exception.ClientException;
 import com.btea.lexiflow.infrastructure.s3.S3Util;
 import com.btea.lexiflow.user.dao.entity.BizUsersDO;
 import com.btea.lexiflow.user.dao.mapper.BizUsersMapper;
+import com.btea.lexiflow.user.dto.req.UserChangeUsernameReqDTO;
 import com.btea.lexiflow.user.service.UserProfileService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -47,6 +48,23 @@ public class UserProfileServiceImpl implements UserProfileService {
         bizUsersMapper.updateById(user);
         log.info("用户头像修改成功: userId={}, avatar={}", user.getId(), avatar);
         return avatar;
+    }
+
+    /**
+     * 更改用户名
+     *
+     * @param reqDTO 更改用户名请求参数
+     */
+    @Override
+    public void changeUsername(UserChangeUsernameReqDTO reqDTO) {
+        BizUsersDO user = getCurrentUser();
+        if (reqDTO.getUsername().equals(user.getUsername())) {
+            throw new ClientException(BaseErrorCode.NEW_USERNAME_SAME_AS_OLD_USERNAME);
+        }
+
+        user.setUsername(reqDTO.getUsername());
+        bizUsersMapper.updateById(user);
+        log.info("用户用户名修改成功: userId={}", user.getId());
     }
 
     /**

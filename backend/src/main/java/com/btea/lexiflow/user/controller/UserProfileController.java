@@ -2,9 +2,12 @@ package com.btea.lexiflow.user.controller;
 
 import com.btea.lexiflow.common.convention.result.Result;
 import com.btea.lexiflow.common.convention.result.Results;
+import com.btea.lexiflow.user.dto.req.UserChangeUsernameReqDTO;
 import com.btea.lexiflow.user.service.UserProfileService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -31,5 +34,17 @@ public class UserProfileController {
     @PostMapping("/change-avatar")
     public Result<String> changeAvatar(@RequestParam("avatar") MultipartFile file) {
         return Results.success(userProfileService.changeAvatar(file));
+    }
+
+    /**
+     * 更改用户名
+     *
+     * @param reqDTO 更改用户名请求参数
+     * @return 响应结果
+     */
+    @PostMapping("/change-username")
+    public Result<Void> changeUsername(@RequestBody @Validated UserChangeUsernameReqDTO reqDTO) {
+        userProfileService.changeUsername(reqDTO);
+        return Results.success();
     }
 }
