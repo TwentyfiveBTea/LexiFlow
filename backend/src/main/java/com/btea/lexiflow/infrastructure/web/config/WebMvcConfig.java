@@ -23,8 +23,8 @@ public class WebMvcConfig implements WebMvcConfigurer {
         registry.addInterceptor(authInterceptor)
                 .addPathPatterns("/**")
                 .excludePathPatterns(
-                        "/lexiflow/auth/login",
-                        "/lexiflow/auth/register"
+                        "/api/v1/auth/login",
+                        "/api/v1/auth/register"
                 );
     }
 
