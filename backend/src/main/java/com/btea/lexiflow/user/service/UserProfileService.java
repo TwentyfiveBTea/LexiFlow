@@ -1,5 +1,6 @@
 package com.btea.lexiflow.user.service;
 
+import com.btea.lexiflow.user.dto.req.UserChangePasswordReqDTO;
 import com.btea.lexiflow.user.dto.req.UserChangeUsernameReqDTO;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -24,4 +25,11 @@ public interface UserProfileService {
      * @param reqDTO 更改用户名请求参数
      */
     void changeUsername(UserChangeUsernameReqDTO reqDTO);
+
+    /**
+     * 更改密码
+     *
+     * @param reqDTO 更改密码请求参数
+     */
+    void changePassword(UserChangePasswordReqDTO reqDTO);
 }

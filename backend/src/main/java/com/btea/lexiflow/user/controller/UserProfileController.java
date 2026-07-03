@@ -2,6 +2,7 @@ package com.btea.lexiflow.user.controller;
 
 import com.btea.lexiflow.common.convention.result.Result;
 import com.btea.lexiflow.common.convention.result.Results;
+import com.btea.lexiflow.user.dto.req.UserChangePasswordReqDTO;
 import com.btea.lexiflow.user.dto.req.UserChangeUsernameReqDTO;
 import com.btea.lexiflow.user.service.UserProfileService;
 import lombok.RequiredArgsConstructor;
@@ -30,7 +31,7 @@ public class UserProfileController {
      *
      * @param file 头像文件
      * @return 响应结果
-     */
+ */
     @PostMapping("/change-avatar")
     public Result<String> changeAvatar(@RequestParam("avatar") MultipartFile file) {
         return Results.success(userProfileService.changeAvatar(file));
@@ -45,6 +46,18 @@ public class UserProfileController {
     @PostMapping("/change-username")
     public Result<Void> changeUsername(@RequestBody @Validated UserChangeUsernameReqDTO reqDTO) {
         userProfileService.changeUsername(reqDTO);
+        return Results.success();
+    }
+
+    /**
+     * 更改密码
+     *
+     * @param reqDTO 更改密码请求参数
+     * @return 响应结果
+     */
+    @PostMapping("/change-password")
+    public Result<Void> changePassword(@RequestBody @Validated UserChangePasswordReqDTO reqDTO) {
+        userProfileService.changePassword(reqDTO);
         return Results.success();
     }
 }

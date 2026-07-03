@@ -27,6 +27,7 @@ public enum BaseErrorCode implements IErrorCode {
     PASSWORD_NOT_MATCH("0002304", "两次密码不一致"),
     USER_NOT_FOUND_OR_PASSWORD_ERROR("0002305", "用户不存在或密码错误"),
     NEW_USERNAME_SAME_AS_OLD_USERNAME("0002306", "新用户名不能与原用户名相同"),
+    NEW_PASSWORD_SAME_AS_OLD_PASSWORD("0002307", "新密码不能与原密码相同"),
 
     // 文件存储与解析（0003xxx）
     FILE_UPLOAD_FAILED("0003300", "文件上传失败"),

@@ -1,5 +1,6 @@
 package com.btea.lexiflow.user.service.impl;
 
+import cn.hutool.crypto.digest.BCrypt;
 import com.btea.lexiflow.common.constant.UserProfileConstant;
 import com.btea.lexiflow.common.context.UserContext;
 import com.btea.lexiflow.common.convention.errorcode.BaseErrorCode;
@@ -7,6 +8,7 @@ import com.btea.lexiflow.common.convention.exception.ClientException;
 import com.btea.lexiflow.infrastructure.s3.S3Util;
 import com.btea.lexiflow.user.dao.entity.BizUsersDO;
 import com.btea.lexiflow.user.dao.mapper.BizUsersMapper;
+import com.btea.lexiflow.user.dto.req.UserChangePasswordReqDTO;
 import com.btea.lexiflow.user.dto.req.UserChangeUsernameReqDTO;
 import com.btea.lexiflow.user.service.UserProfileService;
 import lombok.RequiredArgsConstructor;
@@ -65,6 +67,30 @@ public class UserProfileServiceImpl implements UserProfileService {
         user.setUsername(reqDTO.getUsername());
         bizUsersMapper.updateById(user);
         log.info("用户用户名修改成功: userId={}", user.getId());
+    }
+
+    /**
+     * 更改密码
+     *
+     * @param reqDTO 更改密码请求参数
+     */
+    @Override
+    public void changePassword(UserChangePasswordReqDTO reqDTO) {
+        if (!reqDTO.getNewPassword().equals(reqDTO.getConfirmPassword())) {
+            throw new ClientException(BaseErrorCode.PASSWORD_NOT_MATCH);
+        }
+
+        BizUsersDO user = getCurrentUser();
+        if (!BCrypt.checkpw(reqDTO.getOldPassword(), user.getPasswordHash())) {
+            throw new ClientException(BaseErrorCode.PASSWORD_ERROR);
+        }
+        if (BCrypt.checkpw(reqDTO.getNewPassword(), user.getPasswordHash())) {
+            throw new ClientException(BaseErrorCode.NEW_PASSWORD_SAME_AS_OLD_PASSWORD);
+        }
+
+        user.setPasswordHash(BCrypt.hashpw(reqDTO.getNewPassword()));
+        bizUsersMapper.updateById(user);
+        log.info("用户密码修改成功: userId={}", user.getId());
     }
 
     /**
