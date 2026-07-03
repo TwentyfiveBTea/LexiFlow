@@ -8,7 +8,22 @@ package com.btea.lexiflow.common.constant;
 public class UserProfileConstant {
 
     /**
+     * 头像访问地址前缀
+     */
+    public static final String AVATAR_BASE_URL = "https://lexi-flow.oss-cn-guangzhou.aliyuncs.com/";
+
+    /**
+     * 头像存储目录
+     */
+    public static final String AVATAR_DIR = "avatar/";
+
+    /**
+     * 头像文件后缀
+     */
+    public static final String AVATAR_SUFFIX = ".jpg";
+
+    /**
      * 默认头像
      */
-    public static final String DEFAULT_AVATAR = "https://lexi-flow.oss-cn-guangzhou.aliyuncs.com/avatar/dufault.jpg";
+    public static final String DEFAULT_AVATAR = AVATAR_BASE_URL + AVATAR_DIR + "dufault.jpg";
 }

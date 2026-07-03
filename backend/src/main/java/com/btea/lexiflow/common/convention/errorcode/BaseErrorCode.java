@@ -17,6 +17,7 @@ public enum BaseErrorCode implements IErrorCode {
 
     // 用户认证与注册（0001xxx）
     EMAIL_EXIST("0001300", "该邮箱已被使用"),
+    AVATAR_FILE_EMPTY("0001301", "头像文件不能为空"),
 
     // 用户登录与 Token（0002xxx）
     USER_NOT_LOGIN("0002300", "用户未登录"),

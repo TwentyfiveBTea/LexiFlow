@@ -1,0 +1,69 @@
+package com.btea.lexiflow.user.service.impl;
+
+import com.btea.lexiflow.common.constant.UserProfileConstant;
+import com.btea.lexiflow.common.context.UserContext;
+import com.btea.lexiflow.common.convention.errorcode.BaseErrorCode;
+import com.btea.lexiflow.common.convention.exception.ClientException;
+import com.btea.lexiflow.infrastructure.s3.S3Util;
+import com.btea.lexiflow.user.dao.entity.BizUsersDO;
+import com.btea.lexiflow.user.dao.mapper.BizUsersMapper;
+import com.btea.lexiflow.user.service.UserProfileService;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
+
+/**
+ * @Author: TwentyfiveBTea
+ * @Date: 2026/7/3 14:54
+ * @Description: 用户个人资料服务实现类
+ */
+@Service
+@Slf4j
+@RequiredArgsConstructor
+public class UserProfileServiceImpl implements UserProfileService {
+
+    private final BizUsersMapper bizUsersMapper;
+    private final S3Util s3Util;
+
+    /**
+     * 更改头像
+     *
+     * @param file 头像文件
+     * @return 头像地址
+     */
+    @Override
+    public String changeAvatar(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new ClientException(BaseErrorCode.AVATAR_FILE_EMPTY);
+        }
+
+        BizUsersDO user = getCurrentUser();
+        String objectKey = UserProfileConstant.AVATAR_DIR + user.getEmail() + UserProfileConstant.AVATAR_SUFFIX;
+        String uploadedObjectKey = s3Util.uploadFile(file, objectKey);
+        String avatar = UserProfileConstant.AVATAR_BASE_URL + uploadedObjectKey;
+
+        user.setAvatar(avatar);
+        bizUsersMapper.updateById(user);
+        log.info("用户头像修改成功: userId={}, avatar={}", user.getId(), avatar);
+        return avatar;
+    }
+
+    /**
+     * 获取当前登录用户
+     *
+     * @return 用户信息
+     */
+    private BizUsersDO getCurrentUser() {
+        String userId = UserContext.getCurrentUserId();
+        if (userId == null) {
+            throw new ClientException(BaseErrorCode.USER_NOT_LOGIN);
+        }
+
+        BizUsersDO user = bizUsersMapper.selectById(userId);
+        if (user == null) {
+            throw new ClientException(BaseErrorCode.USER_NOT_FOUND);
+        }
+        return user;
+    }
+}

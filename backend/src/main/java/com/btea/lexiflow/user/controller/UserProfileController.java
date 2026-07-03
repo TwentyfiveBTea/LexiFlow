@@ -1,0 +1,35 @@
+package com.btea.lexiflow.user.controller;
+
+import com.btea.lexiflow.common.convention.result.Result;
+import com.btea.lexiflow.common.convention.result.Results;
+import com.btea.lexiflow.user.service.UserProfileService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
+
+/**
+ * @Author: TwentyfiveBTea
+ * @Date: 2026/7/3 14:53
+ * @Description: 用户个人资料控制器
+ */
+@RestController
+@RequiredArgsConstructor
+@RequestMapping("/api/v1/user/profile")
+public class UserProfileController {
+
+    private final UserProfileService userProfileService;
+
+    /**
+     * 更改头像
+     *
+     * @param file 头像文件
+     * @return 响应结果
+     */
+    @PostMapping("/change-avatar")
+    public Result<String> changeAvatar(@RequestParam("avatar") MultipartFile file) {
+        return Results.success(userProfileService.changeAvatar(file));
+    }
+}
