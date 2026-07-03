@@ -20,7 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/lexiflow/auth")
+@RequestMapping("/api/v1/auth")
 public class UserAuthController {
 
     private final UserAuthService userAuthService;
