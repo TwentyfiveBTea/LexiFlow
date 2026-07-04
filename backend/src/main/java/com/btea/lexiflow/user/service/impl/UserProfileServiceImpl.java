@@ -42,7 +42,7 @@ public class UserProfileServiceImpl implements UserProfileService {
         }
 
         BizUsersDO user = getCurrentUser();
-        String objectKey = UserProfileConstant.AVATAR_DIR + user.getEmail() + UserProfileConstant.AVATAR_SUFFIX;
+        String objectKey = UserProfileConstant.AVATAR_DIR + user.getId() + UserProfileConstant.AVATAR_SUFFIX;
         String uploadedObjectKey = s3Util.uploadFile(file, objectKey);
         String avatar = UserProfileConstant.AVATAR_BASE_URL + uploadedObjectKey;
 
