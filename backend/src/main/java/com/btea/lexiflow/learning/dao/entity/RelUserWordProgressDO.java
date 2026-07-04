@@ -52,6 +52,11 @@ public class RelUserWordProgressDO {
     private Integer status;
 
     /**
+     * 用户单词库单词状态：0=已删除 1=正常,
+     */
+    private Integer libraryStatus;
+
+    /**
      * 复习次数
      */
     private Integer reviewCount;
@@ -75,6 +80,11 @@ public class RelUserWordProgressDO {
      * 当前记忆周期，单位：天
      */
     private Integer intervalDays;
+
+    /**
+     * 删除时间
+     */
+    private Date deletedAt;
 
     /**
      * 创建时间
