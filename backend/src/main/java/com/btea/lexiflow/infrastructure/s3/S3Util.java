@@ -83,6 +83,29 @@ public class S3Util {
     }
 
     /**
+     * 上传字节数组到 S3
+     *
+     * @param bytes 要上传的字节数组
+     * @param objectKey 文件在 S3 中的存储路径
+     * @param contentType 文件 MIME 类型
+     * @return 文件在 S3 中的 object key
+     */
+    public String uploadBytes(byte[] bytes, String objectKey, String contentType) {
+        try (S3Client s3Client = createClient()) {
+            PutObjectRequest putObjectRequest = PutObjectRequest.builder()
+                    .bucket(s3Config.getBucketName())
+                    .key(objectKey)
+                    .contentType(contentType)
+                    .build();
+            s3Client.putObject(putObjectRequest, RequestBody.fromBytes(bytes));
+            return objectKey;
+        } catch (Exception e) {
+            log.error("字节数组上传失败，Bucket: {}, Key: {}", s3Config.getBucketName(), objectKey, e);
+            throw new ClientException(BaseErrorCode.FILE_UPLOAD_FAILED);
+        }
+    }
+
+    /**
      * 上传文本到 S3
      *
      * @param text 要上传的文本内容
