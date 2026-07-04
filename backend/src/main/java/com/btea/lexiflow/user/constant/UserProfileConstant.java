@@ -1,4 +1,4 @@
-package com.btea.lexiflow.common.constant;
+package com.btea.lexiflow.user.constant;
 
 /**
  * @Author: TwentyfiveBTea

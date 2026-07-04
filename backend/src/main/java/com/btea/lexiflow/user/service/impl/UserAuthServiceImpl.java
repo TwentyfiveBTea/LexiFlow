@@ -2,7 +2,7 @@ package com.btea.lexiflow.user.service.impl;
 
 import cn.hutool.crypto.digest.BCrypt;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.btea.lexiflow.common.constant.UserProfileConstant;
+import com.btea.lexiflow.user.constant.UserProfileConstant;
 import com.btea.lexiflow.common.context.UserContext;
 import com.btea.lexiflow.common.convention.errorcode.BaseErrorCode;
 import com.btea.lexiflow.common.convention.exception.ClientException;
