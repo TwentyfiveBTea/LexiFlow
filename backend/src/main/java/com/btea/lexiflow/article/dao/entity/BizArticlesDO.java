@@ -10,7 +10,6 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.math.BigDecimal;
 import java.util.Date;
 
 /**
@@ -97,11 +96,6 @@ public class BizArticlesDO {
     private String languageCode;
 
     /**
-     * 语言识别置信度
-     */
-    private BigDecimal languageConfidence;
-
-    /**
      * 词数统计
      */
     private Integer wordCount;
@@ -117,14 +111,14 @@ public class BizArticlesDO {
     private Integer parseStatus;
 
     /**
-     * 词汇分析状态：0=待分析, 1=分析中, 2=分析成功, 3=分析失败
+     * 词汇分析状态：0=待分析, 1=分析中, 2=至少一次分析成功, 3=分析失败
      */
     private Integer analysisStatus;
 
     /**
-     * 失败原因
+     * 文章状态：0=正常, 1=已删除
      */
-    private String errorMessage;
+    private Integer status;
 
     /**
      * 解析完成时间
@@ -132,9 +126,14 @@ public class BizArticlesDO {
     private Date parsedAt;
 
     /**
-     * 词汇分析完成时间
+     * 最近一次词汇分析完成时间
      */
     private Date analyzedAt;
+
+    /**
+     * 删除时间
+     */
+    private Date deletedAt;
 
     /**
      * 创建时间
