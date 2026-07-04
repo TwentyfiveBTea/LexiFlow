@@ -82,6 +82,16 @@ public class BizArticlesDO {
     private String textHash;
 
     /**
+     * 封面图片存储路径
+     */
+    private String coverPath;
+
+    /**
+     * 封面 MIME 类型，如 image/jpeg
+     */
+    private String coverMimeType;
+
+    /**
      * 文章主语言标识：en/ja/fr/de/es/zh
      */
     private String languageCode;

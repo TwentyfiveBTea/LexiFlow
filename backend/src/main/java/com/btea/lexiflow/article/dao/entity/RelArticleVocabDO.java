@@ -41,6 +41,11 @@ public class RelArticleVocabDO {
     private String userId;
 
     /**
+     * 词汇分析等级：CET4/CET6/POSTGRADUATE/TOEFL/IELTS 等
+     */
+    private String analysisLevel;
+
+    /**
      * 词库单词ID，结合 language_code 指向对应词表
      */
     private Long wordId;
