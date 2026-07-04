@@ -61,11 +61,6 @@ public class RelArticleVocabOccurrenceDO {
     private String languageCode;
 
     /**
-     * 文章中实际出现的文本
-     */
-    private String matchedText;
-
-    /**
      * 标准化后的出现文本
      */
     private String normalizedText;
