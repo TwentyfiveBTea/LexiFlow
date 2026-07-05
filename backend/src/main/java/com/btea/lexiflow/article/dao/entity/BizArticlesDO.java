@@ -71,16 +71,6 @@ public class BizArticlesDO {
     private String filePath;
 
     /**
-     * 解析后纯文本存储路径
-     */
-    private String textPath;
-
-    /**
-     * 解析后纯文本哈希值
-     */
-    private String textHash;
-
-    /**
      * 封面图片存储路径
      */
     private String coverPath;
@@ -89,6 +79,16 @@ public class BizArticlesDO {
      * 封面 MIME 类型，如 image/jpeg
      */
     private String coverMimeType;
+
+    /**
+     * 解析后的文章正文内容，按自然段落存储原文和中文翻译
+     */
+    private String parsedContent;
+
+    /**
+     * 解析后正文内容哈希值
+     */
+    private String contentHash;
 
     /**
      * 文章主语言标识：en/ja/fr/de/es/zh
@@ -111,6 +111,11 @@ public class BizArticlesDO {
     private Integer parseStatus;
 
     /**
+     * 翻译状态：0=待翻译, 1=翻译中, 2=翻译成功, 3=翻译失败
+     */
+    private Integer translationStatus;
+
+    /**
      * 词汇分析状态：0=待分析, 1=分析中, 2=至少一次分析成功, 3=分析失败
      */
     private Integer analysisStatus;
@@ -124,6 +129,11 @@ public class BizArticlesDO {
      * 解析完成时间
      */
     private Date parsedAt;
+
+    /**
+     * 翻译完成时间
+     */
+    private Date translatedAt;
 
     /**
      * 最近一次词汇分析完成时间
