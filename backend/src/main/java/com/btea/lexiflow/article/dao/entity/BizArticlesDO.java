@@ -71,16 +71,6 @@ public class BizArticlesDO {
     private String filePath;
 
     /**
-     * 封面图片存储路径
-     */
-    private String coverPath;
-
-    /**
-     * 封面 MIME 类型，如 image/jpeg
-     */
-    private String coverMimeType;
-
-    /**
      * 解析后的文章正文内容，按自然段落存储原文和中文翻译
      */
     private String parsedContent;
