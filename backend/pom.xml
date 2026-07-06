@@ -32,6 +32,7 @@
         <stanford-corenlp.version>4.5.7</stanford-corenlp.version>
         <icu4j.version>75.1</icu4j.version>
         <hutool.version>5.8.31</hutool.version>
+        <langchain4j.version>1.0.0-beta5</langchain4j.version>
         <lombok.version>1.18.30</lombok.version>
     </properties>
 
@@ -161,6 +162,20 @@
         <dependency>
             <groupId>com.fasterxml.jackson.datatype</groupId>
             <artifactId>jackson-datatype-jsr310</artifactId>
+        </dependency>
+
+        <!-- LangChain4j OpenAI 兼容模型支持（用于 Gemini/OpenAI-compatible 网关） -->
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-open-ai-spring-boot-starter</artifactId>
+            <version>${langchain4j.version}</version>
+        </dependency>
+
+        <!-- LangChain4j Spring Boot Starter（用于注入 ChatModel） -->
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-spring-boot-starter</artifactId>
+            <version>${langchain4j.version}</version>
         </dependency>
 
         <!-- Test -->
