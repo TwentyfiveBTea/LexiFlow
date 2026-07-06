@@ -38,6 +38,8 @@ public enum BaseErrorCode implements IErrorCode {
     ARTICLE_NOT_FOUND("0004300", "文章不存在或无权访问"),
     ARTICLE_PARSE_FAILED("0004301", "文章解析失败"),
     ARTICLE_ANALYSIS_FAILED("0004302", "文章词汇分析失败"),
+    ARTICLE_TRANSLATION_FAILED("0004303", "文章翻译失败"),
+    AI_RESPONSE_PARSE_FAILED("0004304", "AI响应解析失败"),
 
     // 词汇处理（0005xxx）
     VOCAB_NOT_FOUND("0005300", "词汇不存在"),
