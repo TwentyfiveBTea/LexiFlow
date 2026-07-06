@@ -33,6 +33,7 @@
         <icu4j.version>75.1</icu4j.version>
         <hutool.version>5.8.31</hutool.version>
         <langchain4j.version>1.0.0-beta5</langchain4j.version>
+        <lingua.version>1.2.2</lingua.version>
         <lombok.version>1.18.30</lombok.version>
     </properties>
 
@@ -162,6 +163,13 @@
         <dependency>
             <groupId>com.fasterxml.jackson.datatype</groupId>
             <artifactId>jackson-datatype-jsr310</artifactId>
+        </dependency>
+
+        <!-- 多语言识别 -->
+        <dependency>
+            <groupId>com.github.pemistahl</groupId>
+            <artifactId>lingua</artifactId>
+            <version>${lingua.version}</version>
         </dependency>
 
         <!-- LangChain4j OpenAI 兼容模型支持（用于 Gemini/OpenAI-compatible 网关） -->
