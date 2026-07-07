@@ -1,0 +1,50 @@
+package com.btea.lexiflow.article.controller;
+
+import com.btea.lexiflow.article.dto.req.ArticleAnalyzeReqDTO;
+import com.btea.lexiflow.article.dto.resp.ArticleAnalyzeRespDTO;
+import com.btea.lexiflow.article.dto.resp.ArticleDetailRespDTO;
+import com.btea.lexiflow.article.dto.resp.ArticleListRespDTO;
+import com.btea.lexiflow.article.dto.resp.ArticleUploadRespDTO;
+import com.btea.lexiflow.article.dto.resp.ArticleVocabOccurrenceRespDTO;
+import com.btea.lexiflow.article.dto.resp.ArticleVocabRespDTO;
+import com.btea.lexiflow.article.service.ArticleService;
+import com.btea.lexiflow.common.convention.result.Result;
+import com.btea.lexiflow.common.convention.result.Results;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.util.List;
+
+/**
+ * @Author: TwentyfiveBTea
+ * @Date: 2026/7/4 16:45
+ * @Description: 文章控制器
+ */
+@RestController
+@RequiredArgsConstructor
+@RequestMapping("/api/v1/article")
+public class ArticleController {
+
+    private final ArticleService articleService;
+
+    /**
+     * 上传文章
+     *
+     * @param file 文章文件
+     * @return 响应结果
+     */
+    @PostMapping("/upload")
+    public Result<ArticleUploadRespDTO> uploadArticle(@RequestParam("file") MultipartFile file) {
+        return Results.success(articleService.uploadArticle(file));
+    }
+
+}
