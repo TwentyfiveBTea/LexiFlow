@@ -70,4 +70,15 @@ public class ArticleController {
         return Results.success(articleService.listArticles());
     }
 
+    /**
+     * 获取文章详情
+     *
+     * @param articleId 文章ID
+     * @return 响应结果
+     */
+    @GetMapping("/{articleId}")
+    public Result<ArticleDetailRespDTO> getArticleDetail(@PathVariable String articleId) {
+        return Results.success(articleService.getArticleDetail(articleId));
+    }
+
 }

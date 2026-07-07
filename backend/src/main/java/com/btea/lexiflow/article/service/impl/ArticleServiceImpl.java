@@ -196,6 +196,29 @@ public class ArticleServiceImpl implements ArticleService {
     }
 
     /**
+     * 获取文章详情
+     *
+     * @param articleId 文章ID
+     * @return 文章详情
+     */
+    @Override
+    public ArticleDetailRespDTO getArticleDetail(String articleId) {
+        String userId = getCurrentUserId();
+        BizArticlesDO article = getUserArticle(articleId, userId);
+        log.info("获取文章详情成功: userId={}, articleId={}", userId, articleId);
+        return ArticleDetailRespDTO.builder()
+                .articleId(article.getId())
+                .title(article.getTitle())
+                .fileSize(article.getFileSize())
+                .parsedContent(article.getParsedContent())
+                .languageCode(article.getLanguageCode())
+                .wordCount(article.getWordCount())
+                .charCount(article.getCharCount())
+                .createdAt(article.getCreatedAt())
+                .build();
+    }
+
+    /**
      * 获取文章列表
      *
      * @return 文章列表
