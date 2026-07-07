@@ -26,4 +26,13 @@ public interface ArticleService {
      */
     ArticleUploadRespDTO uploadArticle(MultipartFile file);
 
+    /**
+     * 分析文章词汇
+     *
+     * @param articleId 文章ID
+     * @param reqDTO 分析请求参数
+     * @return 分析响应参数
+     */
+    ArticleAnalyzeRespDTO analyzeArticle(String articleId, ArticleAnalyzeReqDTO reqDTO);
+
 }

@@ -125,6 +125,76 @@ public class ArticleServiceImpl implements ArticleService {
         }
     }
 
+    /**
+     * 分析文章词汇
+     *
+     * @param articleId 文章ID
+     * @param reqDTO 分析请求参数
+     * @return 分析响应参数
+     */
+    @Override
+    public ArticleAnalyzeRespDTO analyzeArticle(String articleId, ArticleAnalyzeReqDTO reqDTO) {
+        String userId = getCurrentUserId();
+        String analysisLevel = reqDTO.getAnalysisLevel();
+        BizArticlesDO article = getUserArticle(articleId, userId);
+        log.info("开始分析文章词汇: userId={}, articleId={}, analysisLevel={}, languageCode={}",
+                userId, articleId, analysisLevel, article.getLanguageCode());
+        if (!Integer.valueOf(PARSE_STATUS_SUCCESS).equals(article.getParseStatus())) {
+            throw new ClientException(BaseErrorCode.ARTICLE_PARSE_FAILED);
+        }
+
+        List<ArticleVocabRespDTO> existingVocabs = listArticleVocabs(articleId, userId, analysisLevel, article.getLanguageCode());
+        if (!existingVocabs.isEmpty()) {
+            log.info("复用文章词汇分析结果: userId={}, articleId={}, analysisLevel={}, matchedWordCount={}",
+                    userId, articleId, analysisLevel, existingVocabs.size());
+            return ArticleAnalyzeRespDTO.builder()
+                    .articleId(articleId)
+                    .analysisLevel(analysisLevel)
+                    .reused(true)
+                    .matchedWordCount(existingVocabs.size())
+                    .vocabs(existingVocabs)
+                    .build();
+        }
+
+        article.setAnalysisStatus(ANALYSIS_STATUS_PROCESSING);
+        bizArticlesMapper.updateById(article);
+        try {
+            String text = article.getParsedContent();
+            if (text == null || text.isBlank()) {
+                throw new ClientException(BaseErrorCode.ARTICLE_PARSE_FAILED);
+            }
+            List<ArticleVocabMatch> matches = articleVocabAnalyzer.analyzeText(text, article.getLanguageCode(), analysisLevel);
+            log.info("文章词汇匹配完成: userId={}, articleId={}, analysisLevel={}, matchedWordCount={}",
+                    userId, articleId, analysisLevel, matches.size());
+            saveMatches(article, analysisLevel, matches);
+            log.info("文章词汇匹配结果保存成功: userId={}, articleId={}, analysisLevel={}", userId, articleId, analysisLevel);
+
+            article.setAnalysisStatus(ANALYSIS_STATUS_SUCCESS);
+            article.setAnalyzedAt(new Date());
+            bizArticlesMapper.updateById(article);
+
+            List<ArticleVocabRespDTO> vocabs = listArticleVocabs(articleId, userId, analysisLevel, article.getLanguageCode());
+            log.info("文章词汇分析成功: userId={}, articleId={}, analysisLevel={}, matchedWordCount={}",
+                    userId, articleId, analysisLevel, vocabs.size());
+            return ArticleAnalyzeRespDTO.builder()
+                    .articleId(articleId)
+                    .analysisLevel(analysisLevel)
+                    .reused(false)
+                    .matchedWordCount(vocabs.size())
+                    .vocabs(vocabs)
+                    .build();
+        } catch (ClientException e) {
+            article.setAnalysisStatus(ANALYSIS_STATUS_FAILED);
+            bizArticlesMapper.updateById(article);
+            throw e;
+        } catch (Exception e) {
+            article.setAnalysisStatus(ANALYSIS_STATUS_FAILED);
+            bizArticlesMapper.updateById(article);
+            log.error("文章词汇分析失败: userId={}, articleId={}, analysisLevel={}", userId, articleId, analysisLevel, e);
+            throw new ClientException(BaseErrorCode.ARTICLE_ANALYSIS_FAILED);
+        }
+    }
+
     private BizArticlesDO getUserArticle(String articleId, String userId) {
         BizArticlesDO article = bizArticlesMapper.selectOne(new LambdaQueryWrapper<BizArticlesDO>()
                 .eq(BizArticlesDO::getId, articleId)

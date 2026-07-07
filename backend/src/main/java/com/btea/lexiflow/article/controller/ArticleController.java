@@ -47,4 +47,17 @@ public class ArticleController {
         return Results.success(articleService.uploadArticle(file));
     }
 
+    /**
+     * 分析文章词汇
+     *
+     * @param articleId 文章ID
+     * @param reqDTO 分析请求参数
+     * @return 响应结果
+     */
+    @PostMapping("/{articleId}/analyze")
+    public Result<ArticleAnalyzeRespDTO> analyzeArticle(@PathVariable String articleId,
+                                                        @RequestBody @Valid ArticleAnalyzeReqDTO reqDTO) {
+        return Results.success(articleService.analyzeArticle(articleId, reqDTO));
+    }
+
 }
