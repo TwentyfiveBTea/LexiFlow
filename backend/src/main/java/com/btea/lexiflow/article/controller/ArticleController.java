@@ -81,4 +81,17 @@ public class ArticleController {
         return Results.success(articleService.getArticleDetail(articleId));
     }
 
+    /**
+     * 获取文章命中词汇列表
+     *
+     * @param articleId 文章ID
+     * @param analysisLevel 词汇分析等级
+     * @return 响应结果
+     */
+    @GetMapping("/{articleId}/vocabs")
+    public Result<List<ArticleVocabRespDTO>> listArticleVocabs(@PathVariable String articleId,
+                                                               @RequestParam("analysisLevel") String analysisLevel) {
+        return Results.success(articleService.listArticleVocabs(articleId, analysisLevel));
+    }
+
 }

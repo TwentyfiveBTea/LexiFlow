@@ -245,6 +245,23 @@ public class ArticleServiceImpl implements ArticleService {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * 获取文章命中词汇列表
+     *
+     * @param articleId 文章ID
+     * @param analysisLevel 词汇分析等级
+     * @return 命中词汇列表
+     */
+    @Override
+    public List<ArticleVocabRespDTO> listArticleVocabs(String articleId, String analysisLevel) {
+        String userId = getCurrentUserId();
+        BizArticlesDO article = getUserArticle(articleId, userId);
+        List<ArticleVocabRespDTO> vocabs = listArticleVocabs(articleId, userId, analysisLevel.trim().toUpperCase(Locale.ROOT), article.getLanguageCode());
+        log.info("获取文章命中词汇列表成功: userId={}, articleId={}, analysisLevel={}, vocabCount={}",
+                userId, articleId, analysisLevel, vocabs.size());
+        return vocabs;
+    }
+
     private BizArticlesDO getUserArticle(String articleId, String userId) {
         BizArticlesDO article = bizArticlesMapper.selectOne(new LambdaQueryWrapper<BizArticlesDO>()
                 .eq(BizArticlesDO::getId, articleId)

@@ -50,4 +50,13 @@ public interface ArticleService {
      */
     List<ArticleListRespDTO> listArticles();
 
+    /**
+     * 获取文章命中词汇列表
+     *
+     * @param articleId 文章ID
+     * @param analysisLevel 词汇分析等级
+     * @return 命中词汇列表
+     */
+    List<ArticleVocabRespDTO> listArticleVocabs(String articleId, String analysisLevel);
+
 }
