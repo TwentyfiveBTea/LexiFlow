@@ -94,4 +94,17 @@ public class ArticleController {
         return Results.success(articleService.listArticleVocabs(articleId, analysisLevel));
     }
 
+    /**
+     * 获取词汇出现位置列表
+     *
+     * @param articleId 文章ID
+     * @param articleVocabId 文章命中词汇汇总ID
+     * @return 响应结果
+     */
+    @GetMapping("/{articleId}/vocabs/{articleVocabId}/occurrences")
+    public Result<List<ArticleVocabOccurrenceRespDTO>> listArticleVocabOccurrences(@PathVariable String articleId,
+                                                                                   @PathVariable String articleVocabId) {
+        return Results.success(articleService.listArticleVocabOccurrences(articleId, articleVocabId));
+    }
+
 }

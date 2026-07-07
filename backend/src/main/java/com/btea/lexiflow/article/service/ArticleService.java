@@ -59,4 +59,13 @@ public interface ArticleService {
      */
     List<ArticleVocabRespDTO> listArticleVocabs(String articleId, String analysisLevel);
 
+    /**
+     * 获取词汇出现位置列表
+     *
+     * @param articleId 文章ID
+     * @param articleVocabId 文章命中词汇汇总ID
+     * @return 词汇出现位置列表
+     */
+    List<ArticleVocabOccurrenceRespDTO> listArticleVocabOccurrences(String articleId, String articleVocabId);
+
 }

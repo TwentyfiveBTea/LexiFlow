@@ -262,6 +262,49 @@ public class ArticleServiceImpl implements ArticleService {
         return vocabs;
     }
 
+    /**
+     * 获取词汇出现位置列表
+     *
+     * @param articleId 文章ID
+     * @param articleVocabId 文章命中词汇汇总ID
+     * @return 词汇出现位置列表
+     */
+    @Override
+    public List<ArticleVocabOccurrenceRespDTO> listArticleVocabOccurrences(String articleId, String articleVocabId) {
+        String userId = getCurrentUserId();
+        // 校验文章是否存在且属于当前用户，防止越权查询词汇出现位置
+        getUserArticle(articleId, userId);
+        RelArticleVocabDO articleVocab = relArticleVocabMapper.selectOne(new LambdaQueryWrapper<RelArticleVocabDO>()
+                .eq(RelArticleVocabDO::getId, articleVocabId)
+                .eq(RelArticleVocabDO::getArticleId, articleId)
+                .eq(RelArticleVocabDO::getUserId, userId));
+        if (articleVocab == null) {
+            throw new ClientException(BaseErrorCode.VOCAB_NOT_FOUND);
+        }
+
+        List<RelArticleVocabOccurrenceDO> occurrences = relArticleVocabOccurrenceMapper.selectList(
+                new LambdaQueryWrapper<RelArticleVocabOccurrenceDO>()
+                        .eq(RelArticleVocabOccurrenceDO::getArticleId, articleId)
+                        .eq(RelArticleVocabOccurrenceDO::getArticleVocabId, articleVocabId)
+                        .eq(RelArticleVocabOccurrenceDO::getUserId, userId)
+                        .orderByAsc(RelArticleVocabOccurrenceDO::getStartOffset));
+        log.info("获取词汇出现位置列表成功: userId={}, articleId={}, articleVocabId={}, occurrenceCount={}",
+                userId, articleId, articleVocabId, occurrences.size());
+        return occurrences.stream()
+                .map(each -> ArticleVocabOccurrenceRespDTO.builder()
+                        .occurrenceId(each.getId())
+                        .articleVocabId(each.getArticleVocabId())
+                        .wordId(each.getWordId())
+                        .normalizedText(each.getNormalizedText())
+                        .posTag(each.getPosTag())
+                        .posType(each.getPosType())
+                        .sentence(each.getSentence())
+                        .startOffset(each.getStartOffset())
+                        .endOffset(each.getEndOffset())
+                        .build())
+                .collect(Collectors.toList());
+    }
+
     private BizArticlesDO getUserArticle(String articleId, String userId) {
         BizArticlesDO article = bizArticlesMapper.selectOne(new LambdaQueryWrapper<BizArticlesDO>()
                 .eq(BizArticlesDO::getId, articleId)
