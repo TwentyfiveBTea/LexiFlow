@@ -35,4 +35,11 @@ public interface ArticleService {
      */
     ArticleAnalyzeRespDTO analyzeArticle(String articleId, ArticleAnalyzeReqDTO reqDTO);
 
+    /**
+     * 获取文章列表
+     *
+     * @return 文章列表
+     */
+    List<ArticleListRespDTO> listArticles();
+
 }

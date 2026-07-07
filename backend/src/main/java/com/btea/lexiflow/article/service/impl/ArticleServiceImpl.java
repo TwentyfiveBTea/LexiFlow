@@ -195,6 +195,33 @@ public class ArticleServiceImpl implements ArticleService {
         }
     }
 
+    /**
+     * 获取文章列表
+     *
+     * @return 文章列表
+     */
+    @Override
+    public List<ArticleListRespDTO> listArticles() {
+        String userId = getCurrentUserId();
+        List<BizArticlesDO> articles = bizArticlesMapper.selectList(new LambdaQueryWrapper<BizArticlesDO>()
+                .eq(BizArticlesDO::getUserId, userId)
+                .eq(BizArticlesDO::getStatus, STATUS_NORMAL)
+                .orderByDesc(BizArticlesDO::getCreatedAt));
+        log.info("获取文章列表成功: userId={}, articleCount={}", userId, articles.size());
+        return articles.stream()
+                .map(each -> ArticleListRespDTO.builder()
+                        .articleId(each.getId())
+                        .title(each.getTitle())
+                        .languageCode(each.getLanguageCode())
+                        .wordCount(each.getWordCount())
+                        .parseStatus(each.getParseStatus())
+                        .translationStatus(each.getTranslationStatus())
+                        .analysisStatus(each.getAnalysisStatus())
+                        .createdAt(each.getCreatedAt())
+                        .build())
+                .collect(Collectors.toList());
+    }
+
     private BizArticlesDO getUserArticle(String articleId, String userId) {
         BizArticlesDO article = bizArticlesMapper.selectOne(new LambdaQueryWrapper<BizArticlesDO>()
                 .eq(BizArticlesDO::getId, articleId)

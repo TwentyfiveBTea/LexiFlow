@@ -60,4 +60,14 @@ public class ArticleController {
         return Results.success(articleService.analyzeArticle(articleId, reqDTO));
     }
 
+    /**
+     * 获取文章列表
+     *
+     * @return 响应结果
+     */
+    @GetMapping("/list")
+    public Result<List<ArticleListRespDTO>> listArticles() {
+        return Results.success(articleService.listArticles());
+    }
+
 }
