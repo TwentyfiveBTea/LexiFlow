@@ -305,6 +305,21 @@ public class ArticleServiceImpl implements ArticleService {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * 删除文章
+     *
+     * @param articleId 文章ID
+     */
+    @Override
+    public void deleteArticle(String articleId) {
+        String userId = getCurrentUserId();
+        BizArticlesDO article = getUserArticle(articleId, userId);
+        article.setStatus(1);
+        article.setDeletedAt(new Date());
+        bizArticlesMapper.updateById(article);
+        log.info("文章软删除成功: userId={}, articleId={}", userId, articleId);
+    }
+
     private BizArticlesDO getUserArticle(String articleId, String userId) {
         BizArticlesDO article = bizArticlesMapper.selectOne(new LambdaQueryWrapper<BizArticlesDO>()
                 .eq(BizArticlesDO::getId, articleId)

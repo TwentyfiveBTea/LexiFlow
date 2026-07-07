@@ -68,4 +68,10 @@ public interface ArticleService {
      */
     List<ArticleVocabOccurrenceRespDTO> listArticleVocabOccurrences(String articleId, String articleVocabId);
 
+    /**
+     * 删除文章
+     *
+     * @param articleId 文章ID
+     */
+    void deleteArticle(String articleId);
 }

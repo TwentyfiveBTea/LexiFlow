@@ -107,4 +107,15 @@ public class ArticleController {
         return Results.success(articleService.listArticleVocabOccurrences(articleId, articleVocabId));
     }
 
+    /**
+     * 删除文章
+     *
+     * @param articleId 文章ID
+     * @return 响应结果
+     */
+    @DeleteMapping("/{articleId}")
+    public Result<Void> deleteArticle(@PathVariable String articleId) {
+        articleService.deleteArticle(articleId);
+        return Results.success();
+    }
 }
