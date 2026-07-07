@@ -29,6 +29,7 @@
         <jjwt.version>0.12.6</jjwt.version>
         <aws.sdk.version>2.29.26</aws.sdk.version>
         <tika.version>3.0.0</tika.version>
+        <pdfbox.version>3.0.5</pdfbox.version>
         <stanford-corenlp.version>4.5.7</stanford-corenlp.version>
         <icu4j.version>75.1</icu4j.version>
         <hutool.version>5.8.31</hutool.version>
@@ -122,6 +123,11 @@
             <groupId>org.apache.tika</groupId>
             <artifactId>tika-parsers-standard-package</artifactId>
             <version>${tika.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.pdfbox</groupId>
+            <artifactId>pdfbox</artifactId>
+            <version>${pdfbox.version}</version>
         </dependency>
 
         <!-- 英文 NLP：分句、分词、词性标注、词形还原 -->
