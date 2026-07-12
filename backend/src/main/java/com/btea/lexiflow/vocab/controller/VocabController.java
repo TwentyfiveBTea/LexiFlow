@@ -43,4 +43,14 @@ public class VocabController {
         return Results.success(vocabService.createLibrary(reqDTO));
     }
 
+    /**
+     * 获取当前用户的词汇库列表
+     *
+     * @return 词汇库列表
+     */
+    @GetMapping("/libraries")
+    public Result<List<VocabLibraryRespDTO>> listLibraries() {
+        return Results.success(vocabService.listLibraries());
+    }
+
 }

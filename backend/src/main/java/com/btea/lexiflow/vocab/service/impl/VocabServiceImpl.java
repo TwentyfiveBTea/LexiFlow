@@ -91,6 +91,26 @@ public class VocabServiceImpl implements VocabService {
         return toLibraryResp(library, 0L);
     }
 
+    /**
+     * 获取当前用户的词汇库列表
+     *
+     * @return 词汇库列表
+     */
+    @Override
+    public List<VocabLibraryRespDTO> listLibraries() {
+        String userId = getCurrentUserId();
+        return bizVocabLibraryMapper.selectList(new LambdaQueryWrapper<BizVocabLibraryDO>()
+                        .eq(BizVocabLibraryDO::getUserId, userId)
+                        .eq(BizVocabLibraryDO::getStatus, VocabConstant.STATUS_NORMAL)
+                        .orderByDesc(BizVocabLibraryDO::getCreatedAt))
+                .stream()
+                .map(library -> toLibraryResp(library, relVocabLibraryWordMapper.selectCount(new LambdaQueryWrapper<RelVocabLibraryWordDO>()
+                        .eq(RelVocabLibraryWordDO::getLibraryId, library.getId())
+                        .eq(RelVocabLibraryWordDO::getUserId, userId)
+                        .eq(RelVocabLibraryWordDO::getStatus, VocabConstant.STATUS_NORMAL))))
+                .toList();
+    }
+
     private void restoreProgress(String userId, Long wordId, String languageCode) {
         RelUserWordProgressDO progress = relUserWordProgressMapper.selectOne(new LambdaQueryWrapper<RelUserWordProgressDO>()
                 .eq(RelUserWordProgressDO::getUserId, userId)

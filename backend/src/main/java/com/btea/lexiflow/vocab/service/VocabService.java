@@ -22,4 +22,11 @@ public interface VocabService {
      */
     VocabLibraryRespDTO createLibrary(VocabLibraryCreateReqDTO reqDTO);
 
+    /**
+     * 获取当前用户的词汇库列表
+     *
+     * @return 词汇库列表
+     */
+    List<VocabLibraryRespDTO> listLibraries();
+
 }
