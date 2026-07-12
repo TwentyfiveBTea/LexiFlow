@@ -1,5 +1,6 @@
 package com.btea.lexiflow.learning.service;
 
+import com.btea.lexiflow.learning.dto.req.WordReviewReqDTO;
 import com.btea.lexiflow.learning.dto.resp.DueWordRespDTO;
 
 import java.util.List;
@@ -18,4 +19,13 @@ public interface LearningService {
      * @return 待复习单词列表
      */
     List<DueWordRespDTO> listDueWords(String libraryId);
+
+    /**
+     * 提交单词复习按钮结果并更新学习进度
+     *
+     * @param wordId 单词ID
+     * @param reqDTO 复习按钮请求参数
+     */
+    void reviewWord(Long wordId, WordReviewReqDTO reqDTO);
+
 }
