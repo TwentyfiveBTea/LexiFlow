@@ -53,4 +53,16 @@ public class VocabController {
         return Results.success(vocabService.listLibraries());
     }
 
+    /**
+     * 删除词汇库
+     *
+     * @param libraryId 词汇库ID
+     * @return 响应结果
+     */
+    @DeleteMapping("/libraries/{libraryId}")
+    public Result<Void> deleteLibrary(@PathVariable String libraryId) {
+        vocabService.deleteLibrary(libraryId);
+        return Results.success();
+    }
+
 }

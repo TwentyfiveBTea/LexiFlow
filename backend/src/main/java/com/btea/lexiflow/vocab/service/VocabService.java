@@ -29,4 +29,11 @@ public interface VocabService {
      */
     List<VocabLibraryRespDTO> listLibraries();
 
+    /**
+     * 删除词汇库
+     *
+     * @param libraryId 词汇库ID
+     */
+    void deleteLibrary(String libraryId);
+
 }

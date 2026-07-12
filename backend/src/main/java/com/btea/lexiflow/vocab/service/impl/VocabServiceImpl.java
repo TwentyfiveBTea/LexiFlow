@@ -111,6 +111,27 @@ public class VocabServiceImpl implements VocabService {
                 .toList();
     }
 
+    /**
+     * 删除词汇库
+     *
+     * @param libraryId 词汇库ID
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteLibrary(String libraryId) {
+        String userId = getCurrentUserId();
+        BizVocabLibraryDO library = getLibrary(libraryId, userId);
+        library.setStatus(VocabConstant.STATUS_DELETED);
+        library.setDeletedAt(new Date());
+        bizVocabLibraryMapper.updateById(library);
+        relVocabLibraryWordMapper.update(null, new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<RelVocabLibraryWordDO>()
+                .eq(RelVocabLibraryWordDO::getLibraryId, libraryId)
+                .eq(RelVocabLibraryWordDO::getUserId, userId)
+                .eq(RelVocabLibraryWordDO::getStatus, VocabConstant.STATUS_NORMAL)
+                .set(RelVocabLibraryWordDO::getStatus, VocabConstant.STATUS_DELETED)
+                .set(RelVocabLibraryWordDO::getDeletedAt, new Date()));
+    }
+
     private void restoreProgress(String userId, Long wordId, String languageCode) {
         RelUserWordProgressDO progress = relUserWordProgressMapper.selectOne(new LambdaQueryWrapper<RelUserWordProgressDO>()
                 .eq(RelUserWordProgressDO::getUserId, userId)
