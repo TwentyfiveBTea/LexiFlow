@@ -230,14 +230,18 @@ public class VocabServiceImpl implements VocabService {
         String userId = getCurrentUserId();
         BizVocabLibraryDO library = getLibrary(libraryId, userId);
         String language = normalizeLanguage(languageCode);
-        if (!library.getLanguageCode().equals(language)) throw new ClientException(BaseErrorCode.VOCAB_LIBRARY_LANGUAGE_MISMATCH);
+        if (!library.getLanguageCode().equals(language)) {
+            throw new ClientException(BaseErrorCode.VOCAB_LIBRARY_LANGUAGE_MISMATCH);
+        }
         RelVocabLibraryWordDO relation = relVocabLibraryWordMapper.selectOne(new LambdaQueryWrapper<RelVocabLibraryWordDO>()
                 .eq(RelVocabLibraryWordDO::getLibraryId, libraryId)
                 .eq(RelVocabLibraryWordDO::getUserId, userId)
                 .eq(RelVocabLibraryWordDO::getWordId, wordId)
                 .eq(RelVocabLibraryWordDO::getLanguageCode, language)
                 .eq(RelVocabLibraryWordDO::getStatus, VocabConstant.STATUS_NORMAL));
-        if (relation == null) throw new ClientException(BaseErrorCode.VOCAB_LIBRARY_WORD_NOT_FOUND);
+        if (relation == null) {
+            throw new ClientException(BaseErrorCode.VOCAB_LIBRARY_WORD_NOT_FOUND);
+        }
         relation.setStatus(VocabConstant.STATUS_DELETED);
         relation.setDeletedAt(new Date());
         relVocabLibraryWordMapper.updateById(relation);
@@ -273,7 +277,9 @@ public class VocabServiceImpl implements VocabService {
                 .eq(BizVocabLibraryDO::getId, libraryId)
                 .eq(BizVocabLibraryDO::getUserId, userId)
                 .eq(BizVocabLibraryDO::getStatus, VocabConstant.STATUS_NORMAL));
-        if (library == null) throw new ClientException(BaseErrorCode.VOCAB_LIBRARY_NOT_FOUND);
+        if (library == null) {
+            throw new ClientException(BaseErrorCode.VOCAB_LIBRARY_NOT_FOUND);
+        }
         return library;
     }
 
@@ -297,25 +303,42 @@ public class VocabServiceImpl implements VocabService {
                 .addedAt(relation.getCreatedAt());
         if ("ja".equals(languageCode)) {
             BizVocabJpDO word = bizVocabJpMapper.selectById(relation.getWordId());
-            if (word != null) builder.word(word.getWord()).kana(word.getKana()).translations(word.getTranslations());
+            if (word != null) {
+                builder.word(word.getWord())
+                        .kana(word.getKana())
+                        .translations(word.getTranslations());
+            }
         } else {
             BizVocabEnDO word = bizVocabEnMapper.selectById(relation.getWordId());
-            if (word != null) builder.word(word.getWord()).us(word.getUs()).uk(word.getUk())
-                    .translations(word.getTranslations()).phrases(word.getPhrases());
+            if (word != null) {
+                builder.word(word.getWord())
+                        .us(word.getUs())
+                        .uk(word.getUk())
+                        .translations(word.getTranslations())
+                        .phrases(word.getPhrases());
+            }
         }
-        if (progress != null) builder.learningStatus(progress.getStatus()).reviewCount(progress.getReviewCount()).nextReviewAt(progress.getNextReviewAt());
+        if (progress != null) {
+            builder.learningStatus(progress.getStatus())
+                    .reviewCount(progress.getReviewCount())
+                    .nextReviewAt(progress.getNextReviewAt());
+        }
         return builder.build();
     }
 
     private String normalizeLanguage(String languageCode) {
         String language = languageCode == null ? "" : languageCode.trim().toLowerCase(Locale.ROOT);
-        if (!VocabConstant.SUPPORTED_LANGUAGES.contains(language)) throw new ClientException(BaseErrorCode.VOCAB_LANGUAGE_NOT_SUPPORTED);
+        if (!VocabConstant.SUPPORTED_LANGUAGES.contains(language)) {
+            throw new ClientException(BaseErrorCode.VOCAB_LANGUAGE_NOT_SUPPORTED);
+        }
         return language;
     }
 
     private String getCurrentUserId() {
         String userId = UserContext.getCurrentUserId();
-        if (userId == null) throw new ClientException(BaseErrorCode.USER_NOT_LOGIN);
+        if (userId == null) {
+            throw new ClientException(BaseErrorCode.USER_NOT_LOGIN);
+        }
         return userId;
     }
 }
