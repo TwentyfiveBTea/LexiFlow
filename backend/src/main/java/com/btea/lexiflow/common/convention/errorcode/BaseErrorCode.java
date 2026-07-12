@@ -43,7 +43,17 @@ public enum BaseErrorCode implements IErrorCode {
 
     // 词汇处理（0005xxx）
     VOCAB_NOT_FOUND("0005300", "词汇不存在"),
-    VOCAB_ANALYSIS_FAILED("0005301", "词汇识别失败");
+    VOCAB_ANALYSIS_FAILED("0005301", "词汇识别失败"),
+    VOCAB_LIBRARY_NOT_FOUND("0005302", "词汇库不存在或无权访问"),
+    VOCAB_LIBRARY_EXIST("0005303", "同名词汇库已存在"),
+    VOCAB_LIBRARY_LANGUAGE_MISMATCH("0005304", "词汇与词汇库语言不一致"),
+    VOCAB_LIBRARY_WORD_NOT_FOUND("0005305", "词汇库中不存在该词汇"),
+    VOCAB_SOURCE_NOT_FOUND("0005306", "文章词汇不存在或无权访问"),
+    VOCAB_LANGUAGE_NOT_SUPPORTED("0005307", "暂不支持该词汇语言"),
+
+    // 单词学习（0006xxx）
+    WORD_PROGRESS_NOT_FOUND("0006300", "单词学习进度不存在"),
+    WORD_REVIEW_QUALITY_INVALID("0006301", "复习评分必须在0到5之间");
 
     // 错误码
     private final String code;
