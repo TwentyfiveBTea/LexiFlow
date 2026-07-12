@@ -44,4 +44,12 @@ public interface VocabService {
      */
     void addArticleVocab(String libraryId, VocabLibraryWordAddReqDTO reqDTO);
 
+    /**
+     * 获取指定词汇库中的词条列表
+     *
+     * @param libraryId 词汇库ID
+     * @return 词汇库词条列表
+     */
+    List<VocabLibraryWordRespDTO> listLibraryWords(String libraryId);
+
 }

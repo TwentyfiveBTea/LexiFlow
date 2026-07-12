@@ -79,4 +79,15 @@ public class VocabController {
         return Results.success();
     }
 
+    /**
+     * 获取指定词汇库中的词条列表
+     *
+     * @param libraryId 词汇库ID
+     * @return 词汇库词条列表
+     */
+    @GetMapping("/libraries/{libraryId}/words")
+    public Result<List<VocabLibraryWordRespDTO>> listLibraryWords(@PathVariable String libraryId) {
+        return Results.success(vocabService.listLibraryWords(libraryId));
+    }
+
 }

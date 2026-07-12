@@ -190,6 +190,33 @@ public class VocabServiceImpl implements VocabService {
         restoreProgress(userId, articleVocab.getWordId(), articleVocab.getLanguageCode());
     }
 
+    /**
+     * 获取指定词汇库中的词条列表
+     *
+     * @param libraryId 词汇库ID
+     * @return 词汇库词条列表
+     */
+    @Override
+    public List<VocabLibraryWordRespDTO> listLibraryWords(String libraryId) {
+        String userId = getCurrentUserId();
+        BizVocabLibraryDO library = getLibrary(libraryId, userId);
+        List<RelVocabLibraryWordDO> relations = relVocabLibraryWordMapper.selectList(new LambdaQueryWrapper<RelVocabLibraryWordDO>()
+                .eq(RelVocabLibraryWordDO::getLibraryId, libraryId)
+                .eq(RelVocabLibraryWordDO::getUserId, userId)
+                .eq(RelVocabLibraryWordDO::getStatus, VocabConstant.STATUS_NORMAL)
+                .orderByAsc(RelVocabLibraryWordDO::getCreatedAt));
+        if (relations.isEmpty()) {
+            return List.of();
+        }
+        Map<Long, RelUserWordProgressDO> progresses = relUserWordProgressMapper.selectList(new LambdaQueryWrapper<RelUserWordProgressDO>()
+                        .eq(RelUserWordProgressDO::getUserId, userId)
+                        .eq(RelUserWordProgressDO::getLanguageCode, library.getLanguageCode())
+                        .eq(RelUserWordProgressDO::getLibraryStatus, VocabConstant.STATUS_NORMAL)
+                        .in(RelUserWordProgressDO::getWordId, relations.stream().map(RelVocabLibraryWordDO::getWordId).toList()))
+                .stream().collect(Collectors.toMap(RelUserWordProgressDO::getWordId, Function.identity(), (a, b) -> a));
+        return relations.stream().map(relation -> toWordResp(relation, progresses.get(relation.getWordId()), library.getLanguageCode())).toList();
+    }
+
     private void restoreProgress(String userId, Long wordId, String languageCode) {
         RelUserWordProgressDO progress = relUserWordProgressMapper.selectOne(new LambdaQueryWrapper<RelUserWordProgressDO>()
                 .eq(RelUserWordProgressDO::getUserId, userId)
