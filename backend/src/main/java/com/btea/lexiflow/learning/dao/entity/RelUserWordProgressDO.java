@@ -52,7 +52,7 @@ public class RelUserWordProgressDO {
     private Integer status;
 
     /**
-     * 用户单词库单词状态：0=已删除 1=正常,
+     * 用户词库总体状态：0=已删除，1=正常
      */
     private Integer libraryStatus;
 
@@ -72,7 +72,7 @@ public class RelUserWordProgressDO {
     private Date nextReviewAt;
 
     /**
-     * 简易度因子，参考 SuperMemo 算法
+     * 简易度因子，参考 SM-2 算法
      */
     private BigDecimal easinessFactor;
 
