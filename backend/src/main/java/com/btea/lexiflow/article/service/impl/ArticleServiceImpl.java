@@ -385,26 +385,32 @@ public class ArticleServiceImpl implements ArticleService {
             return List.of();
         }
 
-        Map<Long, String> translationsMap = getTranslationsMap(languageCode, articleVocabs.stream()
+        Map<Long, ArticleVocabDetail> vocabDetailMap = getVocabDetailMap(languageCode, articleVocabs.stream()
                 .map(RelArticleVocabDO::getWordId)
                 .collect(Collectors.toSet()));
         return articleVocabs.stream()
-                .map(each -> ArticleVocabRespDTO.builder()
-                        .articleVocabId(each.getId())
-                        .wordId(each.getWordId())
-                        .languageCode(each.getLanguageCode())
-                        .baseWord(each.getBaseWord())
-                        .matchedForms(each.getMatchedForms())
-                        .occurrenceCount(each.getOccurrenceCount())
-                        .firstMatchedText(each.getFirstMatchedText())
-                        .firstSentence(each.getFirstSentence())
-                        .translations(translationsMap.get(each.getWordId()))
-                        .build())
+                .map(each -> {
+                    ArticleVocabDetail vocabDetail = vocabDetailMap.get(each.getWordId());
+                    return ArticleVocabRespDTO.builder()
+                            .articleVocabId(each.getId())
+                            .wordId(each.getWordId())
+                            .languageCode(each.getLanguageCode())
+                            .baseWord(each.getBaseWord())
+                            .matchedForms(each.getMatchedForms())
+                            .occurrenceCount(each.getOccurrenceCount())
+                            .firstMatchedText(each.getFirstMatchedText())
+                            .firstSentence(each.getFirstSentence())
+                            .translations(vocabDetail == null ? null : vocabDetail.translations())
+                            .us(vocabDetail == null ? null : vocabDetail.us())
+                            .uk(vocabDetail == null ? null : vocabDetail.uk())
+                            .kana(vocabDetail == null ? null : vocabDetail.kana())
+                            .build();
+                })
                 .collect(Collectors.toList());
     }
 
-    private Map<Long, String> getTranslationsMap(String languageCode, Set<Long> wordIds) {
-        Map<Long, String> result = new HashMap<>();
+    private Map<Long, ArticleVocabDetail> getVocabDetailMap(String languageCode, Set<Long> wordIds) {
+        Map<Long, ArticleVocabDetail> result = new HashMap<>();
         if (wordIds.isEmpty()) {
             return result;
         }
@@ -412,16 +418,29 @@ public class ArticleServiceImpl implements ArticleService {
             if ("ja".equals(languageCode)) {
                 List<BizVocabJpDO> vocabList = bizVocabJpMapper.selectBatchIds(batch);
                 for (BizVocabJpDO vocab : vocabList) {
-                    result.put(vocab.getId(), vocab.getTranslations());
+                    result.put(vocab.getId(), new ArticleVocabDetail(
+                            vocab.getTranslations(), null, null, vocab.getKana()));
                 }
             } else {
                 List<BizVocabEnDO> vocabList = bizVocabEnMapper.selectBatchIds(batch);
                 for (BizVocabEnDO vocab : vocabList) {
-                    result.put(vocab.getId(), vocab.getTranslations());
+                    result.put(vocab.getId(), new ArticleVocabDetail(
+                            vocab.getTranslations(), vocab.getUs(), vocab.getUk(), null));
                 }
             }
         }
         return result;
+    }
+
+    /**
+     * 文章词汇的词典详情
+     *
+     * @param translations 翻译列表 JSON
+     * @param us 美式音标
+     * @param uk 英式音标
+     * @param kana 日语假名读音
+     */
+    private record ArticleVocabDetail(String translations, String us, String uk, String kana) {
     }
 
     private String getCurrentUserId() {

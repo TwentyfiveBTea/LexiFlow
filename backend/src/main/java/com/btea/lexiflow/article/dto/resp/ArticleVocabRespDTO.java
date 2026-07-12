@@ -60,4 +60,19 @@ public class ArticleVocabRespDTO {
      * 翻译列表 JSON
      */
     private String translations;
+
+    /**
+     * 美式音标
+     */
+    private String us;
+
+    /**
+     * 英式音标
+     */
+    private String uk;
+
+    /**
+     * 日语假名读音
+     */
+    private String kana;
 }
