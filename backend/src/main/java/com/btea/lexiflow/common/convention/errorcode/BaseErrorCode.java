@@ -50,6 +50,7 @@ public enum BaseErrorCode implements IErrorCode {
     VOCAB_LIBRARY_WORD_NOT_FOUND("0005305", "词汇库中不存在该词汇"),
     VOCAB_SOURCE_NOT_FOUND("0005306", "文章词汇不存在或无权访问"),
     VOCAB_LANGUAGE_NOT_SUPPORTED("0005307", "暂不支持该词汇语言"),
+    VOCAB_LIBRARY_WORD_EXIST("0005308", "该词汇已存在于当前词汇库"),
 
     // 单词学习（0006xxx）
     WORD_PROGRESS_NOT_FOUND("0006300", "单词学习进度不存在"),
