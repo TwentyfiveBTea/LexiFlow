@@ -65,4 +65,18 @@ public class VocabController {
         return Results.success();
     }
 
+    /**
+     * 将文章命中词汇加入指定词汇库
+     *
+     * @param libraryId 词汇库ID
+     * @param reqDTO 词汇加入请求参数
+     * @return 响应结果
+     */
+    @PostMapping("/libraries/{libraryId}/words")
+    public Result<Void> addArticleVocab(@PathVariable String libraryId,
+                                        @RequestBody @Valid VocabLibraryWordAddReqDTO reqDTO) {
+        vocabService.addArticleVocab(libraryId, reqDTO);
+        return Results.success();
+    }
+
 }

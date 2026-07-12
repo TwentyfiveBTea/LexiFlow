@@ -132,6 +132,64 @@ public class VocabServiceImpl implements VocabService {
                 .set(RelVocabLibraryWordDO::getDeletedAt, new Date()));
     }
 
+    /**
+     * 将文章命中词汇加入指定词汇库
+     *
+     * @param libraryId 词汇库ID
+     * @param reqDTO 词汇加入请求参数
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void addArticleVocab(String libraryId, VocabLibraryWordAddReqDTO reqDTO) {
+        String userId = getCurrentUserId();
+        BizVocabLibraryDO library = getLibrary(libraryId, userId);
+
+        // 校验文章存在、属于当前用户且处于正常状态。
+        BizArticlesDO article = bizArticlesMapper.selectOne(new LambdaQueryWrapper<BizArticlesDO>()
+                .eq(BizArticlesDO::getId, reqDTO.getArticleId())
+                .eq(BizArticlesDO::getUserId, userId)
+                .eq(BizArticlesDO::getStatus, ArticleConstant.STATUS_NORMAL));
+        if (article == null) {
+            throw new ClientException(BaseErrorCode.ARTICLE_NOT_FOUND);
+        }
+
+        // 同时约束文章、文章词汇和当前用户，防止跨文章或跨用户添加。
+        RelArticleVocabDO articleVocab = relArticleVocabMapper.selectOne(new LambdaQueryWrapper<RelArticleVocabDO>()
+                .eq(RelArticleVocabDO::getId, reqDTO.getArticleVocabId())
+                .eq(RelArticleVocabDO::getArticleId, reqDTO.getArticleId())
+                .eq(RelArticleVocabDO::getUserId, userId));
+        if (articleVocab == null) {
+            throw new ClientException(BaseErrorCode.VOCAB_SOURCE_NOT_FOUND);
+        }
+        if (!library.getLanguageCode().equalsIgnoreCase(articleVocab.getLanguageCode())) {
+            throw new ClientException(BaseErrorCode.VOCAB_LIBRARY_LANGUAGE_MISMATCH);
+        }
+
+        RelVocabLibraryWordDO relation = relVocabLibraryWordMapper.selectOne(new LambdaQueryWrapper<RelVocabLibraryWordDO>()
+                .eq(RelVocabLibraryWordDO::getLibraryId, libraryId)
+                .eq(RelVocabLibraryWordDO::getUserId, userId)
+                .eq(RelVocabLibraryWordDO::getWordId, articleVocab.getWordId())
+                .eq(RelVocabLibraryWordDO::getLanguageCode, articleVocab.getLanguageCode()));
+        if (relation == null) {
+            relation = RelVocabLibraryWordDO.builder()
+                    .libraryId(libraryId)
+                    .userId(userId)
+                    .wordId(articleVocab.getWordId())
+                    .languageCode(articleVocab.getLanguageCode())
+                    .status(VocabConstant.STATUS_NORMAL)
+                    .build();
+            relVocabLibraryWordMapper.insert(relation);
+        } else if (Integer.valueOf(VocabConstant.STATUS_DELETED).equals(relation.getStatus())) {
+            // 已软删除的相同词条直接恢复，保留原关系记录。
+            relation.setStatus(VocabConstant.STATUS_NORMAL);
+            relation.setDeletedAt(null);
+            relVocabLibraryWordMapper.updateById(relation);
+        } else {
+            throw new ClientException(BaseErrorCode.VOCAB_LIBRARY_WORD_EXIST);
+        }
+        restoreProgress(userId, articleVocab.getWordId(), articleVocab.getLanguageCode());
+    }
+
     private void restoreProgress(String userId, Long wordId, String languageCode) {
         RelUserWordProgressDO progress = relUserWordProgressMapper.selectOne(new LambdaQueryWrapper<RelUserWordProgressDO>()
                 .eq(RelUserWordProgressDO::getUserId, userId)

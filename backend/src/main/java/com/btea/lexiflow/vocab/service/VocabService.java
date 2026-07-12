@@ -36,4 +36,12 @@ public interface VocabService {
      */
     void deleteLibrary(String libraryId);
 
+    /**
+     * 将文章命中词汇加入指定词汇库
+     *
+     * @param libraryId 词汇库ID
+     * @param reqDTO 词汇加入请求参数
+     */
+    void addArticleVocab(String libraryId, VocabLibraryWordAddReqDTO reqDTO);
+
 }
