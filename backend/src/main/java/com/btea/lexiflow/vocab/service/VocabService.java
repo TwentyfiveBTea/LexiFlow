@@ -3,6 +3,7 @@ package com.btea.lexiflow.vocab.service;
 import com.btea.lexiflow.vocab.dto.req.VocabLibraryCreateReqDTO;
 import com.btea.lexiflow.vocab.dto.req.VocabLibraryWordAddReqDTO;
 import com.btea.lexiflow.vocab.dto.resp.VocabLibraryRespDTO;
+import com.btea.lexiflow.vocab.dto.resp.VocabLibraryStatisticsRespDTO;
 import com.btea.lexiflow.vocab.dto.resp.VocabLibraryWordRespDTO;
 
 import java.util.List;
@@ -51,6 +52,14 @@ public interface VocabService {
      * @return 词汇库词条列表
      */
     List<VocabLibraryWordRespDTO> listLibraryWords(String libraryId);
+
+    /**
+     * 获取指定词汇库的学习统计
+     *
+     * @param libraryId 词汇库ID
+     * @return 词汇库学习统计
+     */
+    VocabLibraryStatisticsRespDTO getLibraryStatistics(String libraryId);
 
     /**
      * 从指定词汇库中删除词条

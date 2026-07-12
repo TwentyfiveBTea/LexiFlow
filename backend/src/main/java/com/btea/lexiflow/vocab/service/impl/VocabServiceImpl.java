@@ -23,6 +23,7 @@ import com.btea.lexiflow.vocab.dao.mapper.RelVocabLibraryWordMapper;
 import com.btea.lexiflow.vocab.dto.req.VocabLibraryCreateReqDTO;
 import com.btea.lexiflow.vocab.dto.req.VocabLibraryWordAddReqDTO;
 import com.btea.lexiflow.vocab.dto.resp.VocabLibraryRespDTO;
+import com.btea.lexiflow.vocab.dto.resp.VocabLibraryStatisticsRespDTO;
 import com.btea.lexiflow.vocab.dto.resp.VocabLibraryWordRespDTO;
 import com.btea.lexiflow.vocab.service.VocabService;
 import lombok.RequiredArgsConstructor;
@@ -218,6 +219,42 @@ public class VocabServiceImpl implements VocabService {
     }
 
     /**
+     * 获取指定词汇库的学习统计
+     *
+     * @param libraryId 词汇库ID
+     * @return 词汇库学习统计
+     */
+    @Override
+    public VocabLibraryStatisticsRespDTO getLibraryStatistics(String libraryId) {
+        String userId = getCurrentUserId();
+        BizVocabLibraryDO library = getLibrary(libraryId, userId);
+        List<RelVocabLibraryWordDO> relations = relVocabLibraryWordMapper.selectList(
+                new LambdaQueryWrapper<RelVocabLibraryWordDO>()
+                        .eq(RelVocabLibraryWordDO::getLibraryId, libraryId)
+                        .eq(RelVocabLibraryWordDO::getUserId, userId)
+                        .eq(RelVocabLibraryWordDO::getLanguageCode, library.getLanguageCode())
+                        .eq(RelVocabLibraryWordDO::getStatus, VocabConstant.STATUS_NORMAL));
+        if (relations.isEmpty()) {
+            return statistics(libraryId, 0, 0, 0, 0, 0);
+        }
+        List<RelUserWordProgressDO> progresses = relUserWordProgressMapper.selectList(
+                new LambdaQueryWrapper<RelUserWordProgressDO>()
+                        .eq(RelUserWordProgressDO::getUserId, userId)
+                        .eq(RelUserWordProgressDO::getLanguageCode, library.getLanguageCode())
+                        .eq(RelUserWordProgressDO::getLibraryStatus, VocabConstant.STATUS_NORMAL)
+                        .in(RelUserWordProgressDO::getWordId,
+                                relations.stream().map(RelVocabLibraryWordDO::getWordId).distinct().toList()));
+        Date now = new Date();
+        return statistics(libraryId,
+                progresses.size(),
+                progresses.stream().filter(progress -> progress.getStatus() == VocabConstant.WORD_STATUS_NEW).count(),
+                progresses.stream().filter(progress -> progress.getStatus() == VocabConstant.WORD_STATUS_LEARNING).count(),
+                progresses.stream().filter(progress -> progress.getStatus() == VocabConstant.WORD_STATUS_MASTERED).count(),
+                progresses.stream().filter(progress -> progress.getNextReviewAt() == null
+                        || !progress.getNextReviewAt().after(now)).count());
+    }
+
+    /**
      * 从指定词汇库中删除词条
      *
      * @param libraryId 词汇库ID
@@ -245,6 +282,29 @@ public class VocabServiceImpl implements VocabService {
         relation.setStatus(VocabConstant.STATUS_DELETED);
         relation.setDeletedAt(new Date());
         relVocabLibraryWordMapper.updateById(relation);
+    }
+
+    /**
+     * 构建词汇库学习统计响应参数
+     *
+     * @param libraryId 词汇库ID
+     * @param total 单词总数
+     * @param newCount 未学习单词数
+     * @param learning 学习中单词数
+     * @param mastered 已掌握单词数
+     * @param due 待复习单词数
+     * @return 词汇库学习统计响应参数
+     */
+    private VocabLibraryStatisticsRespDTO statistics(String libraryId, long total, long newCount,
+                                                      long learning, long mastered, long due) {
+        return VocabLibraryStatisticsRespDTO.builder()
+                .libraryId(libraryId)
+                .totalCount(total)
+                .newCount(newCount)
+                .learningCount(learning)
+                .masteredCount(mastered)
+                .dueCount(due)
+                .build();
     }
 
     private void restoreProgress(String userId, Long wordId, String languageCode) {

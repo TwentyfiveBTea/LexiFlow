@@ -5,6 +5,7 @@ import com.btea.lexiflow.common.convention.result.Results;
 import com.btea.lexiflow.vocab.dto.req.VocabLibraryCreateReqDTO;
 import com.btea.lexiflow.vocab.dto.req.VocabLibraryWordAddReqDTO;
 import com.btea.lexiflow.vocab.dto.resp.VocabLibraryRespDTO;
+import com.btea.lexiflow.vocab.dto.resp.VocabLibraryStatisticsRespDTO;
 import com.btea.lexiflow.vocab.dto.resp.VocabLibraryWordRespDTO;
 import com.btea.lexiflow.vocab.service.VocabService;
 import jakarta.validation.Valid;
@@ -88,6 +89,17 @@ public class VocabController {
     @GetMapping("/libraries/{libraryId}/words")
     public Result<List<VocabLibraryWordRespDTO>> listLibraryWords(@PathVariable String libraryId) {
         return Results.success(vocabService.listLibraryWords(libraryId));
+    }
+
+    /**
+     * 获取指定词汇库的学习统计
+     *
+     * @param libraryId 词汇库ID
+     * @return 词汇库学习统计
+     */
+    @GetMapping("/libraries/{libraryId}/statistics")
+    public Result<VocabLibraryStatisticsRespDTO> getLibraryStatistics(@PathVariable String libraryId) {
+        return Results.success(vocabService.getLibraryStatistics(libraryId));
     }
 
     /**
