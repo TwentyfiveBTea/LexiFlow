@@ -314,7 +314,7 @@ public class ArticleServiceImpl implements ArticleService {
     public void deleteArticle(String articleId) {
         String userId = getCurrentUserId();
         BizArticlesDO article = getUserArticle(articleId, userId);
-        article.setStatus(1);
+        article.setStatus(STATUS_DELETED);
         article.setDeletedAt(new Date());
         bizArticlesMapper.updateById(article);
         log.info("文章软删除成功: userId={}, articleId={}", userId, articleId);

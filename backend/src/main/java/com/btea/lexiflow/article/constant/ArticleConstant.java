@@ -16,9 +16,14 @@ public final class ArticleConstant {
     public static final String ARTICLE_DIR = "article/";
 
     /**
-     * 正常状态
+     * 文章已删除状态
      */
-    public static final int STATUS_NORMAL = 0;
+    public static final int STATUS_DELETED = 0;
+
+    /**
+     * 文章正常状态
+     */
+    public static final int STATUS_NORMAL = 1;
 
     /**
      * 文章解析中

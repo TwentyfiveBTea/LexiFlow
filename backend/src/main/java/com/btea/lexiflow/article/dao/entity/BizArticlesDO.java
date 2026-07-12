@@ -111,7 +111,7 @@ public class BizArticlesDO {
     private Integer analysisStatus;
 
     /**
-     * 文章状态：0=正常, 1=已删除
+     * 文章状态：0=已删除, 1=正常
      */
     private Integer status;
 
