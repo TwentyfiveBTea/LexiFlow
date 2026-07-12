@@ -52,4 +52,12 @@ public interface VocabService {
      */
     List<VocabLibraryWordRespDTO> listLibraryWords(String libraryId);
 
+    /**
+     * 从指定词汇库中删除词条
+     *
+     * @param libraryId 词汇库ID
+     * @param wordId 词条ID
+     * @param languageCode 语言标识
+     */
+    void deleteLibraryWord(String libraryId, Long wordId, String languageCode);
 }

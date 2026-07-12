@@ -90,4 +90,19 @@ public class VocabController {
         return Results.success(vocabService.listLibraryWords(libraryId));
     }
 
+    /**
+     * 从指定词汇库中删除词条
+     *
+     * @param libraryId 词汇库ID
+     * @param wordId 词条ID
+     * @param languageCode 语言标识
+     * @return 响应结果
+     */
+    @DeleteMapping("/libraries/{libraryId}/words/{wordId}")
+    public Result<Void> deleteLibraryWord(@PathVariable String libraryId,
+                                          @PathVariable Long wordId,
+                                          @RequestParam String languageCode) {
+        vocabService.deleteLibraryWord(libraryId, wordId, languageCode);
+        return Results.success();
+    }
 }

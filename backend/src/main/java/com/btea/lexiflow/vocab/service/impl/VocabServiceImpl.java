@@ -217,6 +217,32 @@ public class VocabServiceImpl implements VocabService {
         return relations.stream().map(relation -> toWordResp(relation, progresses.get(relation.getWordId()), library.getLanguageCode())).toList();
     }
 
+    /**
+     * 从指定词汇库中删除词条
+     *
+     * @param libraryId 词汇库ID
+     * @param wordId 词条ID
+     * @param languageCode 语言标识
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteLibraryWord(String libraryId, Long wordId, String languageCode) {
+        String userId = getCurrentUserId();
+        BizVocabLibraryDO library = getLibrary(libraryId, userId);
+        String language = normalizeLanguage(languageCode);
+        if (!library.getLanguageCode().equals(language)) throw new ClientException(BaseErrorCode.VOCAB_LIBRARY_LANGUAGE_MISMATCH);
+        RelVocabLibraryWordDO relation = relVocabLibraryWordMapper.selectOne(new LambdaQueryWrapper<RelVocabLibraryWordDO>()
+                .eq(RelVocabLibraryWordDO::getLibraryId, libraryId)
+                .eq(RelVocabLibraryWordDO::getUserId, userId)
+                .eq(RelVocabLibraryWordDO::getWordId, wordId)
+                .eq(RelVocabLibraryWordDO::getLanguageCode, language)
+                .eq(RelVocabLibraryWordDO::getStatus, VocabConstant.STATUS_NORMAL));
+        if (relation == null) throw new ClientException(BaseErrorCode.VOCAB_LIBRARY_WORD_NOT_FOUND);
+        relation.setStatus(VocabConstant.STATUS_DELETED);
+        relation.setDeletedAt(new Date());
+        relVocabLibraryWordMapper.updateById(relation);
+    }
+
     private void restoreProgress(String userId, Long wordId, String languageCode) {
         RelUserWordProgressDO progress = relUserWordProgressMapper.selectOne(new LambdaQueryWrapper<RelUserWordProgressDO>()
                 .eq(RelUserWordProgressDO::getUserId, userId)
