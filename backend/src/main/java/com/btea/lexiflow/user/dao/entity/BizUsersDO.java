@@ -51,7 +51,7 @@ public class BizUsersDO {
     private String avatar;
 
     /**
-     * 账号等级：-1=禁用, 0=Free, 1=Plus, 2=Pro, 3=Organization
+     * 账号状态：0=禁用，1=正常，2=已注销
      */
     private Integer status;
 

@@ -5,6 +5,9 @@ import com.btea.lexiflow.common.convention.errorcode.BaseErrorCode;
 import com.btea.lexiflow.common.convention.exception.ClientException;
 import com.btea.lexiflow.infrastructure.security.config.JwtConfig;
 import com.btea.lexiflow.infrastructure.security.util.JwtUtil;
+import com.btea.lexiflow.user.constant.UserConstant;
+import com.btea.lexiflow.user.dao.entity.BizUsersDO;
+import com.btea.lexiflow.user.dao.mapper.BizUsersMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +27,7 @@ public class AuthInterceptor implements HandlerInterceptor {
 
     private final JwtUtil jwtUtil;
     private final JwtConfig jwtConfig;
+    private final BizUsersMapper bizUsersMapper;
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
@@ -49,6 +53,24 @@ public class AuthInterceptor implements HandlerInterceptor {
         if (!jwtUtil.isTokenExists(userId) || !jwtUtil.isTokenMatched(userId, token)) {
             log.warn("Redis中不存在该用户的有效token: {}", userId);
             throw new ClientException(BaseErrorCode.TOKEN_INVALID);
+        }
+
+        BizUsersDO user = bizUsersMapper.selectById(userId);
+        if (user == null) {
+            jwtUtil.logout(userId);
+            throw new ClientException(BaseErrorCode.USER_NOT_FOUND);
+        }
+        if (Integer.valueOf(UserConstant.STATUS_DISABLED).equals(user.getStatus())) {
+            jwtUtil.logout(userId);
+            throw new ClientException(BaseErrorCode.USER_DISABLED);
+        }
+        if (Integer.valueOf(UserConstant.STATUS_CANCELED).equals(user.getStatus())) {
+            jwtUtil.logout(userId);
+            throw new ClientException(BaseErrorCode.USER_CANCELED);
+        }
+        if (!Integer.valueOf(UserConstant.STATUS_NORMAL).equals(user.getStatus())) {
+            jwtUtil.logout(userId);
+            throw new ClientException(BaseErrorCode.USER_DISABLED);
         }
 
         UserContext.setCurrentUserId(userId);

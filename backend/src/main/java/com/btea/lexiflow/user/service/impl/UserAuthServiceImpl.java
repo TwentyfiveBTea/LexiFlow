@@ -2,6 +2,7 @@ package com.btea.lexiflow.user.service.impl;
 
 import cn.hutool.crypto.digest.BCrypt;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.btea.lexiflow.user.constant.UserConstant;
 import com.btea.lexiflow.user.constant.UserProfileConstant;
 import com.btea.lexiflow.common.context.UserContext;
 import com.btea.lexiflow.common.convention.errorcode.BaseErrorCode;
@@ -43,6 +44,7 @@ public class UserAuthServiceImpl implements UserAuthService {
         if (user == null || !BCrypt.checkpw(reqDTO.getPassword(), user.getPasswordHash())) {
             throw new ClientException(BaseErrorCode.USER_NOT_FOUND_OR_PASSWORD_ERROR);
         }
+        validateAccountStatus(user);
 
         String token = jwtUtil.generateUserToken(user.getId());
         log.info("用户登录成功: userId={}, token={}", user.getId(), token);
@@ -77,10 +79,27 @@ public class UserAuthServiceImpl implements UserAuthService {
                 .username(reqDTO.getUsername())
                 .passwordHash(BCrypt.hashpw(reqDTO.getPassword()))
                 .avatar(UserProfileConstant.DEFAULT_AVATAR)
-                .status(0)
+                .status(UserConstant.STATUS_NORMAL)
                 .build();
         bizUsersMapper.insert(user);
         log.info("用户注册成功: userId={}", user.getId());
+    }
+
+    /**
+     * 校验账号状态
+     *
+     * @param user 用户实体
+     */
+    private void validateAccountStatus(BizUsersDO user) {
+        if (Integer.valueOf(UserConstant.STATUS_DISABLED).equals(user.getStatus())) {
+            throw new ClientException(BaseErrorCode.USER_DISABLED);
+        }
+        if (Integer.valueOf(UserConstant.STATUS_CANCELED).equals(user.getStatus())) {
+            throw new ClientException(BaseErrorCode.USER_CANCELED);
+        }
+        if (!Integer.valueOf(UserConstant.STATUS_NORMAL).equals(user.getStatus())) {
+            throw new ClientException(BaseErrorCode.USER_DISABLED);
+        }
     }
 
     /**
