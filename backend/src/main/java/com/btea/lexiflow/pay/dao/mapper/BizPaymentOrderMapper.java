@@ -30,6 +30,23 @@ public interface BizPaymentOrderMapper extends BaseMapper<BizPaymentOrderDO> {
     BizPaymentOrderDO selectByOrderNoForUpdate(@Param("orderNo") String orderNo);
 
     /**
+     * 将到期的待支付订单标记为已过期
+     *
+     * @param pendingStatus 待支付状态
+     * @param expiredStatus 已过期状态
+     * @return 影响行数
+     */
+    @Update("""
+            UPDATE biz_payment_order
+            SET order_status = #{expiredStatus},
+                updated_at = NOW()
+            WHERE order_status = #{pendingStatus}
+              AND expires_at <= NOW()
+            """)
+    int expirePendingOrders(@Param("pendingStatus") Integer pendingStatus,
+                            @Param("expiredStatus") Integer expiredStatus);
+
+    /**
      * 条件标记单个待支付订单为已过期
      *
      * @param id 订单ID

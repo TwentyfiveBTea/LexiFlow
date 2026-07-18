@@ -14,6 +14,8 @@ import com.btea.lexiflow.pay.dto.req.PaymentOrderCreateReqDTO;
 import com.btea.lexiflow.pay.dto.resp.PaymentOrderCreateRespDTO;
 import com.btea.lexiflow.pay.dto.resp.PaymentOrderRespDTO;
 import com.btea.lexiflow.pay.dto.resp.RechargeRecordRespDTO;
+import com.btea.lexiflow.pay.integration.epay.EpayClient;
+import com.btea.lexiflow.pay.integration.epay.EpayOrderQueryResponse;
 import com.btea.lexiflow.pay.integration.epay.EpaySigner;
 import com.btea.lexiflow.pay.model.PaymentConfirmation;
 import com.btea.lexiflow.pay.service.PaymentService;
@@ -26,11 +28,13 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+
 /**
  * @Author: TwentyfiveBTea
  * @Date: 2026/7/16
@@ -44,11 +48,14 @@ public class PaymentServiceImpl implements PaymentService {
     private static final String FORM_METHOD_POST = "POST";
     private static final String SIGN_TYPE_MD5 = "MD5";
     private static final String TRADE_SUCCESS = "TRADE_SUCCESS";
+
     private final BizPaymentOrderMapper paymentOrderMapper;
     private final PaymentSettlementService settlementService;
     private final EpaySigner epaySigner;
+    private final EpayClient epayClient;
     private final EpayProperties epayProperties;
     private final CreditBillingProperties billingProperties;
+
     /**
      * 创建支付订单
      *
@@ -138,6 +145,76 @@ public class PaymentServiceImpl implements PaymentService {
                 .map(this::toRechargeRecordResp)
                 .toList();
     }
+
+    /**
+     * 系统补偿查询支付订单
+     *
+     * @param orderNo 商户订单号
+     */
+    @Override
+    public void reconcileOrder(String orderNo) {
+        BizPaymentOrderDO order = paymentOrderMapper.selectOne(new LambdaQueryWrapper<BizPaymentOrderDO>()
+                .eq(BizPaymentOrderDO::getOrderNo, orderNo));
+        if (order == null) {
+            throw new ClientException(BaseErrorCode.PAYMENT_ORDER_NOT_FOUND);
+        }
+        if (Integer.valueOf(PaymentConstant.ORDER_STATUS_PAID).equals(order.getOrderStatus())
+                && Integer.valueOf(PaymentConstant.CREDIT_STATUS_CREDITED).equals(order.getCreditStatus())) {
+            return;
+        }
+        EpayOrderQueryResponse response = epayClient.queryOrder(orderNo);
+        if (response == null || !Integer.valueOf(1).equals(response.getCode())) {
+            throw new ClientException(BaseErrorCode.PAYMENT_PROVIDER_RESPONSE_INVALID);
+        }
+        if (Integer.valueOf(1).equals(response.getStatus())) {
+            validateQueryResponse(order, response);
+            settlementService.confirmAndCredit(new PaymentConfirmation(
+                    orderNo,
+                    response.getTradeNo(),
+                    response.getApiTradeNo(),
+                    parseAmountMinor(response.getMoney()),
+                    parseProviderTime(response.getEndtime())));
+        } else {
+            expireIfNecessary(order);
+        }
+    }
+
+    /**
+     * 将到期的待支付订单标记为已过期
+     *
+     * @return 影响行数
+     */
+    @Override
+    public int expirePendingOrders() {
+        return paymentOrderMapper.expirePendingOrders(
+                PaymentConstant.ORDER_STATUS_PENDING,
+                PaymentConstant.ORDER_STATUS_EXPIRED);
+    }
+
+    /**
+     * 获取待补偿处理的支付订单号
+     *
+     * @param limit 返回数量
+     * @return 商户订单号列表
+     */
+    @Override
+    public List<String> listReconcileOrderNos(int limit) {
+        int queryLimit = Math.min(Math.max(limit, 1), 100);
+        Date threshold = new Date(System.currentTimeMillis() - 60_000L);
+        return paymentOrderMapper.selectList(new LambdaQueryWrapper<BizPaymentOrderDO>()
+                        .and(wrapper -> wrapper
+                                .eq(BizPaymentOrderDO::getOrderStatus, PaymentConstant.ORDER_STATUS_PENDING)
+                                .le(BizPaymentOrderDO::getCreatedAt, threshold)
+                                .or()
+                                .eq(BizPaymentOrderDO::getOrderStatus, PaymentConstant.ORDER_STATUS_PAID)
+                                .eq(BizPaymentOrderDO::getCreditStatus, PaymentConstant.CREDIT_STATUS_PENDING))
+                        .orderByAsc(BizPaymentOrderDO::getCreatedAt)
+                        .last("LIMIT " + queryLimit))
+                .stream()
+                .map(BizPaymentOrderDO::getOrderNo)
+                .toList();
+    }
+
     /**
      * 处理支付平台异步通知
      *
@@ -199,6 +276,17 @@ public class PaymentServiceImpl implements PaymentService {
         parameters.put("device", order.getDeviceType());
         return parameters;
     }
+
+    private void validateQueryResponse(BizPaymentOrderDO order, EpayOrderQueryResponse response) {
+        if (!safeEquals(order.getOrderNo(), response.getOutTradeNo())
+                || !safeEquals(epayProperties.getMerchantId(), response.getPid())
+                || !safeEquals(epayProperties.getPaymentType(), response.getType())
+                || !safeEquals(order.getSubject(), response.getName())
+                || !order.getAmountMinor().equals(parseAmountMinor(response.getMoney()))) {
+            throw new ClientException(BaseErrorCode.PAYMENT_PROVIDER_RESPONSE_INVALID);
+        }
+    }
+
     private BizPaymentOrderDO getCurrentUserOrder(String orderNo) {
         BizPaymentOrderDO order = paymentOrderMapper.selectOne(new LambdaQueryWrapper<BizPaymentOrderDO>()
                 .eq(BizPaymentOrderDO::getOrderNo, orderNo)
@@ -271,6 +359,18 @@ public class PaymentServiceImpl implements PaymentService {
                 .setScale(2, RoundingMode.UNNECESSARY)
                 .toPlainString();
     }
+
+    private Date parseProviderTime(String value) {
+        if (value == null || value.isBlank()) {
+            return new Date();
+        }
+        try {
+            return new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.ROOT).parse(value);
+        } catch (Exception e) {
+            return new Date();
+        }
+    }
+
     private String buildSubmitUrl() {
         String baseUrl = epayProperties.getBaseUrl();
         String path = epayProperties.getSubmitPath();
@@ -315,6 +415,7 @@ public class PaymentServiceImpl implements PaymentService {
         }
         return userId;
     }
+
     private boolean safeEquals(String expected, String actual) {
         return expected != null && expected.equals(actual);
     }

@@ -40,6 +40,28 @@ public interface PaymentService {
     List<RechargeRecordRespDTO> listRechargeRecords(Integer limit);
 
     /**
+     * 系统补偿查询支付订单
+     *
+     * @param orderNo 商户订单号
+     */
+    void reconcileOrder(String orderNo);
+
+    /**
+     * 将到期的待支付订单标记为已过期
+     *
+     * @return 影响行数
+     */
+    int expirePendingOrders();
+
+    /**
+     * 获取待补偿处理的支付订单号
+     *
+     * @param limit 返回数量
+     * @return 商户订单号列表
+     */
+    List<String> listReconcileOrderNos(int limit);
+
+    /**
      * 处理支付平台异步通知
      *
      * @param parameters 通知参数
