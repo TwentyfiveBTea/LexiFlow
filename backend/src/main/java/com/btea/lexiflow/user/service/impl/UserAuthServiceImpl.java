@@ -8,6 +8,7 @@ import com.btea.lexiflow.common.context.UserContext;
 import com.btea.lexiflow.common.convention.errorcode.BaseErrorCode;
 import com.btea.lexiflow.common.convention.exception.ClientException;
 import com.btea.lexiflow.infrastructure.security.util.JwtUtil;
+import com.btea.lexiflow.pay.service.CreditAccountService;
 import com.btea.lexiflow.user.dao.entity.BizUsersDO;
 import com.btea.lexiflow.user.dao.mapper.BizUsersMapper;
 import com.btea.lexiflow.user.dto.req.UserLoginReqDTO;
@@ -17,6 +18,7 @@ import com.btea.lexiflow.user.service.UserAuthService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * @Author: TwentyfiveBTea
@@ -30,6 +32,7 @@ public class UserAuthServiceImpl implements UserAuthService {
 
     private final BizUsersMapper bizUsersMapper;
     private final JwtUtil jwtUtil;
+    private final CreditAccountService creditAccountService;
 
     /**
      * 登录
@@ -63,6 +66,7 @@ public class UserAuthServiceImpl implements UserAuthService {
      * @param reqDTO 注册请求参数
      */
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void register(UserRegisterReqDTO reqDTO) {
         if (!reqDTO.getPassword().equals(reqDTO.getConfirmPassword())) {
             throw new ClientException(BaseErrorCode.PASSWORD_NOT_MATCH);
@@ -82,6 +86,7 @@ public class UserAuthServiceImpl implements UserAuthService {
                 .status(UserConstant.STATUS_NORMAL)
                 .build();
         bizUsersMapper.insert(user);
+        creditAccountService.initializeAccount(user.getId());
         log.info("用户注册成功: userId={}", user.getId());
     }
 
