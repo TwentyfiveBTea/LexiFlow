@@ -7,7 +7,7 @@ import { collections, words } from '@/data/demo'
 const route = useRoute()
 const query = ref('')
 const level = ref('全部等级')
-const collection = computed(() => collections.find((item) => item.id === route.params.id) ?? collections[0]!)
+const collection = computed(() => collections.find((item) => item.libraryId === route.params.id) ?? collections[0]!)
 const filteredWords = computed(() => words.filter((word) => {
   const match = `${word.term}${word.translation}${word.definition}`.toLowerCase().includes(query.value.toLowerCase())
   return match && (level.value === '全部等级' || word.level === level.value)
@@ -25,7 +25,7 @@ function pronounce(word: string) {
   <main class="page">
     <RouterLink class="back-link" to="/vocabulary"><ArrowLeft :size="16" />返回词汇库</RouterLink>
     <header class="page-header detail-header fade-in">
-      <div><p class="eyebrow">Collection · {{ collection.words.toLocaleString() }} words</p><h1 class="page-title">{{ collection.name }}</h1><p class="page-description">按掌握度安排下一次记忆练习，持续巩固阅读中真正遇到的词。</p></div>
+      <div><p class="eyebrow">Collection · {{ collection.wordCount.toLocaleString() }} words</p><h1 class="page-title">{{ collection.name }}</h1><p class="page-description">按掌握度安排下一次记忆练习，持续巩固阅读中真正遇到的词。</p></div>
       <RouterLink class="btn btn-primary" to="/reader/algorithmic-sentience">开始复习</RouterLink>
     </header>
 
