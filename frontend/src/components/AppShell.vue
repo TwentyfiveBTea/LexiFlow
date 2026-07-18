@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import {
+  BookOpen,
+  Brain,
   ChevronLeft,
   ChevronRight,
   CircleUserRound,
@@ -22,6 +24,8 @@ const uploadedFile = ref('')
 const navItems = [
   { label: '首页', to: '/dashboard', icon: Gauge },
   { label: '我的图书馆', to: '/articles', icon: Library },
+  { label: '词汇库', to: '/vocabulary', icon: BookOpen },
+  { label: '记忆卡牌', to: '/vocabulary/core', icon: Brain },
 ]
 
 const currentLabel = computed(() => navItems.find((item) => route.path.startsWith(item.to))?.label ?? 'LexiFlow')
