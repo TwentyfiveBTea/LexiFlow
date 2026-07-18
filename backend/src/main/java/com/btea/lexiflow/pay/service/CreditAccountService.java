@@ -1,6 +1,9 @@
 package com.btea.lexiflow.pay.service;
 
 import com.btea.lexiflow.pay.dto.resp.CreditAccountRespDTO;
+import com.btea.lexiflow.pay.dto.resp.CreditLedgerRespDTO;
+
+import java.util.List;
 
 /**
  * @Author: TwentyfiveBTea
@@ -22,4 +25,12 @@ public interface CreditAccountService {
      * @return Credits账户
      */
     CreditAccountRespDTO getCurrentAccount();
+
+    /**
+     * 获取当前用户的文章Credits使用记录
+     *
+     * @param limit 返回数量
+     * @return 文章Credits使用记录列表
+     */
+    List<CreditLedgerRespDTO> listCurrentLedger(Integer limit);
 }

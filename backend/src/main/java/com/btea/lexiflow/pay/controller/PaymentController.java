@@ -4,6 +4,7 @@ import com.btea.lexiflow.common.convention.result.Result;
 import com.btea.lexiflow.common.convention.result.Results;
 import com.btea.lexiflow.pay.dto.req.PaymentOrderCreateReqDTO;
 import com.btea.lexiflow.pay.dto.resp.CreditAccountRespDTO;
+import com.btea.lexiflow.pay.dto.resp.CreditLedgerRespDTO;
 import com.btea.lexiflow.pay.dto.resp.PaymentOrderCreateRespDTO;
 import com.btea.lexiflow.pay.dto.resp.PaymentOrderRespDTO;
 import com.btea.lexiflow.pay.dto.resp.RechargeRecordRespDTO;
@@ -67,4 +68,14 @@ public class PaymentController {
     public Result<CreditAccountRespDTO> getCreditAccount() {
         return Results.success(creditAccountService.getCurrentAccount());
     }
+
+    /**
+     * 获取当前用户的文章Credits使用记录
+     */
+    @GetMapping("/credits/ledger")
+    public Result<List<CreditLedgerRespDTO>> listCreditLedger(
+            @RequestParam(required = false) Integer limit) {
+        return Results.success(creditAccountService.listCurrentLedger(limit));
+    }
+
 }
