@@ -8,7 +8,9 @@ import {
   Gauge,
   Library,
   Menu,
+  Settings,
   Upload,
+  WalletCards,
   X,
 } from 'lucide-vue-next'
 import { computed, ref } from 'vue'
@@ -26,6 +28,8 @@ const navItems = [
   { label: '我的图书馆', to: '/articles', icon: Library },
   { label: '词汇库', to: '/vocabulary', icon: BookOpen },
   { label: '记忆卡牌', to: '/vocabulary/core', icon: Brain },
+  { label: '钱包', to: '/wallet', icon: WalletCards },
+  { label: '设置', to: '/settings', icon: Settings },
 ]
 
 const currentLabel = computed(() => navItems.find((item) => route.path.startsWith(item.to))?.label ?? 'LexiFlow')
