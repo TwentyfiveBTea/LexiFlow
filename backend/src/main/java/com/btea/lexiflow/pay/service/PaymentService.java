@@ -3,6 +3,9 @@ package com.btea.lexiflow.pay.service;
 import com.btea.lexiflow.pay.dto.req.PaymentOrderCreateReqDTO;
 import com.btea.lexiflow.pay.dto.resp.PaymentOrderCreateRespDTO;
 import com.btea.lexiflow.pay.dto.resp.PaymentOrderRespDTO;
+import com.btea.lexiflow.pay.dto.resp.RechargeRecordRespDTO;
+
+import java.util.List;
 
 /**
  * @Author: TwentyfiveBTea
@@ -26,4 +29,12 @@ public interface PaymentService {
      * @return 支付订单信息
      */
     PaymentOrderRespDTO getOrder(String orderNo);
+
+    /**
+     * 获取当前用户的充值记录
+     *
+     * @param limit 返回数量
+     * @return 充值记录列表
+     */
+    List<RechargeRecordRespDTO> listRechargeRecords(Integer limit);
 }

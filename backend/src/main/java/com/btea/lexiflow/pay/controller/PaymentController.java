@@ -6,6 +6,7 @@ import com.btea.lexiflow.pay.dto.req.PaymentOrderCreateReqDTO;
 import com.btea.lexiflow.pay.dto.resp.CreditAccountRespDTO;
 import com.btea.lexiflow.pay.dto.resp.PaymentOrderCreateRespDTO;
 import com.btea.lexiflow.pay.dto.resp.PaymentOrderRespDTO;
+import com.btea.lexiflow.pay.dto.resp.RechargeRecordRespDTO;
 import com.btea.lexiflow.pay.service.CreditAccountService;
 import com.btea.lexiflow.pay.service.PaymentService;
 import jakarta.validation.Valid;
@@ -15,7 +16,10 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 /**
  * @Author: TwentyfiveBTea
@@ -45,6 +49,15 @@ public class PaymentController {
     @GetMapping("/orders/{orderNo}")
     public Result<PaymentOrderRespDTO> getOrder(@PathVariable String orderNo) {
         return Results.success(paymentService.getOrder(orderNo));
+    }
+
+    /**
+     * 获取当前用户充值记录
+     */
+    @GetMapping("/recharges")
+    public Result<List<RechargeRecordRespDTO>> listRechargeRecords(
+            @RequestParam(required = false) Integer limit) {
+        return Results.success(paymentService.listRechargeRecords(limit));
     }
 
     /**

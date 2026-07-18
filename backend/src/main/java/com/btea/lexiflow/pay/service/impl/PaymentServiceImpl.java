@@ -13,6 +13,7 @@ import com.btea.lexiflow.pay.dao.mapper.BizPaymentOrderMapper;
 import com.btea.lexiflow.pay.dto.req.PaymentOrderCreateReqDTO;
 import com.btea.lexiflow.pay.dto.resp.PaymentOrderCreateRespDTO;
 import com.btea.lexiflow.pay.dto.resp.PaymentOrderRespDTO;
+import com.btea.lexiflow.pay.dto.resp.RechargeRecordRespDTO;
 import com.btea.lexiflow.pay.integration.epay.EpaySigner;
 import com.btea.lexiflow.pay.service.PaymentService;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +26,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.Date;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 /**
@@ -112,6 +114,26 @@ public class PaymentServiceImpl implements PaymentService {
         expireIfNecessary(order);
         return toOrderResp(getCurrentUserOrder(orderNo));
     }
+
+    /**
+     * 获取当前用户的充值记录
+     *
+     * @param limit 返回数量
+     * @return 充值记录列表
+     */
+    @Override
+    public List<RechargeRecordRespDTO> listRechargeRecords(Integer limit) {
+        int queryLimit = limit == null ? 50 : Math.min(Math.max(limit, 1), 100);
+        return paymentOrderMapper.selectList(new LambdaQueryWrapper<BizPaymentOrderDO>()
+                        .eq(BizPaymentOrderDO::getUserId, getCurrentUserId())
+                        .eq(BizPaymentOrderDO::getOrderStatus, PaymentConstant.ORDER_STATUS_PAID)
+                        .eq(BizPaymentOrderDO::getCreditStatus, PaymentConstant.CREDIT_STATUS_CREDITED)
+                        .orderByDesc(BizPaymentOrderDO::getCreditedAt)
+                        .last("LIMIT " + queryLimit))
+                .stream()
+                .map(this::toRechargeRecordResp)
+                .toList();
+    }
     private PaymentOrderCreateRespDTO toCreateResp(BizPaymentOrderDO order) {
         Map<String, String> parameters = buildSubmitParameters(order);
         parameters.put("sign", epaySigner.sign(parameters));
@@ -176,6 +198,16 @@ public class PaymentServiceImpl implements PaymentService {
                 .createdAt(order.getCreatedAt())
                 .build();
     }
+
+    private RechargeRecordRespDTO toRechargeRecordResp(BizPaymentOrderDO order) {
+        return RechargeRecordRespDTO.builder()
+                .orderNo(order.getOrderNo())
+                .amountYuan(BigDecimal.valueOf(order.getAmountMinor(), 2))
+                .credits(order.getTotalCredits())
+                .creditedAt(order.getCreditedAt())
+                .build();
+    }
+
     private String normalizeDevice(String deviceType) {
         String normalized = deviceType == null || deviceType.isBlank()
                 ? epayProperties.getDefaultDevice()
