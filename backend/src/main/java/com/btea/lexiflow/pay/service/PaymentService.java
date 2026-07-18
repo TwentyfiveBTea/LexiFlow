@@ -6,6 +6,7 @@ import com.btea.lexiflow.pay.dto.resp.PaymentOrderRespDTO;
 import com.btea.lexiflow.pay.dto.resp.RechargeRecordRespDTO;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * @Author: TwentyfiveBTea
@@ -37,4 +38,12 @@ public interface PaymentService {
      * @return 充值记录列表
      */
     List<RechargeRecordRespDTO> listRechargeRecords(Integer limit);
+
+    /**
+     * 处理支付平台异步通知
+     *
+     * @param parameters 通知参数
+     * @return 通知是否验证并处理成功
+     */
+    boolean handleNotify(Map<String, String> parameters);
 }

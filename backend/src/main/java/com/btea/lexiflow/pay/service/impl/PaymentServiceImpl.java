@@ -15,7 +15,9 @@ import com.btea.lexiflow.pay.dto.resp.PaymentOrderCreateRespDTO;
 import com.btea.lexiflow.pay.dto.resp.PaymentOrderRespDTO;
 import com.btea.lexiflow.pay.dto.resp.RechargeRecordRespDTO;
 import com.btea.lexiflow.pay.integration.epay.EpaySigner;
+import com.btea.lexiflow.pay.model.PaymentConfirmation;
 import com.btea.lexiflow.pay.service.PaymentService;
+import com.btea.lexiflow.pay.service.PaymentSettlementService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DuplicateKeyException;
@@ -41,7 +43,9 @@ public class PaymentServiceImpl implements PaymentService {
 
     private static final String FORM_METHOD_POST = "POST";
     private static final String SIGN_TYPE_MD5 = "MD5";
+    private static final String TRADE_SUCCESS = "TRADE_SUCCESS";
     private final BizPaymentOrderMapper paymentOrderMapper;
+    private final PaymentSettlementService settlementService;
     private final EpaySigner epaySigner;
     private final EpayProperties epayProperties;
     private final CreditBillingProperties billingProperties;
@@ -134,6 +138,38 @@ public class PaymentServiceImpl implements PaymentService {
                 .map(this::toRechargeRecordResp)
                 .toList();
     }
+    /**
+     * 处理支付平台异步通知
+     *
+     * @param parameters 通知参数
+     * @return 通知是否验证并处理成功
+     */
+    @Override
+    public boolean handleNotify(Map<String, String> parameters) {
+        if (!epaySigner.verify(parameters)) {
+            return false;
+        }
+        if (!safeEquals(epayProperties.getMerchantId(), parameters.get("pid"))
+                || !safeEquals(epayProperties.getPaymentType(), parameters.get("type"))
+                || !TRADE_SUCCESS.equals(parameters.get("trade_status"))) {
+            return false;
+        }
+        String orderNo = parameters.get("out_trade_no");
+        String tradeNo = parameters.get("trade_no");
+        if (orderNo == null || orderNo.isBlank() || tradeNo == null || tradeNo.isBlank()) {
+            return false;
+        }
+        BizPaymentOrderDO order = paymentOrderMapper.selectOne(new LambdaQueryWrapper<BizPaymentOrderDO>()
+                .eq(BizPaymentOrderDO::getOrderNo, orderNo));
+        if (order == null || !safeEquals(order.getSubject(), parameters.get("name"))) {
+            return false;
+        }
+        long amountMinor = parseAmountMinor(parameters.get("money"));
+        settlementService.confirmAndCredit(new PaymentConfirmation(orderNo, tradeNo, null, amountMinor, new Date()));
+        log.info("支付通知处理成功: orderNo={}, providerTradeNo={}", orderNo, tradeNo);
+        return true;
+    }
+
     private PaymentOrderCreateRespDTO toCreateResp(BizPaymentOrderDO order) {
         Map<String, String> parameters = buildSubmitParameters(order);
         parameters.put("sign", epaySigner.sign(parameters));
@@ -218,6 +254,18 @@ public class PaymentServiceImpl implements PaymentService {
         }
         return normalized;
     }
+
+    private long parseAmountMinor(String money) {
+        try {
+            return new BigDecimal(money)
+                    .movePointRight(2)
+                    .setScale(0, RoundingMode.UNNECESSARY)
+                    .longValueExact();
+        } catch (Exception e) {
+            throw new ClientException(BaseErrorCode.PAYMENT_PROVIDER_RESPONSE_INVALID);
+        }
+    }
+
     private String formatMoney(long amountMinor) {
         return BigDecimal.valueOf(amountMinor, 2)
                 .setScale(2, RoundingMode.UNNECESSARY)
@@ -266,5 +314,8 @@ public class PaymentServiceImpl implements PaymentService {
             throw new ClientException(BaseErrorCode.USER_NOT_LOGIN);
         }
         return userId;
+    }
+    private boolean safeEquals(String expected, String actual) {
+        return expected != null && expected.equals(actual);
     }
 }

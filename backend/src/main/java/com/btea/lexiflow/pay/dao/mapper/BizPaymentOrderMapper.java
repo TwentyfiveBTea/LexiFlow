@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.btea.lexiflow.pay.dao.entity.BizPaymentOrderDO;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
 /**
@@ -13,6 +14,20 @@ import org.apache.ibatis.annotations.Update;
  */
 @Mapper
 public interface BizPaymentOrderMapper extends BaseMapper<BizPaymentOrderDO> {
+
+    /**
+     * 锁定支付订单
+     *
+     * @param orderNo 商户订单号
+     * @return 支付订单
+     */
+    @Select("""
+            SELECT *
+            FROM biz_payment_order
+            WHERE order_no = #{orderNo}
+            FOR UPDATE
+            """)
+    BizPaymentOrderDO selectByOrderNoForUpdate(@Param("orderNo") String orderNo);
 
     /**
      * 条件标记单个待支付订单为已过期
