@@ -13,8 +13,10 @@ const router = createRouter({
       component: AppShell,
       children: [
         { path: 'dashboard', name: 'dashboard', component: () => import('@/views/DashboardView.vue'), meta: { title: '控制台' } },
+        { path: 'articles', name: 'articles', component: () => import('@/views/ArticleLibraryView.vue'), meta: { title: '文章库' } },
       ],
     },
+    { path: '/reader/:id', name: 'reader', component: () => import('@/views/ReaderView.vue'), meta: { title: '精读' } },
     { path: '/:pathMatch(.*)*', redirect: '/dashboard' },
   ],
 })

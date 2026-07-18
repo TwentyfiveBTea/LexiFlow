@@ -4,6 +4,7 @@ import {
   ChevronRight,
   CircleUserRound,
   Gauge,
+  Library,
   Menu,
   Upload,
   X,
@@ -20,6 +21,7 @@ const uploadedFile = ref('')
 
 const navItems = [
   { label: '首页', to: '/dashboard', icon: Gauge },
+  { label: '我的图书馆', to: '/articles', icon: Library },
 ]
 
 const currentLabel = computed(() => navItems.find((item) => route.path.startsWith(item.to))?.label ?? 'LexiFlow')
