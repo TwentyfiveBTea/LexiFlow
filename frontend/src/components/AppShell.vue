@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import {
-  BookOpen,
   Brain,
   CircleUserRound,
   Gauge,
   Library,
+  Languages,
   LogOut,
   Menu,
   PanelLeftClose,
@@ -60,7 +60,7 @@ async function toggleProfile() {
 const navItems = [
   { label: '首页', to: '/dashboard', icon: Gauge },
   { label: '我的图书馆', to: '/articles', icon: Library },
-  { label: '词汇库', to: '/vocabulary', icon: BookOpen },
+  { label: '词汇库', to: '/vocabulary', icon: Languages },
   { label: '记忆卡牌', to: '/vocabulary/core', icon: Brain },
   { label: '钱包', to: '/wallet', icon: WalletCards },
   { label: '设置', to: '/settings', icon: Settings },
