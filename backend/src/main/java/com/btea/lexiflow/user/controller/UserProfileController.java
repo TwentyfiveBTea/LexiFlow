@@ -4,14 +4,11 @@ import com.btea.lexiflow.common.convention.result.Result;
 import com.btea.lexiflow.common.convention.result.Results;
 import com.btea.lexiflow.user.dto.req.UserChangePasswordReqDTO;
 import com.btea.lexiflow.user.dto.req.UserChangeUsernameReqDTO;
+import com.btea.lexiflow.user.dto.resp.UserProfileRespDTO;
 import com.btea.lexiflow.user.service.UserProfileService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 /**
@@ -59,5 +56,15 @@ public class UserProfileController {
     public Result<Void> changePassword(@RequestBody @Validated UserChangePasswordReqDTO reqDTO) {
         userProfileService.changePassword(reqDTO);
         return Results.success();
+    }
+
+    /**
+     * 获取头像弹窗所需的用户资料
+     *
+     * @return 用户头像、邮箱和注册天数
+     */
+    @GetMapping
+    public Result<UserProfileRespDTO> getProfile() {
+        return Results.success(userProfileService.getProfile());
     }
 }

@@ -2,6 +2,7 @@ package com.btea.lexiflow.user.service;
 
 import com.btea.lexiflow.user.dto.req.UserChangePasswordReqDTO;
 import com.btea.lexiflow.user.dto.req.UserChangeUsernameReqDTO;
+import com.btea.lexiflow.user.dto.resp.UserProfileRespDTO;
 import org.springframework.web.multipart.MultipartFile;
 
 /**
@@ -32,4 +33,11 @@ public interface UserProfileService {
      * @param reqDTO 更改密码请求参数
      */
     void changePassword(UserChangePasswordReqDTO reqDTO);
+
+    /**
+     * 获取头像弹窗所需的用户资料
+     *
+     * @return 用户头像、邮箱和注册天数
+     */
+    UserProfileRespDTO getProfile();
 }

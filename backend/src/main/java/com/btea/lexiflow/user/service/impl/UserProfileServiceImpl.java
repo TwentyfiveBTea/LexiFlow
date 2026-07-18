@@ -10,11 +10,15 @@ import com.btea.lexiflow.user.dao.entity.BizUsersDO;
 import com.btea.lexiflow.user.dao.mapper.BizUsersMapper;
 import com.btea.lexiflow.user.dto.req.UserChangePasswordReqDTO;
 import com.btea.lexiflow.user.dto.req.UserChangeUsernameReqDTO;
+import com.btea.lexiflow.user.dto.resp.UserProfileRespDTO;
 import com.btea.lexiflow.user.service.UserProfileService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
+
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 
 /**
  * @Author: TwentyfiveBTea
@@ -109,5 +113,22 @@ public class UserProfileServiceImpl implements UserProfileService {
             throw new ClientException(BaseErrorCode.USER_NOT_FOUND);
         }
         return user;
+    }
+
+    /**
+     * 获取头像弹窗所需的用户资料
+     *
+     * @return 用户头像、邮箱和注册天数
+     */
+    @Override
+    public UserProfileRespDTO getProfile() {
+        BizUsersDO user = getCurrentUser();
+        long registeredDays = Math.max(1,
+                ChronoUnit.DAYS.between(user.getCreatedAt().toInstant(), Instant.now()) + 1);
+        return UserProfileRespDTO.builder()
+                .avatar(user.getAvatar())
+                .email(user.getEmail())
+                .registeredDays(registeredDays)
+                .build();
     }
 }
