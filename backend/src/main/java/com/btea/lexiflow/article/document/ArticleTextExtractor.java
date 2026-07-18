@@ -3,6 +3,7 @@ package com.btea.lexiflow.article.document;
 import com.btea.lexiflow.article.llm.ArticleOcrProperties;
 import com.btea.lexiflow.common.convention.errorcode.BaseErrorCode;
 import com.btea.lexiflow.common.convention.exception.ClientException;
+import com.btea.lexiflow.pay.model.AiProcessingContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.tika.metadata.Metadata;
@@ -37,9 +38,13 @@ public class ArticleTextExtractor {
      * @param fileBytes 文件字节数组
      * @param filename 文件名
      * @param contentType 文件 MIME 类型
+     * @param context AI处理计费上下文
      * @return 纯文本
      */
-    public String extractText(byte[] fileBytes, String filename, String contentType) {
+    public String extractText(byte[] fileBytes,
+                              String filename,
+                              String contentType,
+                              AiProcessingContext context) {
         Metadata metadata = new Metadata();
         String tikaText = extractTextByTika(fileBytes, metadata);
         long meaningfulChars = countMeaningfulChars(tikaText);
@@ -53,7 +58,7 @@ public class ArticleTextExtractor {
         if (isPdf(filename, contentType, metadata)) {
             log.info("Tika 解析文本过短，开始使用 OCR 解析 PDF: filename={}, textLength={}, meaningfulChars={}",
                     filename, tikaText.length(), meaningfulChars);
-            return articlePdfOcrExtractor.extractText(fileBytes);
+            return articlePdfOcrExtractor.extractText(fileBytes, context);
         }
         throw new ClientException(BaseErrorCode.FILE_PARSE_FAILED);
     }

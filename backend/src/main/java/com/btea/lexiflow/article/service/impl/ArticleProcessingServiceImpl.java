@@ -10,11 +10,15 @@ import com.btea.lexiflow.article.service.ArticleTranslationService;
 import com.btea.lexiflow.common.convention.errorcode.BaseErrorCode;
 import com.btea.lexiflow.common.convention.exception.ClientException;
 import com.btea.lexiflow.infrastructure.s3.S3Util;
+import com.btea.lexiflow.pay.model.AiProcessingContext;
+import com.btea.lexiflow.pay.service.CreditReservationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -39,6 +43,7 @@ public class ArticleProcessingServiceImpl implements ArticleProcessingService {
     private final ArticleLanguageDetector articleLanguageDetector;
     private final ArticleTranslationService articleTranslationService;
     private final S3Util s3Util;
+    private final CreditReservationService creditReservationService;
 
     /**
      * 异步处理已上传文章
@@ -47,23 +52,29 @@ public class ArticleProcessingServiceImpl implements ArticleProcessingService {
      * @param fileBytes 文件字节数组
      * @param originalFilename 原始文件名
      * @param contentType 文件 MIME 类型
+     * @param context AI处理计费上下文
      */
     @Async("articleTaskExecutor")
     @Transactional(rollbackFor = Exception.class)
     @Override
-    public void processUploadedArticle(BizArticlesDO article, byte[] fileBytes, String originalFilename, String contentType) {
+    public void processUploadedArticle(BizArticlesDO article,
+                                       byte[] fileBytes,
+                                       String originalFilename,
+                                       String contentType,
+                                       AiProcessingContext context) {
         log.info("开始异步处理文章: userId={}, articleId={}, filename={}", article.getUserId(), article.getId(), originalFilename);
         try {
             bizArticlesMapper.insert(article);
             log.info("文章记录创建成功: userId={}, articleId={}", article.getUserId(), article.getId());
 
-            String originalContent = articleTextExtractor.extractText(fileBytes, originalFilename, contentType);
+            String originalContent = articleTextExtractor.extractText(
+                    fileBytes, originalFilename, contentType, context);
             log.info("文章文本解析完成: userId={}, articleId={}, contentLength={}",
                     article.getUserId(), article.getId(), originalContent.length());
             String languageCode = articleLanguageDetector.detectLanguage(originalContent);
             log.info("文章语言识别完成: userId={}, articleId={}, languageCode={}", article.getUserId(), article.getId(), languageCode);
 
-            ArticleTranslationResultDTO translationResult = translateArticleContent(article, originalContent);
+            ArticleTranslationResultDTO translationResult = translateArticleContent(article, originalContent, context);
             if (!Integer.valueOf(TRANSLATION_STATUS_SUCCESS).equals(translationResult.getTranslationStatus())) {
                 throw new ClientException(BaseErrorCode.ARTICLE_TRANSLATION_FAILED);
             }
@@ -81,28 +92,46 @@ public class ArticleProcessingServiceImpl implements ArticleProcessingService {
                 article.setTranslatedAt(new Date());
             }
             bizArticlesMapper.updateById(article);
+            registerCreditSettlementAfterCommit(context.processingNo());
             log.info("文章异步处理完成: userId={}, articleId={}, languageCode={}, wordCount={}, charCount={}, translationStatus={}",
                     article.getUserId(), article.getId(), languageCode, article.getWordCount(), article.getCharCount(), article.getTranslationStatus());
         } catch (ClientException e) {
+            creditReservationService.release(context.processingNo());
             deleteOriginalFile(article);
             log.error("文章异步处理失败，数据库事务将回滚: userId={}, articleId={}, errorCode={}, errorMessage={}",
                     article.getUserId(), article.getId(), e.getErrorCode(), e.getErrorMessage(), e);
             throw e;
         } catch (Exception e) {
+            creditReservationService.release(context.processingNo());
             deleteOriginalFile(article);
             log.error("文章异步处理失败，数据库事务将回滚: userId={}, articleId={}", article.getUserId(), article.getId(), e);
             throw new ClientException(BaseErrorCode.SERVICE_ERROR);
         }
     }
 
-    private ArticleTranslationResultDTO translateArticleContent(BizArticlesDO article, String originalContent) {
+    private ArticleTranslationResultDTO translateArticleContent(BizArticlesDO article,
+                                                                String originalContent,
+                                                                AiProcessingContext context) {
         article.setTranslationStatus(TRANSLATION_STATUS_PROCESSING);
         log.info("开始翻译文章内容: userId={}, articleId={}, contentLength={}",
                 article.getUserId(), article.getId(), originalContent.length());
-        ArticleTranslationResultDTO translationResult = articleTranslationService.translate(originalContent);
+        ArticleTranslationResultDTO translationResult = articleTranslationService.translate(originalContent, context);
         log.info("文章内容翻译完成: userId={}, articleId={}, translationStatus={}, translated={}",
                 article.getUserId(), article.getId(), translationResult.getTranslationStatus(), translationResult.getTranslated());
         return translationResult;
+    }
+
+    private void registerCreditSettlementAfterCommit(String processingNo) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            creditReservationService.settle(processingNo);
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                creditReservationService.settle(processingNo);
+            }
+        });
     }
 
     private void deleteOriginalFile(BizArticlesDO article) {

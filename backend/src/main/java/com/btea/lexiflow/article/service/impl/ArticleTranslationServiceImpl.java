@@ -1,5 +1,6 @@
 package com.btea.lexiflow.article.service.impl;
 
+import cn.hutool.core.util.IdUtil;
 import com.btea.lexiflow.article.dto.resp.ArticleTranslatedParagraphDTO;
 import com.btea.lexiflow.article.dto.resp.ArticleTranslationChunkDTO;
 import com.btea.lexiflow.article.dto.resp.ArticleTranslationChunkRespDTO;
@@ -13,11 +14,18 @@ import com.btea.lexiflow.article.llm.prompt.ArticleTranslationPrompt;
 import com.btea.lexiflow.article.service.ArticleTranslationService;
 import com.btea.lexiflow.common.convention.errorcode.BaseErrorCode;
 import com.btea.lexiflow.common.convention.exception.ClientException;
+import com.btea.lexiflow.pay.constant.AiUsageConstant;
+import com.btea.lexiflow.pay.model.AiProcessingContext;
+import com.btea.lexiflow.pay.service.AiRequestReservationEstimator;
+import com.btea.lexiflow.pay.service.AiUsageService;
+import com.btea.lexiflow.pay.service.CreditReservationService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.data.message.SystemMessage;
 import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.model.chat.ChatModel;
+import dev.langchain4j.model.chat.response.ChatResponse;
+import dev.langchain4j.model.output.TokenUsage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -27,7 +35,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Supplier;
+import java.util.function.IntFunction;
 import java.util.stream.Collectors;
 
 import static com.btea.lexiflow.article.constant.ArticleConstant.TRANSLATION_STATUS_PENDING;
@@ -48,15 +56,19 @@ public class ArticleTranslationServiceImpl implements ArticleTranslationService 
     private final ArticleParagraphSplitter articleParagraphSplitter;
     private final ArticleLlmResponseParser articleLlmResponseParser;
     private final ArticleTranslationProperties articleTranslationProperties;
+    private final AiUsageService aiUsageService;
+    private final CreditReservationService creditReservationService;
+    private final AiRequestReservationEstimator reservationEstimator;
 
     /**
      * 翻译文章正文
      *
      * @param originalContent 原始正文内容
+     * @param context AI处理计费上下文
      * @return 翻译结果
      */
     @Override
-    public ArticleTranslationResultDTO translate(String originalContent) {
+    public ArticleTranslationResultDTO translate(String originalContent, AiProcessingContext context) {
         if (originalContent == null || originalContent.isBlank()) {
             throw new ClientException(BaseErrorCode.ARTICLE_TRANSLATION_FAILED);
         }
@@ -78,7 +90,7 @@ public class ArticleTranslationServiceImpl implements ArticleTranslationService 
         log.info("文章正文段落切分完成: paragraphCount={}", paragraphs.size());
 
         // 构建文章翻译全局上下文资料
-        ArticleTranslationProfileDTO profile = buildGlobalProfile(originalContent);
+        ArticleTranslationProfileDTO profile = buildGlobalProfile(originalContent, context);
         Map<String, ArticleTranslationTermDTO> dynamicTerms = new LinkedHashMap<>();
         addTerms(dynamicTerms, profile.getTerms());
         log.info("文章翻译全局上下文构建完成: initialTermCount={}, entityCount={}",
@@ -95,7 +107,8 @@ public class ArticleTranslationServiceImpl implements ArticleTranslationService 
             log.info("开始翻译文章分块: chunkIndex={}, startParagraphIndex={}, paragraphCount={}, dynamicTermCount={}",
                     chunk.getChunkIndex(), chunk.getStartParagraphIndex(), chunk.getParagraphs().size(), dynamicTerms.size());
             // 对每个分块进行翻译
-            ArticleTranslationChunkRespDTO chunkResult = translateChunk(chunk, profile, dynamicTerms, previousChunkSummary, previousChunkTail);
+            ArticleTranslationChunkRespDTO chunkResult = translateChunk(
+                    chunk, profile, dynamicTerms, previousChunkSummary, previousChunkTail, context);
             // 规范分块翻译
             List<ArticleTranslatedParagraphDTO> normalizedParagraphs = normalizeChunkResult(chunk, chunkResult);
             translatedParagraphs.addAll(normalizedParagraphs);
@@ -120,7 +133,7 @@ public class ArticleTranslationServiceImpl implements ArticleTranslationService 
                 .build();
     }
 
-    private ArticleTranslationProfileDTO buildGlobalProfile(String originalContent) {
+    private ArticleTranslationProfileDTO buildGlobalProfile(String originalContent, AiProcessingContext context) {
         // 作为兜底，但是一般不会走这块代码
         if (!Boolean.TRUE.equals(articleTranslationProperties.getGlobalProfileEnabled())) {
             log.info("文章翻译全局上下文功能未启用，使用默认上下文: contentLength={}", originalContent.length());
@@ -135,8 +148,19 @@ public class ArticleTranslationServiceImpl implements ArticleTranslationService 
         log.info("开始构建文章翻译全局上下文: contentLength={}", originalContent.length());
         String userPrompt = ArticleTranslationPrompt.GLOBAL_PROFILE_USER_PROMPT
                 .replace("{{article_content}}", originalContent);
-        // 重试兜底调用 LLM
-        String response = callLlmWithRetry(() -> callLlm(ArticleTranslationPrompt.GLOBAL_PROFILE_SYSTEM_PROMPT, userPrompt));
+        String requestNo = IdUtil.getSnowflakeNextIdStr();
+        String stageKey = "GLOBAL_PROFILE";
+        creditReservationService.reserveAdditional(context, stageKey,
+                reservationEstimator.estimateText(
+                        ArticleTranslationPrompt.GLOBAL_PROFILE_SYSTEM_PROMPT, userPrompt));
+        String response = callLlmWithRetry(attemptNo -> callLlm(
+                ArticleTranslationPrompt.GLOBAL_PROFILE_SYSTEM_PROMPT,
+                userPrompt,
+                context,
+                requestNo,
+                attemptNo,
+                AiUsageConstant.SCENE_GLOBAL_PROFILE,
+                null));
         ArticleTranslationProfileDTO profile = articleLlmResponseParser.parse(response, ArticleTranslationProfileDTO.class);
         if (profile.getTerms() == null) {
             profile.setTerms(List.of());
@@ -156,7 +180,8 @@ public class ArticleTranslationServiceImpl implements ArticleTranslationService 
                                                           ArticleTranslationProfileDTO profile,
                                                           Map<String, ArticleTranslationTermDTO> dynamicTerms,
                                                           String previousChunkSummary,
-                                                          String previousChunkTail) {
+                                                          String previousChunkTail,
+                                                          AiProcessingContext context) {
         String userPrompt = ArticleTranslationPrompt.CHUNK_TRANSLATION_USER_PROMPT
                 .replace("{{global_context_profile}}", toJson(profile))
                 .replace("{{dynamic_terms}}", toJson(dynamicTerms.values()))
@@ -165,7 +190,19 @@ public class ArticleTranslationServiceImpl implements ArticleTranslationService 
                 .replace("{{current_chunk}}", buildCurrentChunkPrompt(chunk));
         log.info("开始调用 LLM 翻译文章分块: chunkIndex={}, startParagraphIndex={}, paragraphCount={}",
                 chunk.getChunkIndex(), chunk.getStartParagraphIndex(), chunk.getParagraphs().size());
-        String response = callLlmWithRetry(() -> callLlm(ArticleTranslationPrompt.CHUNK_TRANSLATION_SYSTEM_PROMPT, userPrompt));
+        String requestNo = IdUtil.getSnowflakeNextIdStr();
+        int unitIndex = chunk.getChunkIndex() + 1;
+        creditReservationService.reserveAdditional(context, "TRANSLATION:" + unitIndex,
+                reservationEstimator.estimateText(
+                        ArticleTranslationPrompt.CHUNK_TRANSLATION_SYSTEM_PROMPT, userPrompt));
+        String response = callLlmWithRetry(attemptNo -> callLlm(
+                ArticleTranslationPrompt.CHUNK_TRANSLATION_SYSTEM_PROMPT,
+                userPrompt,
+                context,
+                requestNo,
+                attemptNo,
+                AiUsageConstant.SCENE_CONTENT_CHUNK_TRANSLATION,
+                unitIndex));
         ArticleTranslationChunkRespDTO chunkResult = articleLlmResponseParser.parse(response, ArticleTranslationChunkRespDTO.class);
         if (chunkResult.getParagraphs() == null) {
             throw new ClientException(BaseErrorCode.ARTICLE_TRANSLATION_FAILED);
@@ -179,32 +216,92 @@ public class ArticleTranslationServiceImpl implements ArticleTranslationService 
         return chunkResult;
     }
 
-    private String callLlm(String systemPrompt, String userPrompt) {
-        List<ChatMessage> messages = List.of(SystemMessage.from(systemPrompt), UserMessage.from(userPrompt));
-        String response = chatModel.chat(messages).aiMessage().text();
-        if (response == null || response.isBlank()) {
-            throw new ClientException(BaseErrorCode.ARTICLE_TRANSLATION_FAILED);
+    private String callLlm(String systemPrompt,
+                           String userPrompt,
+                           AiProcessingContext context,
+                           String requestNo,
+                           int attemptNo,
+                           int scene,
+                           Integer unitIndex) {
+        String usageId = aiUsageService.startAttempt(
+                context,
+                requestNo,
+                attemptNo,
+                scene,
+                unitIndex,
+                "GEMINI",
+                "gemini-2.5-flash");
+        try {
+            List<ChatMessage> messages = List.of(
+                    SystemMessage.from(systemPrompt), UserMessage.from(userPrompt));
+            ChatResponse chatResponse = chatModel.chat(messages);
+            String response = chatResponse.aiMessage().text();
+            TokenUsage tokenUsage = chatResponse.tokenUsage();
+            if (response == null || response.isBlank()) {
+                aiUsageService.completeFailure(usageId, "LLM响应内容为空");
+                throw new ClientException(BaseErrorCode.ARTICLE_TRANSLATION_FAILED);
+            }
+            if (tokenUsage == null || tokenUsage.inputTokenCount() == null
+                    || tokenUsage.outputTokenCount() == null) {
+                aiUsageService.completeUnknown(usageId, "LLM响应缺少Token Usage");
+                throw new ClientException(BaseErrorCode.AI_USAGE_INVALID);
+            }
+            aiUsageService.completeSuccess(
+                    usageId,
+                    chatResponse.id(),
+                    tokenUsage.inputTokenCount(),
+                    tokenUsage.outputTokenCount());
+            creditReservationService.ensureActualUsageCovered(
+                    context, requestNo + ":" + attemptNo);
+            return response.trim();
+        } catch (ClientException e) {
+            throw e;
+        } catch (RuntimeException e) {
+            aiUsageService.completeUnknown(usageId, getErrorMessage(e));
+            throw e;
         }
-        return response.trim();
     }
 
-    private String callLlmWithRetry(Supplier<String> supplier) {
+    private String callLlmWithRetry(IntFunction<String> function) {
         int maxRetryTimes = articleTranslationProperties.getMaxRetryTimes() == null
                 ? 0
                 : Math.max(articleTranslationProperties.getMaxRetryTimes(), 0);
         RuntimeException lastException = null;
         for (int i = 0; i <= maxRetryTimes; i++) {
             try {
-                return supplier.get();
+                return function.apply(i + 1);
             } catch (RuntimeException e) {
+                if (isBillingFailure(e)) {
+                    throw e;
+                }
                 lastException = e;
-                log.warn("文章翻译 LLM 调用失败，准备重试: currentRetry={}, maxRetry={}", i, maxRetryTimes, e);
+                log.warn("文章翻译 LLM 调用失败，准备重试: currentRetry={}, maxRetry={}, error={}",
+                        i, maxRetryTimes, getErrorMessage(e));
             }
         }
         if (lastException instanceof ClientException) {
             throw lastException;
         }
         throw new ClientException(BaseErrorCode.ARTICLE_TRANSLATION_FAILED);
+    }
+
+    private boolean isBillingFailure(Throwable throwable) {
+        if (!(throwable instanceof ClientException clientException)) {
+            return false;
+        }
+        String errorCode = clientException.getErrorCode();
+        return BaseErrorCode.CREDIT_BALANCE_INSUFFICIENT.code().equals(errorCode)
+                || BaseErrorCode.CREDIT_ACCOUNT_FROZEN.code().equals(errorCode)
+                || BaseErrorCode.CREDIT_RESERVATION_CONFLICT.code().equals(errorCode);
+    }
+
+    private String getErrorMessage(Throwable throwable) {
+        if (throwable == null) {
+            return "unknown";
+        }
+        String message = throwable.getMessage();
+        return throwable.getClass().getSimpleName()
+                + (message == null || message.isBlank() ? "" : ": " + message);
     }
 
     private List<ArticleTranslationChunkDTO> buildChunks(List<String> paragraphs) {

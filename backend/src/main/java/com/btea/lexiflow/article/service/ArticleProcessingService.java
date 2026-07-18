@@ -1,6 +1,7 @@
 package com.btea.lexiflow.article.service;
 
 import com.btea.lexiflow.article.dao.entity.BizArticlesDO;
+import com.btea.lexiflow.pay.model.AiProcessingContext;
 
 /**
  * @Author: TwentyfiveBTea
@@ -16,6 +17,11 @@ public interface ArticleProcessingService {
      * @param fileBytes 文件字节数组
      * @param originalFilename 原始文件名
      * @param contentType 文件 MIME 类型
+     * @param context AI处理计费上下文
      */
-    void processUploadedArticle(BizArticlesDO article, byte[] fileBytes, String originalFilename, String contentType);
+    void processUploadedArticle(BizArticlesDO article,
+                                byte[] fileBytes,
+                                String originalFilename,
+                                String contentType,
+                                AiProcessingContext context);
 }

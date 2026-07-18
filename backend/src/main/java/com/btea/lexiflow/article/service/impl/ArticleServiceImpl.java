@@ -19,6 +19,8 @@ import com.btea.lexiflow.common.context.UserContext;
 import com.btea.lexiflow.common.convention.errorcode.BaseErrorCode;
 import com.btea.lexiflow.common.convention.exception.ClientException;
 import com.btea.lexiflow.infrastructure.s3.S3Util;
+import com.btea.lexiflow.pay.model.AiProcessingContext;
+import com.btea.lexiflow.pay.service.CreditReservationService;
 import com.btea.lexiflow.vocab.dao.entity.BizVocabEnDO;
 import com.btea.lexiflow.vocab.dao.entity.BizVocabJpDO;
 import com.btea.lexiflow.vocab.dao.mapper.BizVocabEnMapper;
@@ -53,6 +55,7 @@ public class ArticleServiceImpl implements ArticleService {
     private final S3Util s3Util;
     private final ArticleVocabAnalyzer articleVocabAnalyzer;
     private final ArticleProcessingService articleProcessingService;
+    private final CreditReservationService creditReservationService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -70,6 +73,8 @@ public class ArticleServiceImpl implements ArticleService {
 
         String userId = getCurrentUserId();
         String articleId = IdWorker.getIdStr();
+        String processingNo = IdWorker.getIdStr();
+        AiProcessingContext processingContext = new AiProcessingContext(userId, articleId, processingNo);
         String originalFilename = getOriginalFilename(file);
         String fileType = getFileType(originalFilename);
         String title = getBaseName(originalFilename);
@@ -102,9 +107,11 @@ public class ArticleServiceImpl implements ArticleService {
                 .build();
 
         try {
+            creditReservationService.createInitialReservation(processingContext);
             s3Util.uploadFile(file, filePath);
             log.info("文章原文件上传成功: userId={}, articleId={}, filePath={}", userId, articleId, filePath);
-            articleProcessingService.processUploadedArticle(article, fileBytes, originalFilename, file.getContentType());
+            articleProcessingService.processUploadedArticle(
+                    article, fileBytes, originalFilename, file.getContentType(), processingContext);
             log.info("文章异步处理任务提交成功: userId={}, articleId={}", userId, articleId);
             return ArticleUploadRespDTO.builder()
                     .articleId(articleId)
@@ -114,10 +121,12 @@ public class ArticleServiceImpl implements ArticleService {
                     .translationStatus(TRANSLATION_STATUS_PENDING)
                     .build();
         } catch (ClientException e) {
+            creditReservationService.release(processingNo);
             article.setParseStatus(PARSE_STATUS_FAILED);
             bizArticlesMapper.updateById(article);
             throw e;
         } catch (Exception e) {
+            creditReservationService.release(processingNo);
             article.setParseStatus(PARSE_STATUS_FAILED);
             bizArticlesMapper.updateById(article);
             log.error("文章上传失败: userId={}, articleId={}", userId, articleId, e);
