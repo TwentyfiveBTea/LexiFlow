@@ -117,42 +117,46 @@ function openStatistics(collection: VocabularyCollection) {
       <button class="create-card fade-in" @click="openCreate"><span><Plus :size="25" /></span><strong class="serif">创建新词库</strong><small>建立英语或日语词汇库，整理专属学习资料。</small></button>
     </section>
 
-    <div v-if="showCreate" class="modal-backdrop" @click.self="closeCreate">
-      <form class="create-modal surface" role="dialog" aria-modal="true" aria-labelledby="create-library-title" @submit.prevent="createCollection">
-        <div class="modal-heading"><div><p class="eyebrow">New collection</p><h2 id="create-library-title" class="serif">创建词汇库</h2></div><button class="icon-btn" type="button" aria-label="关闭创建词库弹窗" @click="closeCreate"><X :size="18" /></button></div>
+    <Transition name="dialog">
+      <div v-if="showCreate" class="modal-backdrop" @click.self="closeCreate">
+        <form class="dialog-panel create-modal surface" role="dialog" aria-modal="true" aria-labelledby="create-library-title" @submit.prevent="createCollection">
+          <div class="modal-heading"><div><p class="eyebrow">New collection</p><h2 id="create-library-title" class="serif">创建词汇库</h2></div><button class="icon-btn" type="button" aria-label="关闭创建词库弹窗" @click="closeCreate"><X :size="18" /></button></div>
 
-        <label class="field-label" for="collection-name">词汇库名称</label>
-        <input id="collection-name" v-model="newName" class="field" autofocus maxlength="128" required />
+          <label class="field-label" for="collection-name">词汇库名称</label>
+          <input id="collection-name" v-model="newName" class="field" autofocus maxlength="128" required />
 
-        <span id="collection-language-label" class="field-label">语言标识</span>
-        <div class="language-segmented" role="radiogroup" aria-labelledby="collection-language-label">
-          <button type="button" role="radio" :aria-checked="newLanguage === 'en'" :class="{ active: newLanguage === 'en' }" @click="newLanguage = 'en'"><strong>en</strong><span>英语</span></button>
-          <button type="button" role="radio" :aria-checked="newLanguage === 'ja'" :class="{ active: newLanguage === 'ja' }" @click="newLanguage = 'ja'"><strong>ja</strong><span>日语</span></button>
-        </div>
-
-        <div class="description-label"><label class="field-label" for="collection-description">词汇库描述</label><span>{{ newDescription.length }} / 500</span></div>
-        <textarea id="collection-description" v-model="newDescription" class="field description-field" maxlength="500"></textarea>
-
-        <div class="modal-actions"><button class="btn btn-secondary" type="button" @click="closeCreate">取消</button><button class="btn btn-primary" type="submit">创建</button></div>
-      </form>
-    </div>
-
-    <div v-if="selectedCollection" class="modal-backdrop" @click.self="selectedCollection = null">
-      <section class="statistics-modal surface" role="dialog" aria-modal="true" aria-labelledby="statistics-title">
-        <div class="modal-heading"><div><p class="eyebrow">Learning statistics</p><h2 id="statistics-title" class="serif">词库学习统计</h2><p>{{ selectedCollection.name }}</p></div><button class="icon-btn" type="button" aria-label="关闭学习统计弹窗" @click="selectedCollection = null"><X :size="18" /></button></div>
-        <dl class="statistics-list">
-          <div v-for="item in statisticsItems" :key="item.key" :class="{ total: item.key === 'total' }"><dt>{{ item.label }}</dt><dd class="serif">{{ item.value.toLocaleString() }}</dd></div>
-        </dl>
-        <div class="statistics-chart">
-          <p>学习数据占比</p>
-          <div class="distribution-bar" role="img" :aria-label="chartSegments.map((item) => `${item.label} ${item.value}`).join('，')"><span v-for="item in chartSegments" :key="item.key" :class="`segment-${item.key}`" :style="{ width: `${item.percentage}%` }"></span></div>
-          <div class="distribution-legend">
-            <div v-for="item in chartSegments" :key="item.key"><span><i :class="`legend-${item.key}`"></i>{{ item.label }}</span><strong>{{ item.value.toLocaleString() }} · {{ item.percentage.toFixed(1) }}%</strong></div>
+          <span id="collection-language-label" class="field-label">语言标识</span>
+          <div class="language-segmented" role="radiogroup" aria-labelledby="collection-language-label">
+            <button type="button" role="radio" :aria-checked="newLanguage === 'en'" :class="{ active: newLanguage === 'en' }" @click="newLanguage = 'en'"><strong>en</strong><span>英语</span></button>
+            <button type="button" role="radio" :aria-checked="newLanguage === 'ja'" :class="{ active: newLanguage === 'ja' }" @click="newLanguage = 'ja'"><strong>ja</strong><span>日语</span></button>
           </div>
-        </div>
-        <div class="modal-actions"><button class="btn btn-primary" type="button" @click="selectedCollection = null">完成</button></div>
-      </section>
-    </div>
+
+          <div class="description-label"><label class="field-label" for="collection-description">词汇库描述</label><span>{{ newDescription.length }} / 500</span></div>
+          <textarea id="collection-description" v-model="newDescription" class="field description-field" maxlength="500"></textarea>
+
+          <div class="modal-actions"><button class="btn btn-secondary" type="button" @click="closeCreate">取消</button><button class="btn btn-primary" type="submit">创建</button></div>
+        </form>
+      </div>
+    </Transition>
+
+    <Transition name="dialog">
+      <div v-if="selectedCollection" class="modal-backdrop" @click.self="selectedCollection = null">
+        <section class="dialog-panel statistics-modal surface" role="dialog" aria-modal="true" aria-labelledby="statistics-title">
+          <div class="modal-heading"><div><p class="eyebrow">Learning statistics</p><h2 id="statistics-title" class="serif">词库学习统计</h2><p>{{ selectedCollection.name }}</p></div><button class="icon-btn" type="button" aria-label="关闭学习统计弹窗" @click="selectedCollection = null"><X :size="18" /></button></div>
+          <dl class="statistics-list">
+            <div v-for="item in statisticsItems" :key="item.key" :class="{ total: item.key === 'total' }"><dt>{{ item.label }}</dt><dd class="serif">{{ item.value.toLocaleString() }}</dd></div>
+          </dl>
+          <div class="statistics-chart">
+            <p>学习数据占比</p>
+            <div class="distribution-bar" role="img" :aria-label="chartSegments.map((item) => `${item.label} ${item.value}`).join('，')"><span v-for="item in chartSegments" :key="item.key" :class="`segment-${item.key}`" :style="{ width: `${item.percentage}%` }"></span></div>
+            <div class="distribution-legend">
+              <div v-for="item in chartSegments" :key="item.key"><span><i :class="`legend-${item.key}`"></i>{{ item.label }}</span><strong>{{ item.value.toLocaleString() }} · {{ item.percentage.toFixed(1) }}%</strong></div>
+            </div>
+          </div>
+          <div class="modal-actions"><button class="btn btn-primary" type="button" @click="selectedCollection = null">完成</button></div>
+        </section>
+      </div>
+    </Transition>
   </main>
 </template>
 
@@ -183,7 +187,7 @@ function openStatistics(collection: VocabularyCollection) {
 .modal-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
 .modal-heading h2 { margin: 0; color: var(--primary); font-size: 26px; }.modal-heading > div > p:last-child { margin: 6px 0 0; color: var(--ink-muted); font-size: 13px; }
 .create-modal .modal-heading { margin-bottom: 23px; }.create-modal > .field-label { margin-top: 16px; }
-.create-modal .field { background: white; }
+.create-modal .field { background: white; font-size: 13px; }
 .language-segmented { height: 46px; display: grid; grid-template-columns: 1fr 1fr; gap: 3px; padding: 3px; border: 1px solid var(--outline); border-radius: 7px; background: var(--surface-low); }
 .language-segmented button { min-width: 0; display: flex; align-items: center; justify-content: center; gap: 7px; border: 0; border-radius: 5px; color: var(--ink-muted); background: transparent; }
 .language-segmented button:hover { color: var(--primary); }.language-segmented button:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }.language-segmented button.active { color: var(--primary); background: white; box-shadow: 0 1px 4px rgba(45,45,45,.11); }
