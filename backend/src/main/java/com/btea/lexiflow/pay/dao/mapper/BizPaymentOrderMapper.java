@@ -3,6 +3,8 @@ package com.btea.lexiflow.pay.dao.mapper;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.btea.lexiflow.pay.dao.entity.BizPaymentOrderDO;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Update;
 
 /**
  * @Author: TwentyfiveBTea
@@ -11,4 +13,24 @@ import org.apache.ibatis.annotations.Mapper;
  */
 @Mapper
 public interface BizPaymentOrderMapper extends BaseMapper<BizPaymentOrderDO> {
+
+    /**
+     * 条件标记单个待支付订单为已过期
+     *
+     * @param id 订单ID
+     * @param pendingStatus 待支付状态
+     * @param expiredStatus 已过期状态
+     * @return 影响行数
+     */
+    @Update("""
+            UPDATE biz_payment_order
+            SET order_status = #{expiredStatus},
+                updated_at = NOW()
+            WHERE id = #{id}
+              AND order_status = #{pendingStatus}
+              AND expires_at <= NOW()
+            """)
+    int expireOrderIfPending(@Param("id") String id,
+                             @Param("pendingStatus") Integer pendingStatus,
+                             @Param("expiredStatus") Integer expiredStatus);
 }

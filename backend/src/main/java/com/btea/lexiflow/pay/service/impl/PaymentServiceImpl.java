@@ -12,6 +12,7 @@ import com.btea.lexiflow.pay.dao.entity.BizPaymentOrderDO;
 import com.btea.lexiflow.pay.dao.mapper.BizPaymentOrderMapper;
 import com.btea.lexiflow.pay.dto.req.PaymentOrderCreateReqDTO;
 import com.btea.lexiflow.pay.dto.resp.PaymentOrderCreateRespDTO;
+import com.btea.lexiflow.pay.dto.resp.PaymentOrderRespDTO;
 import com.btea.lexiflow.pay.integration.epay.EpaySigner;
 import com.btea.lexiflow.pay.service.PaymentService;
 import lombok.RequiredArgsConstructor;
@@ -98,6 +99,19 @@ public class PaymentServiceImpl implements PaymentService {
                 userId, order.getOrderNo(), amountMinor, totalCredits, deviceType);
         return toCreateResp(order);
     }
+
+    /**
+     * 查询当前用户的支付订单
+     *
+     * @param orderNo 商户订单号
+     * @return 支付订单信息
+     */
+    @Override
+    public PaymentOrderRespDTO getOrder(String orderNo) {
+        BizPaymentOrderDO order = getCurrentUserOrder(orderNo);
+        expireIfNecessary(order);
+        return toOrderResp(getCurrentUserOrder(orderNo));
+    }
     private PaymentOrderCreateRespDTO toCreateResp(BizPaymentOrderDO order) {
         Map<String, String> parameters = buildSubmitParameters(order);
         parameters.put("sign", epaySigner.sign(parameters));
@@ -126,6 +140,41 @@ public class PaymentServiceImpl implements PaymentService {
         parameters.put("sitename", epayProperties.getSiteName());
         parameters.put("device", order.getDeviceType());
         return parameters;
+    }
+    private BizPaymentOrderDO getCurrentUserOrder(String orderNo) {
+        BizPaymentOrderDO order = paymentOrderMapper.selectOne(new LambdaQueryWrapper<BizPaymentOrderDO>()
+                .eq(BizPaymentOrderDO::getOrderNo, orderNo)
+                .eq(BizPaymentOrderDO::getUserId, getCurrentUserId()));
+        if (order == null) {
+            throw new ClientException(BaseErrorCode.PAYMENT_ORDER_NOT_FOUND);
+        }
+        return order;
+    }
+
+    private void expireIfNecessary(BizPaymentOrderDO order) {
+        if (Integer.valueOf(PaymentConstant.ORDER_STATUS_PENDING).equals(order.getOrderStatus())
+                && order.getExpiresAt() != null && !order.getExpiresAt().after(new Date())) {
+            paymentOrderMapper.expireOrderIfPending(
+                    order.getId(),
+                    PaymentConstant.ORDER_STATUS_PENDING,
+                    PaymentConstant.ORDER_STATUS_EXPIRED);
+        }
+    }
+
+    private PaymentOrderRespDTO toOrderResp(BizPaymentOrderDO order) {
+        return PaymentOrderRespDTO.builder()
+                .orderNo(order.getOrderNo())
+                .subject(order.getSubject())
+                .amountMinor(order.getAmountMinor())
+                .totalCredits(order.getTotalCredits())
+                .deviceType(order.getDeviceType())
+                .orderStatus(order.getOrderStatus())
+                .creditStatus(order.getCreditStatus())
+                .expiresAt(order.getExpiresAt())
+                .paidAt(order.getPaidAt())
+                .creditedAt(order.getCreditedAt())
+                .createdAt(order.getCreatedAt())
+                .build();
     }
     private String normalizeDevice(String deviceType) {
         String normalized = deviceType == null || deviceType.isBlank()

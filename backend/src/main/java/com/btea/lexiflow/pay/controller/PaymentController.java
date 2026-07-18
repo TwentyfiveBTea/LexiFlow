@@ -5,11 +5,13 @@ import com.btea.lexiflow.common.convention.result.Results;
 import com.btea.lexiflow.pay.dto.req.PaymentOrderCreateReqDTO;
 import com.btea.lexiflow.pay.dto.resp.CreditAccountRespDTO;
 import com.btea.lexiflow.pay.dto.resp.PaymentOrderCreateRespDTO;
+import com.btea.lexiflow.pay.dto.resp.PaymentOrderRespDTO;
 import com.btea.lexiflow.pay.service.CreditAccountService;
 import com.btea.lexiflow.pay.service.PaymentService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -35,6 +37,14 @@ public class PaymentController {
     public Result<PaymentOrderCreateRespDTO> createOrder(
             @RequestBody @Valid PaymentOrderCreateReqDTO reqDTO) {
         return Results.success(paymentService.createOrder(reqDTO));
+    }
+
+    /**
+     * 获取当前用户支付订单
+     */
+    @GetMapping("/orders/{orderNo}")
+    public Result<PaymentOrderRespDTO> getOrder(@PathVariable String orderNo) {
+        return Results.success(paymentService.getOrder(orderNo));
     }
 
     /**
