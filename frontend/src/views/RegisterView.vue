@@ -14,11 +14,14 @@ const confirmPassword = ref('')
 const agreed = ref(false)
 const showPassword = ref(false)
 const message = ref('')
-const isValid = computed(() => email.value && username.value && password.value.length >= 6 && password.value === confirmPassword.value && agreed.value)
+const passwordPattern = /^(?=.*[a-z])(?=.*[A-Z]).{6,}$/
+const isValid = computed(() => email.value && username.value && passwordPattern.test(password.value) && password.value === confirmPassword.value && agreed.value)
 
 async function submit() {
   if (!isValid.value) {
-    message.value = password.value !== confirmPassword.value ? '两次输入的密码不一致。' : '请完整填写信息并同意服务条款。'
+    if (!passwordPattern.test(password.value)) message.value = '密码长度不少于 6 位，且必须包含大小写字母。'
+    else if (password.value !== confirmPassword.value) message.value = '两次输入的密码不一致。'
+    else message.value = '请完整填写信息并同意服务条款。'
     return
   }
   session.signIn(username.value, 'demo-session', email.value)
@@ -31,22 +34,19 @@ async function submit() {
     <section class="register-card surface fade-in">
       <header>
         <BrandMark />
-        <p class="eyebrow">建立个人语料空间</p>
         <h1 class="serif">创建账号</h1>
-        <p>加入 LexiFlow，开启你的深度学习之旅。</p>
+        <p>加入 LexiFlow，开启精读学习之旅</p>
       </header>
 
       <form @submit.prevent="submit">
-        <div class="two-columns">
-          <div><label class="field-label" for="register-email">电子邮件</label><input id="register-email" v-model="email" class="field" type="email" placeholder="name@example.com" required /></div>
-          <div><label class="field-label" for="username">用户名</label><input id="username" v-model="username" class="field" placeholder="你的学术昵称" required /></div>
-        </div>
-        <div class="two-columns">
-          <div>
+        <div class="form-fields">
+          <div class="field-group"><label class="field-label" for="register-email">电子邮件</label><input id="register-email" v-model="email" class="field" type="email" placeholder="name@example.com" required /></div>
+          <div class="field-group"><label class="field-label" for="username">用户名</label><input id="username" v-model="username" class="field" placeholder="您所展示的昵称" required /></div>
+          <div class="field-group">
             <label class="field-label" for="register-password">密码</label>
-            <div class="password-field"><input id="register-password" v-model="password" class="field" :type="showPassword ? 'text' : 'password'" placeholder="至少 6 位" required /><button type="button" aria-label="显示或隐藏密码" @click="showPassword = !showPassword"><EyeOff v-if="showPassword" :size="17" /><Eye v-else :size="17" /></button></div>
+            <div class="password-field"><input id="register-password" v-model="password" class="field" :type="showPassword ? 'text' : 'password'" placeholder="密码长度不少于6位，且必须包含大小写字母" required /><button type="button" aria-label="显示或隐藏密码" @click="showPassword = !showPassword"><EyeOff v-if="showPassword" :size="17" /><Eye v-else :size="17" /></button></div>
           </div>
-          <div><label class="field-label" for="confirm-password">确认密码</label><input id="confirm-password" v-model="confirmPassword" class="field" type="password" placeholder="再次输入密码" required /></div>
+          <div class="field-group"><label class="field-label" for="confirm-password">确认密码</label><input id="confirm-password" v-model="confirmPassword" class="field" type="password" placeholder="再次输入密码" required /></div>
         </div>
 
         <label class="agreement"><input v-model="agreed" type="checkbox" /><span class="check"><Check :size="13" /></span><span>我已阅读并同意服务条款与隐私政策。</span></label>
@@ -60,12 +60,14 @@ async function submit() {
 
 <style scoped>
 .register-page { min-height: 100vh; display: grid; place-items: center; padding: 48px 24px; background: var(--surface); }
-.register-card { width: min(100%, 720px); padding: 44px; }
-header { margin-bottom: 32px; text-align: center; }
-header :deep(.brand) { justify-content: center; margin-bottom: 30px; }
+.register-card { width: min(100%, 600px); padding: 44px; }
+header { margin-bottom: 28px; text-align: center; }
+header :deep(.brand) { justify-content: center; margin-bottom: 18px; }
 header h1 { margin: 0; color: var(--primary); font-size: 36px; }
-header > p:last-child { margin: 8px 0 0; color: var(--ink-muted); }
-.two-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 20px; }
+header > p:last-child { margin: 6px 0 0; color: var(--ink-muted); }
+.form-fields { display: grid; gap: 16px; margin-bottom: 18px; }
+.field-group { min-width: 0; }
+.register-card .field::placeholder { font-size: 12px; }
 .password-field { position: relative; }
 .password-field .field { padding-right: 44px; }
 .password-field button { position: absolute; right: 6px; top: 3px; width: 38px; height: 38px; display: grid; place-items: center; border: 0; color: var(--ink-muted); background: transparent; }
@@ -77,5 +79,5 @@ header > p:last-child { margin: 8px 0 0; color: var(--ink-muted); }
 .submit { width: 100%; margin-top: 22px; }
 .login-link { margin: 22px 0 0; text-align: center; color: var(--ink-muted); font-size: 13px; }
 .login-link a { margin-left: 5px; color: var(--secondary); font-weight: 700; }
-@media (max-width: 640px) { .register-card { padding: 28px 22px; } .two-columns { grid-template-columns: 1fr; } }
+@media (max-width: 640px) { .register-card { padding: 28px 22px; } }
 </style>
