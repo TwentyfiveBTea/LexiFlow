@@ -13,6 +13,12 @@ export interface LoginResponse {
   token: string
 }
 
+export interface UserProfileResponse {
+  avatar: string | null
+  email: string
+  registeredDays: number
+}
+
 export const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL ?? '/api/v1',
   timeout: 20_000,
@@ -31,3 +37,8 @@ api.interceptors.response.use((response) => {
   }
   return response
 })
+
+export async function getUserProfile() {
+  const response = await api.get<ApiResult<UserProfileResponse>>('/user/profile')
+  return response.data.data
+}

@@ -15,7 +15,7 @@ const loading = ref(false)
 async function submit() {
   loading.value = true
   await new Promise((resolve) => setTimeout(resolve, 450))
-  session.signIn(email.value.split('@')[0] || '学者')
+  session.signIn(email.value.split('@')[0] || '学者', 'demo-session', email.value)
   await router.push('/dashboard')
 }
 </script>

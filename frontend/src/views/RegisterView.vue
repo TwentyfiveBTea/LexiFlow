@@ -21,7 +21,7 @@ async function submit() {
     message.value = password.value !== confirmPassword.value ? '两次输入的密码不一致。' : '请完整填写信息并同意服务条款。'
     return
   }
-  session.signIn(username.value)
+  session.signIn(username.value, 'demo-session', email.value)
   await router.push('/dashboard')
 }
 </script>
