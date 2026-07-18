@@ -56,7 +56,25 @@ public enum BaseErrorCode implements IErrorCode {
 
     // 单词学习（0006xxx）
     WORD_PROGRESS_NOT_FOUND("0006300", "单词学习进度不存在"),
-    WORD_REVIEW_QUALITY_INVALID("0006301", "复习评分必须在0到5之间");
+    WORD_REVIEW_QUALITY_INVALID("0006301", "复习结果无效"),
+
+    // 支付与Credits（0007xxx）
+    PAYMENT_CONFIG_INVALID("0007300", "支付配置无效"),
+    PAYMENT_AMOUNT_INVALID("0007301", "充值金额必须为1到100之间的整数"),
+    PAYMENT_DEVICE_INVALID("0007302", "暂不支持当前支付设备"),
+    PAYMENT_ORDER_NOT_FOUND("0007303", "支付订单不存在或无权访问"),
+    PAYMENT_ORDER_CONFLICT("0007304", "支付订单请求冲突"),
+    PAYMENT_PROVIDER_ERROR("0007305", "支付平台调用失败"),
+    PAYMENT_PROVIDER_RESPONSE_INVALID("0007306", "支付平台响应无效"),
+    PAYMENT_NOTIFY_INVALID("0007307", "支付通知验证失败"),
+    PAYMENT_AMOUNT_MISMATCH("0007308", "支付金额不一致"),
+    CREDIT_ACCOUNT_NOT_FOUND("0007309", "Credits账户不存在"),
+    CREDIT_ACCOUNT_FROZEN("0007310", "Credits账户已冻结"),
+    CREDIT_BALANCE_INSUFFICIENT("0007311", "Credits余额不足"),
+    CREDIT_RESERVATION_NOT_FOUND("0007312", "Credits预占记录不存在"),
+    CREDIT_RESERVATION_CONFLICT("0007313", "Credits预占状态冲突"),
+    AI_USAGE_NOT_FOUND("0007314", "AI用量记录不存在"),
+    AI_USAGE_INVALID("0007315", "AI用量数据无效");
 
     // 错误码
     private final String code;
