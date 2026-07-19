@@ -7,6 +7,7 @@ import type { VocabularyCollection } from '@/data/demo'
 
 const router = useRouter()
 const query = ref('')
+const languageFilter = ref<'all' | 'en' | 'ja'>('all')
 const showCreate = ref(false)
 const newName = ref('')
 const newLanguage = ref<'en' | 'ja'>('en')
@@ -16,8 +17,11 @@ const createdCollections = ref<VocabularyCollection[]>([])
 const allCollections = computed(() => [...collections, ...createdCollections.value])
 const filtered = computed(() => {
   const keyword = query.value.trim().toLowerCase()
-  if (!keyword) return allCollections.value
-  return allCollections.value.filter((item) => `${item.name}${item.languageCode}${item.description}`.toLowerCase().includes(keyword))
+  return allCollections.value.filter((item) => {
+    const matchesKeyword = !keyword || item.name.toLowerCase().includes(keyword)
+    const matchesLanguage = languageFilter.value === 'all' || item.languageCode === languageFilter.value
+    return matchesKeyword && matchesLanguage
+  })
 })
 const statisticsItems = computed(() => {
   const statistics = selectedCollection.value?.statistics
@@ -90,7 +94,15 @@ function openStatistics(collection: VocabularyCollection) {
   <main class="page">
     <header class="page-header fade-in">
       <div><p class="eyebrow">Repository · Collections</p><h1 class="page-title">词汇库</h1><p class="page-description">分类管理词汇资源，建立深度阅读与学术研究的知识枢纽。</p></div>
-      <div class="header-actions"><label class="compact-search"><Search :size="17" /><input v-model="query" placeholder="搜索词库" /></label><button class="btn btn-primary" @click="openCreate"><Plus :size="17" />新建词库</button></div>
+      <div class="header-actions">
+        <label class="compact-search"><Search :size="17" /><input v-model="query" placeholder="搜索词库" /></label>
+        <div class="language-filter" role="radiogroup" aria-label="按语言筛选词汇库">
+          <button type="button" role="radio" :aria-checked="languageFilter === 'all'" :class="{ active: languageFilter === 'all' }" @click="languageFilter = 'all'">全部</button>
+          <button type="button" role="radio" :aria-checked="languageFilter === 'en'" :class="{ active: languageFilter === 'en' }" @click="languageFilter = 'en'">en</button>
+          <button type="button" role="radio" :aria-checked="languageFilter === 'ja'" :class="{ active: languageFilter === 'ja' }" @click="languageFilter = 'ja'">ja</button>
+        </div>
+        <button class="btn btn-primary" @click="openCreate"><Plus :size="17" />新建词库</button>
+      </div>
     </header>
 
     <section class="collection-grid">
@@ -161,9 +173,12 @@ function openStatistics(collection: VocabularyCollection) {
 </template>
 
 <style scoped>
-.header-actions { display: flex; gap: 10px; }
+.header-actions { display: flex; align-items: center; justify-content: flex-end; gap: 10px; }
 .compact-search { width: 230px; height: 42px; display: flex; align-items: center; gap: 8px; padding: 0 12px; border: 1px solid var(--outline); border-radius: 7px; color: var(--ink-muted); background: white; }
 .compact-search:focus-within { border-color: var(--primary); }.compact-search input { min-width: 0; flex: 1; border: 0; outline: 0; background: transparent; }
+.language-filter { height: 42px; display: grid; grid-template-columns: repeat(3, minmax(38px, auto)); gap: 2px; padding: 3px; border: 1px solid var(--outline); border-radius: 7px; background: var(--surface-low); }
+.language-filter button { min-width: 0; padding: 0 9px; border: 0; border-radius: 5px; color: var(--ink-muted); background: transparent; font-size: 11px; font-weight: 650; text-transform: lowercase; transition: color .16s ease, background-color .16s ease, box-shadow .16s ease; }
+.language-filter button:hover { color: var(--primary); }.language-filter button:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }.language-filter button.active { color: var(--primary); background: white; box-shadow: 0 1px 4px rgba(45,45,45,.11); }
 .collection-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
 .collection-card { min-height: 342px; display: flex; flex-direction: column; padding: 24px; cursor: pointer; transition: border-color .2s ease, transform .2s ease; }
 .collection-card:hover { border-color: var(--primary); transform: translateY(-2px); }
@@ -205,5 +220,6 @@ function openStatistics(collection: VocabularyCollection) {
 .distribution-legend div { min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--ink-muted); font-size: 10px; }.distribution-legend div > span { display: flex; align-items: center; gap: 6px; white-space: nowrap; }.distribution-legend i { width: 7px; height: 7px; flex: 0 0 auto; border-radius: 50%; }.distribution-legend strong { color: var(--ink); font-size: 10px; white-space: nowrap; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
 @media (max-width: 1100px) { .collection-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 700px) { .header-actions { flex-direction: column; }.compact-search { width: 100%; }.collection-grid { grid-template-columns: 1fr; } }
+@media (max-width: 800px) { .header-actions { flex-wrap: wrap; justify-content: flex-start; } }
+@media (max-width: 700px) { .header-actions { align-items: stretch; flex-direction: column; }.compact-search, .language-filter { width: 100%; }.collection-grid { grid-template-columns: 1fr; } }
 </style>
