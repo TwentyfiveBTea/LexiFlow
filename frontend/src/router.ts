@@ -16,6 +16,8 @@ const router = createRouter({
         { path: 'articles', name: 'articles', component: () => import('@/views/ArticleLibraryView.vue'), meta: { title: '文章库' } },
         { path: 'vocabulary', name: 'vocabulary', component: () => import('@/views/VocabularyView.vue'), meta: { title: '词汇库' } },
         { path: 'vocabulary/:id', name: 'vocabulary-detail', component: () => import('@/views/VocabularyDetailView.vue'), meta: { title: '词汇明细' } },
+        { path: 'review', name: 'review-list', component: () => import('@/views/ReviewListView.vue'), meta: { title: '单词复习' } },
+        { path: 'review/session', name: 'review-session', component: () => import('@/views/ReviewSessionView.vue'), meta: { title: '开始复习' } },
         { path: 'wallet', name: 'wallet', component: () => import('@/views/WalletView.vue'), meta: { title: '钱包' } },
         { path: 'settings', name: 'settings', component: () => import('@/views/SettingsView.vue'), meta: { title: '设置' } },
       ],

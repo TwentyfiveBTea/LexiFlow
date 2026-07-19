@@ -48,6 +48,18 @@ export interface ChangePasswordRequest {
   confirmPassword: string
 }
 
+export interface DueWordResponse {
+  libraryWordId: string | null
+  wordId: number
+  languageCode: 'en' | 'ja'
+  word: string
+  kana: string | null
+  us: string | null
+  uk: string | null
+  translations: string | null
+  phrases: string | null
+}
+
 export const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL ?? '/api/v1',
   timeout: 20_000,
@@ -85,6 +97,17 @@ export async function changeUsername(username: string) {
 
 export async function changePassword(payload: ChangePasswordRequest) {
   await api.post<ApiResult<void>>('/user/profile/change-password', payload)
+}
+
+export async function getDueWords(libraryId?: string) {
+  const response = await api.get<ApiResult<DueWordResponse[]>>('/learning/due', {
+    params: libraryId ? { libraryId } : undefined,
+  })
+  return response.data.data
+}
+
+export async function reviewWord(wordId: number, languageCode: 'en' | 'ja', rating: 'UNKNOWN' | 'VAGUE' | 'KNOWN') {
+  await api.post<ApiResult<void>>(`/learning/words/${wordId}/review`, { languageCode, rating })
 }
 
 export async function getRechargeRecords(page: number, pageSize: number) {

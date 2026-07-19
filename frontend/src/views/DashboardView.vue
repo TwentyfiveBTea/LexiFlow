@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ArrowRight, BookOpen, Clock3, FileText, Link2, Upload, Zap } from 'lucide-vue-next'
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { articles } from '@/data/demo'
 import { useSessionStore } from '@/stores/session'
@@ -10,6 +10,7 @@ const session = useSessionStore()
 const articleUrl = ref('')
 const fileInput = ref<HTMLInputElement | null>(null)
 const notice = ref('')
+const weekday = computed(() => new Intl.DateTimeFormat('en-US', { weekday: 'long' }).format(new Date()).toUpperCase())
 
 function processUrl() {
   notice.value = articleUrl.value ? '链接已加入处理队列。' : '请先粘贴文章链接。'
@@ -24,9 +25,9 @@ function upload(event: Event) {
 <template>
   <main class="page dashboard-page">
     <header class="welcome fade-in">
-      <p class="eyebrow">Saturday · Deep work</p>
+      <p class="eyebrow">{{ weekday }} · DEEP WORK</p>
       <h1 class="page-title">欢迎回来，{{ session.userName }}。</h1>
-      <p class="page-description">记忆卡牌中还有 24 个基于昨日阅读内容的新单词等待复习。</p>
+      <p class="page-description">点击下方开始今天的文章精读和外语学习</p>
     </header>
 
     <section class="dashboard-grid">
@@ -66,7 +67,7 @@ function upload(event: Event) {
         <article class="metric surface fade-in"><span class="metric-icon clay"><Zap :size="21" /></span><div><small>连续学习</small><strong class="serif">12 天</strong><p>保持稳定的阅读节奏</p></div></article>
         <article class="review-card fade-in">
           <p class="eyebrow">Memory deck</p><h2 class="serif">24 个词待复习</h2><p>今天的卡牌来自最近三篇阅读材料。</p>
-          <RouterLink class="btn btn-primary" to="/vocabulary/core">开始复习<ArrowRight :size="16" /></RouterLink>
+          <RouterLink class="btn btn-primary" to="/review">开始复习<ArrowRight :size="16" /></RouterLink>
         </article>
       </aside>
     </section>

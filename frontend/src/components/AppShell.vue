@@ -9,6 +9,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Settings,
+  SpellCheck,
   WalletCards,
   X,
 } from 'lucide-vue-next'
@@ -60,6 +61,7 @@ const navItems = [
   { label: '首页', to: '/dashboard', icon: Gauge },
   { label: '我的图书馆', to: '/articles', icon: Library },
   { label: '词汇库', to: '/vocabulary', icon: Languages },
+  { label: '单词复习', to: '/review', icon: SpellCheck },
   { label: '钱包', to: '/wallet', icon: WalletCards },
   { label: '设置', to: '/settings', icon: Settings },
 ]
