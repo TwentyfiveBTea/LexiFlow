@@ -1,23 +1,71 @@
 <script setup lang="ts">
-import { ArrowLeft, ChevronDown, Filter, Search, Volume2 } from 'lucide-vue-next'
-import { computed, ref } from 'vue'
+import { ArrowLeft, Check, ChevronDown, Filter, Search, Trash2 } from 'lucide-vue-next'
+import { onClickOutside } from '@vueuse/core'
+import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { collections, words } from '@/data/demo'
+import type { Word } from '@/data/demo'
 
 const route = useRoute()
 const query = ref('')
-const level = ref('全部等级')
+const level = ref('')
+const levelOpen = ref(false)
+const levelFilterArea = ref<HTMLElement | null>(null)
+const localWords = ref<Word[]>([...words])
 const collection = computed(() => collections.find((item) => item.libraryId === route.params.id) ?? collections[0]!)
-const filteredWords = computed(() => words.filter((word) => {
-  const match = `${word.term}${word.translation}${word.definition}`.toLowerCase().includes(query.value.toLowerCase())
-  return match && (level.value === '全部等级' || word.level === level.value)
-}))
+const englishLevels = [
+  { value: 'BEC', label: 'BEC' }, { value: 'CET4', label: 'CET4' }, { value: 'CET6', label: 'CET6' },
+  { value: 'GMAT', label: 'GMAT' }, { value: 'GRE', label: 'GRE' }, { value: 'IELTS', label: 'IELTS' },
+  { value: 'LEVEL4', label: 'Level4' }, { value: 'LEVEL8', label: 'Level8' }, { value: 'SAT', label: 'SAT' },
+  { value: 'TOEFL', label: 'TOEFL' }, { value: 'CHUZHONG', label: '初中' }, { value: 'GAOZHONG', label: '高中' },
+  { value: 'KAOYAN', label: '考研' },
+]
+const japaneseLevels = ['N5', 'N4', 'N3', 'N2', 'N1'].map((value) => ({ value, label: value }))
+const availableLevels = computed(() => collection.value.languageCode === 'ja' ? japaneseLevels : englishLevels)
+const selectedLevelLabel = computed(() => availableLevels.value.find((item) => item.value === level.value)?.label ?? '全部等级')
+const filteredWords = computed(() => {
+  const keyword = query.value.trim().toLowerCase()
+  return localWords.value.filter((word) => {
+    const searchable = [word.word, word.kana, word.us, word.uk, word.translations, word.phrases, word.translation, word.definition].join(' ').toLowerCase()
+    return word.languageCode === collection.value.languageCode
+      && (!keyword || searchable.includes(keyword))
+      && (!level.value || word.level === level.value)
+  })
+})
 
-function pronounce(word: string) {
-  if ('speechSynthesis' in window) {
-    speechSynthesis.cancel()
-    speechSynthesis.speak(new SpeechSynthesisUtterance(word))
+watch(() => collection.value.languageCode, () => {
+  level.value = ''
+  levelOpen.value = false
+})
+
+onClickOutside(levelFilterArea, () => {
+  levelOpen.value = false
+})
+
+const dateFormatter = new Intl.DateTimeFormat('zh-CN', {
+  year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false,
+})
+
+function formatDate(value: string) {
+  return dateFormatter.format(new Date(value))
+}
+
+function formatJsonList(value: string, field: 'translation' | 'phrase') {
+  try {
+    const items = JSON.parse(value) as Array<Record<string, string>>
+    return items.map((item) => field === 'phrase' && item.translation ? `${item.phrase} · ${item.translation}` : item[field] ?? '').filter(Boolean).join('；')
+  } catch {
+    return value
   }
+}
+
+function removeWord(word: Word) {
+  localWords.value = localWords.value.filter((item) => item.libraryWordId !== word.libraryWordId)
+}
+
+function selectLevel(value: string) {
+  level.value = value
+  levelOpen.value = false
 }
 </script>
 
@@ -26,21 +74,30 @@ function pronounce(word: string) {
     <RouterLink class="back-link" to="/vocabulary"><ArrowLeft :size="16" />返回词汇库</RouterLink>
     <header class="page-header detail-header fade-in">
       <div><p class="eyebrow">Collection · {{ collection.wordCount.toLocaleString() }} words</p><h1 class="page-title">{{ collection.name }}</h1><p class="page-description">按掌握度安排下一次记忆练习，持续巩固阅读中真正遇到的词。</p></div>
-      <RouterLink class="btn btn-primary" to="/reader/algorithmic-sentience">开始复习</RouterLink>
     </header>
 
     <section class="word-toolbar surface fade-in">
-      <label class="word-search"><Search :size="18" /><input v-model="query" placeholder="搜索单词、释义" /></label>
-      <label class="level-filter"><Filter :size="16" /><select v-model="level"><option>全部等级</option><option>GRE</option><option>IELTS</option></select><ChevronDown :size="14" /></label>
+      <label class="word-search"><Search :size="18" /><input v-model="query" placeholder="搜索单词" /></label>
+      <div ref="levelFilterArea" class="level-filter">
+        <button class="level-trigger" type="button" aria-haspopup="listbox" :aria-expanded="levelOpen" @click="levelOpen = !levelOpen" @keydown.esc="levelOpen = false"><Filter :size="16" /><span>{{ selectedLevelLabel }}</span><ChevronDown :size="14" :class="{ rotated: levelOpen }" /></button>
+        <Transition name="filter-menu">
+          <div v-if="levelOpen" class="level-menu surface" role="listbox" aria-label="选择词汇等级">
+            <button type="button" role="option" :aria-selected="level === ''" :class="{ active: level === '' }" @click="selectLevel('')"><span>全部等级</span><Check v-if="level === ''" :size="14" /></button>
+            <button v-for="item in availableLevels" :key="item.value" type="button" role="option" :aria-selected="level === item.value" :class="{ active: level === item.value }" @click="selectLevel(item.value)"><span>{{ item.label }}</span><Check v-if="level === item.value" :size="14" /></button>
+          </div>
+        </Transition>
+      </div>
     </section>
 
     <section class="word-table surface fade-in">
-      <div class="table-head"><span>单词</span><span>释义</span><span>等级</span><span>掌握度</span></div>
-      <article v-for="word in filteredWords" :key="word.id" class="word-row">
-        <div class="term"><button class="sound" :aria-label="`朗读 ${word.term}`" @click="pronounce(word.term)"><Volume2 :size="16" /></button><div><strong class="serif">{{ word.term }}</strong><small>{{ word.phonetic }}</small></div></div>
-        <div class="meaning"><strong>{{ word.partOfSpeech }} {{ word.translation }}</strong><span>{{ word.definition }}</span></div>
-        <div><span class="badge">{{ word.level }}</span></div>
-        <div class="mastery-cell"><div class="progress"><span :style="{ width: `${word.mastery}%` }"></span></div><small>{{ word.mastery }}%</small></div>
+      <div class="table-head"><span>单词</span><span>释义与短语</span><span>发音</span><span>等级</span><span>加入时间</span><span aria-hidden="true"></span></div>
+      <article v-for="word in filteredWords" :key="word.libraryWordId" class="word-row">
+        <div class="term"><div><strong class="serif">{{ word.word }}</strong><small v-if="word.kana">{{ word.kana }}</small></div></div>
+        <div class="meaning"><strong>{{ formatJsonList(word.translations, 'translation') || '暂无释义' }}</strong><span v-if="word.phrases && word.phrases !== '[]'">{{ formatJsonList(word.phrases, 'phrase') }}</span></div>
+        <div class="pronunciation"><span v-if="word.us">US {{ word.us }}</span><span v-if="word.uk">UK {{ word.uk }}</span><span v-if="word.kana">{{ word.kana }}</span></div>
+        <div><span class="badge level-badge">{{ word.level }}</span></div>
+        <div class="added-at">{{ formatDate(word.addedAt) }}</div>
+        <button class="delete-word icon-btn" type="button" :aria-label="`从词汇库删除 ${word.word}`" title="从词汇库删除" @click="removeWord(word)"><Trash2 :size="16" /></button>
       </article>
       <div v-if="!filteredWords.length" class="table-empty">没有符合条件的单词。</div>
     </section>
@@ -50,15 +107,16 @@ function pronounce(word: string) {
 <style scoped>
 .back-link { display: inline-flex; align-items: center; gap: 6px; margin-bottom: 26px; color: var(--ink-muted); font-size: 13px; font-weight: 650; }.back-link:hover { color: var(--primary); }
 .detail-header { margin-bottom: 28px; }
-.word-toolbar { min-height: 66px; display: flex; align-items: center; gap: 12px; padding: 10px 12px; margin-bottom: 18px; }
-.word-search { height: 44px; flex: 1; display: flex; align-items: center; gap: 9px; padding: 0 12px; border-radius: 7px; color: var(--ink-muted); background: var(--surface-low); }.word-search input { width: 100%; border: 0; outline: 0; background: transparent; }
-.level-filter { height: 44px; display: flex; align-items: center; gap: 7px; padding: 0 12px; border: 1px solid var(--outline); border-radius: 7px; color: var(--ink-muted); }.level-filter select { border: 0; outline: 0; appearance: none; background: transparent; }
-.word-table { overflow: hidden; }.table-head, .word-row { display: grid; grid-template-columns: 1.2fr 2.4fr .6fr 1fr; gap: 20px; align-items: center; padding: 0 22px; }
-.table-head { min-height: 46px; color: var(--ink-muted); background: var(--surface-low); font-size: 11px; font-weight: 700; text-transform: uppercase; }
-.word-row { min-height: 98px; border-top: 1px solid rgba(199,196,192,.7); }
-.term { display: flex; align-items: center; gap: 11px; }.sound { width: 32px; height: 32px; display: grid; place-items: center; border: 0; border-radius: 50%; color: var(--primary); background: var(--primary-soft); }.term div { display: grid; gap: 3px; }.term strong { font-size: 19px; color: var(--primary); }.term small { color: var(--ink-muted); }
-.meaning { display: grid; gap: 4px; min-width: 0; }.meaning strong { font-size: 13px; }.meaning span { overflow: hidden; color: var(--ink-muted); font-size: 12px; white-space: nowrap; text-overflow: ellipsis; }
-.mastery-cell { display: grid; grid-template-columns: 1fr 30px; align-items: center; gap: 8px; }.mastery-cell small { color: var(--ink-muted); font-size: 11px; }
+.word-toolbar { position: relative; z-index: 10; min-height: 66px; display: flex; align-items: center; gap: 12px; padding: 10px 12px; margin-bottom: 18px; overflow: visible; }
+.word-search { height: 44px; flex: 1; display: flex; align-items: center; gap: 9px; padding: 0 12px; border: 1px solid transparent; border-radius: 7px; color: var(--ink-muted); background: var(--surface-low); }.word-search:focus-within { border-color: var(--primary); }.word-search input { width: 100%; border: 0; outline: 0; background: transparent; }
+.level-filter { position: relative; width: 158px; height: 44px; flex: 0 0 auto; }.level-trigger { width: 100%; height: 100%; display: flex; align-items: center; gap: 7px; padding: 0 11px; border: 1px solid var(--outline); border-radius: 7px; color: var(--ink-muted); background: white; }.level-trigger:hover, .level-trigger:focus-visible, .level-filter:has(.level-menu) .level-trigger { color: var(--primary); border-color: var(--primary); outline: none; }.level-trigger span { flex: 1; overflow: hidden; color: var(--ink); text-align: left; text-overflow: ellipsis; white-space: nowrap; }.level-trigger svg:last-child { transition: transform .18s ease; }.level-trigger svg.rotated { transform: rotate(180deg); }
+.level-menu { position: absolute; z-index: 30; top: calc(100% + 8px); right: 0; width: 286px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px; padding: 7px; box-shadow: 0 14px 34px rgba(45,45,45,.13), 0 2px 8px rgba(45,45,45,.05); }.level-menu button { min-height: 34px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 10px; border: 0; border-radius: 5px; color: var(--ink-muted); background: transparent; font-size: 12px; text-align: left; }.level-menu button:hover, .level-menu button:focus-visible { color: var(--primary); background: var(--surface-low); outline: none; }.level-menu button.active { color: #5d3b1e; background: var(--secondary-soft); font-weight: 700; }.filter-menu-enter-active { transition: opacity .16s ease-out, transform .2s cubic-bezier(.22, 1, .36, 1); transform-origin: right top; }.filter-menu-leave-active { transition: opacity .12s ease-in, transform .15s ease-in; transform-origin: right top; }.filter-menu-enter-from, .filter-menu-leave-to { opacity: 0; transform: translateY(-4px) scale(.985); }
+.word-table { position: relative; z-index: 1; overflow: hidden; }.table-head, .word-row { display: grid; grid-template-columns: 1.15fr 1.9fr 1.05fr .55fr 1.15fr 42px; gap: 17px; align-items: center; padding: 0 22px; }
+.table-head { min-height: 46px; color: var(--ink-muted); background: var(--surface-low); font-size: 11px; font-weight: 700; text-transform: uppercase; }.word-row { min-height: 104px; border-top: 1px solid rgba(199,196,192,.7); }
+.term { min-width: 0; }.term div { display: grid; gap: 3px; min-width: 0; }.term strong { overflow: hidden; color: var(--primary); font-size: 19px; text-overflow: ellipsis; white-space: nowrap; }.term small { color: var(--ink-muted); }
+.meaning { display: grid; gap: 5px; min-width: 0; }.meaning strong { overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }.meaning span { overflow: hidden; color: var(--ink-muted); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.pronunciation { display: grid; gap: 4px; color: var(--ink-muted); font-size: 12.5px; line-height: 1.45; }.level-badge { color: var(--secondary); background: var(--secondary-soft); }.added-at { color: var(--ink-muted); font-size: 12.5px; line-height: 1.45; white-space: nowrap; }.delete-word { color: var(--error); }.delete-word:hover { color: white; background: var(--error); }
 .table-empty { padding: 50px; text-align: center; color: var(--ink-muted); }
-@media (max-width: 760px) { .table-head { display: none; }.word-row { grid-template-columns: 1fr auto; gap: 12px; padding-block: 18px; }.meaning { grid-column: 1 / -1; grid-row: 2; }.mastery-cell { grid-column: 1 / -1; }.word-toolbar { align-items: stretch; flex-direction: column; }.detail-header .btn { align-self: flex-start; } }
+@media (max-width: 1000px) { .table-head, .word-row { grid-template-columns: 1.15fr 1.8fr .55fr 1fr 42px; }.table-head span:nth-child(3), .pronunciation { display: none; }.word-row { gap: 12px; } }
+@media (max-width: 760px) { .table-head { display: none; }.word-row { grid-template-columns: 1fr auto; gap: 12px; padding-block: 18px; }.meaning, .pronunciation { display: grid; grid-column: 1 / -1; }.meaning { grid-row: 2; }.pronunciation { grid-row: 3; }.added-at { grid-column: 1; }.word-toolbar { align-items: stretch; flex-direction: column; }.level-filter { width: 100%; }.level-menu { left: 0; right: auto; width: min(100%, 320px); } }
 </style>

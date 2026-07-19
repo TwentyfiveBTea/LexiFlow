@@ -49,6 +49,16 @@ export interface VocabularyStatistics {
 export interface Word {
   id: number
   term: string
+  libraryWordId: string
+  wordId: number
+  languageCode: 'en' | 'ja'
+  word: string
+  kana: string
+  us: string
+  uk: string
+  translations: string
+  phrases: string
+  addedAt: string
   phonetic: string
   partOfSpeech: string
   definition: string
@@ -72,10 +82,13 @@ export const collections: VocabularyCollection[] = [
 ]
 
 export const words: Word[] = [
-  { id: 1, term: 'sentience', phonetic: '/ˈsen.ti.əns/', partOfSpeech: 'n.', definition: 'The capacity to feel, perceive, or experience subjectively.', translation: '知觉；感觉能力', level: 'GRE', mastery: 78 },
-  { id: 2, term: 'futile', phonetic: '/ˈfjuː.taɪl/', partOfSpeech: 'adj.', definition: 'Incapable of producing any useful result; pointless.', translation: '无用的；徒劳的', level: 'IELTS', mastery: 42 },
-  { id: 3, term: 'impute', phonetic: '/ɪmˈpjuːt/', partOfSpeech: 'v.', definition: 'Represent something undesirable as being caused by someone.', translation: '归咎于；归功于', level: 'GRE', mastery: 31 },
-  { id: 4, term: 'stifle', phonetic: '/ˈstaɪ.fəl/', partOfSpeech: 'v.', definition: 'Prevent or constrain an activity or idea.', translation: '扼杀；抑制', level: 'IELTS', mastery: 65 },
-  { id: 5, term: 'culpability', phonetic: '/ˌkʌl.pəˈbɪl.ə.ti/', partOfSpeech: 'n.', definition: 'Responsibility for a fault or wrong.', translation: '罪责；可责性', level: 'GRE', mastery: 23 },
-  { id: 6, term: 'nascent', phonetic: '/ˈnæs.ənt/', partOfSpeech: 'adj.', definition: 'Just coming into existence and beginning to display signs of potential.', translation: '初生的；萌芽的', level: 'GRE', mastery: 54 },
+  { id: 1, libraryWordId: 'core-word-1', wordId: 1, languageCode: 'en', word: 'sentience', kana: '', us: '/ˈsen.ti.əns/', uk: '/ˈsen.ti.əns/', translations: '[{"translation":"知觉；感觉能力","type":"n."}]', phrases: '[]', addedAt: '2026-07-19T08:30:00+08:00', term: 'sentience', phonetic: '/ˈsen.ti.əns/', partOfSpeech: 'n.', definition: 'The capacity to feel, perceive, or experience subjectively.', translation: '知觉；感觉能力', level: 'GRE', mastery: 78 },
+  { id: 2, libraryWordId: 'core-word-2', wordId: 2, languageCode: 'en', word: 'futile', kana: '', us: '/ˈfjuː.taɪl/', uk: '/ˈfjuː.taɪl/', translations: '[{"translation":"无用的；徒劳的","type":"adj."}]', phrases: '[]', addedAt: '2026-07-19T08:32:00+08:00', term: 'futile', phonetic: '/ˈfjuː.taɪl/', partOfSpeech: 'adj.', definition: 'Incapable of producing any useful result; pointless.', translation: '无用的；徒劳的', level: 'IELTS', mastery: 42 },
+  { id: 3, libraryWordId: 'core-word-3', wordId: 3, languageCode: 'en', word: 'impute', kana: '', us: '/ɪmˈpjuːt/', uk: '/ɪmˈpjuːt/', translations: '[{"translation":"归咎于；归功于","type":"v."}]', phrases: '[]', addedAt: '2026-07-19T08:35:00+08:00', term: 'impute', phonetic: '/ɪmˈpjuːt/', partOfSpeech: 'v.', definition: 'Represent something undesirable as being caused by someone.', translation: '归咎于；归功于', level: 'GRE', mastery: 31 },
+  { id: 4, libraryWordId: 'core-word-4', wordId: 4, languageCode: 'en', word: 'stifle', kana: '', us: '/ˈstaɪ.fəl/', uk: '/ˈstaɪ.fəl/', translations: '[{"translation":"扼杀；抑制","type":"v."}]', phrases: '[]', addedAt: '2026-07-19T08:38:00+08:00', term: 'stifle', phonetic: '/ˈstaɪ.fəl/', partOfSpeech: 'v.', definition: 'Prevent or constrain an activity or idea.', translation: '扼杀；抑制', level: 'IELTS', mastery: 65 },
+  { id: 5, libraryWordId: 'core-word-5', wordId: 5, languageCode: 'en', word: 'culpability', kana: '', us: '/ˌkʌl.pəˈbɪl.ə.ti/', uk: '/ˌkʌl.pəˈbɪl.ə.ti/', translations: '[{"translation":"罪责；可责性","type":"n."}]', phrases: '[]', addedAt: '2026-07-19T08:40:00+08:00', term: 'culpability', phonetic: '/ˌkʌl.pəˈbɪl.ə.ti/', partOfSpeech: 'n.', definition: 'Responsibility for a fault or wrong.', translation: '罪责；可责性', level: 'GRE', mastery: 23 },
+  { id: 6, libraryWordId: 'core-word-6', wordId: 6, languageCode: 'en', word: 'nascent', kana: '', us: '/ˈnæs.ənt/', uk: '/ˈnæs.ənt/', translations: '[{"translation":"初生的；萌芽的","type":"adj."}]', phrases: '[]', addedAt: '2026-07-19T08:42:00+08:00', term: 'nascent', phonetic: '/ˈnæs.ənt/', partOfSpeech: 'adj.', definition: 'Just coming into existence and beginning to display signs of potential.', translation: '初生的；萌芽的', level: 'GRE', mastery: 54 },
+  { id: 7, libraryWordId: 'literature-word-1', wordId: 7, languageCode: 'ja', word: '記憶', kana: 'きおく', us: '', uk: '', translations: '[{"translation":"记忆","type":"名词"}]', phrases: '[]', addedAt: '2026-07-18T15:10:00+08:00', term: '記憶', phonetic: 'きおく', partOfSpeech: '名词', definition: '过去的经验或知识留存在头脑中的状态。', translation: '记忆', level: 'N3', mastery: 62 },
+  { id: 8, libraryWordId: 'literature-word-2', wordId: 8, languageCode: 'ja', word: '言語', kana: 'げんご', us: '', uk: '', translations: '[{"translation":"语言","type":"名词"}]', phrases: '[]', addedAt: '2026-07-18T15:14:00+08:00', term: '言語', phonetic: 'げんご', partOfSpeech: '名词', definition: '人类用来表达和交流思想的符号体系。', translation: '语言', level: 'N4', mastery: 48 },
+  { id: 9, libraryWordId: 'literature-word-3', wordId: 9, languageCode: 'ja', word: '学ぶ', kana: 'まなぶ', us: '', uk: '', translations: '[{"translation":"学习；钻研","type":"动词"}]', phrases: '[]', addedAt: '2026-07-18T15:18:00+08:00', term: '学ぶ', phonetic: 'まなぶ', partOfSpeech: '动词', definition: '通过学习或经验掌握知识和技能。', translation: '学习；钻研', level: 'N5', mastery: 71 },
 ]
