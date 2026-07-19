@@ -24,11 +24,13 @@ public interface VocabService {
     VocabLibraryRespDTO createLibrary(VocabLibraryCreateReqDTO reqDTO);
 
     /**
-     * 获取当前用户的词汇库列表
+     * 查询当前用户的词汇库列表
      *
+     * @param keyword 词汇库名称关键词
+     * @param languageCode 语言标识：en/ja
      * @return 词汇库列表
      */
-    List<VocabLibraryRespDTO> listLibraries();
+    List<VocabLibraryRespDTO> listLibraries(String keyword, String languageCode);
 
     /**
      * 删除词汇库

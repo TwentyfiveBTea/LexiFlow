@@ -45,13 +45,17 @@ public class VocabController {
     }
 
     /**
-     * 获取当前用户的词汇库列表
+     * 查询当前用户的词汇库列表
      *
+     * @param keyword 词汇库名称关键词
+     * @param languageCode 语言标识：en/ja
      * @return 词汇库列表
      */
     @GetMapping("/libraries")
-    public Result<List<VocabLibraryRespDTO>> listLibraries() {
-        return Results.success(vocabService.listLibraries());
+    public Result<List<VocabLibraryRespDTO>> listLibraries(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String languageCode) {
+        return Results.success(vocabService.listLibraries(keyword, languageCode));
     }
 
     /**

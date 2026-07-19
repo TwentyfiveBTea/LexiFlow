@@ -93,16 +93,24 @@ public class VocabServiceImpl implements VocabService {
     }
 
     /**
-     * 获取当前用户的词汇库列表
+     * 查询当前用户的词汇库列表
      *
+     * @param keyword 词汇库名称关键词
+     * @param languageCode 语言标识：en/ja
      * @return 词汇库列表
      */
     @Override
-    public List<VocabLibraryRespDTO> listLibraries() {
+    public List<VocabLibraryRespDTO> listLibraries(String keyword, String languageCode) {
         String userId = getCurrentUserId();
+        String normalizedKeyword = keyword == null ? "" : keyword.trim();
+        String normalizedLanguage = languageCode == null || languageCode.isBlank()
+                ? null
+                : normalizeLanguage(languageCode);
         return bizVocabLibraryMapper.selectList(new LambdaQueryWrapper<BizVocabLibraryDO>()
                         .eq(BizVocabLibraryDO::getUserId, userId)
                         .eq(BizVocabLibraryDO::getStatus, VocabConstant.STATUS_NORMAL)
+                        .like(!normalizedKeyword.isEmpty(), BizVocabLibraryDO::getName, normalizedKeyword)
+                        .eq(normalizedLanguage != null, BizVocabLibraryDO::getLanguageCode, normalizedLanguage)
                         .orderByDesc(BizVocabLibraryDO::getCreatedAt))
                 .stream()
                 .map(library -> toLibraryResp(library, relVocabLibraryWordMapper.selectCount(new LambdaQueryWrapper<RelVocabLibraryWordDO>()
