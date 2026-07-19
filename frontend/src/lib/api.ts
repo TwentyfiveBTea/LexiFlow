@@ -60,6 +60,41 @@ export interface DueWordResponse {
   translations: string | null
 }
 
+export interface ArticleDetailResponse {
+  articleId: string
+  title: string
+  parsedContent: string
+  languageCode: 'en' | 'ja'
+  wordCount: number
+  charCount: number
+  createdAt: string
+}
+
+export interface ArticleVocabResponse {
+  articleVocabId: string
+  wordId: number
+  languageCode: 'en' | 'ja'
+  baseWord: string
+  matchedForms: string | null
+  occurrenceCount: number
+  firstMatchedText: string | null
+  firstSentence: string | null
+  translations: string | null
+  us: string | null
+  uk: string | null
+  kana: string | null
+}
+
+export interface VocabLibraryResponse {
+  libraryId: string
+  name: string
+  languageCode: 'en' | 'ja'
+  description: string | null
+  wordCount: number
+  createdAt: string
+  updatedAt: string
+}
+
 export const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL ?? '/api/v1',
   timeout: 20_000,
@@ -108,6 +143,34 @@ export async function getDueWords(libraryId?: string) {
 
 export async function reviewWord(wordId: number, languageCode: 'en' | 'ja', rating: 'UNKNOWN' | 'VAGUE' | 'KNOWN') {
   await api.post<ApiResult<void>>(`/learning/words/${wordId}/review`, { languageCode, rating })
+}
+
+export async function getArticleDetail(articleId: string) {
+  const response = await api.get<ApiResult<ArticleDetailResponse>>(`/article/${articleId}`)
+  return response.data.data
+}
+
+export async function getArticleVocabLevels(articleId: string) {
+  const response = await api.get<ApiResult<string[]>>(`/article/${articleId}/vocab-levels`)
+  return response.data.data
+}
+
+export async function getArticleVocabs(articleId: string, analysisLevel: string) {
+  const response = await api.get<ApiResult<ArticleVocabResponse[]>>(`/article/${articleId}/vocabs`, {
+    params: { analysisLevel },
+  })
+  return response.data.data
+}
+
+export async function getVocabLibraries(languageCode: 'en' | 'ja') {
+  const response = await api.get<ApiResult<VocabLibraryResponse[]>>('/vocab/libraries', {
+    params: { languageCode },
+  })
+  return response.data.data
+}
+
+export async function addArticleVocabToLibrary(libraryId: string, articleId: string, articleVocabId: string) {
+  await api.post<ApiResult<void>>(`/vocab/libraries/${libraryId}/words`, { articleId, articleVocabId })
 }
 
 export async function getRechargeRecords(page: number, pageSize: number) {
