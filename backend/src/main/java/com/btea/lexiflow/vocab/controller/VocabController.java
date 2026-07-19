@@ -88,11 +88,16 @@ public class VocabController {
      * 获取指定词汇库中的词条列表
      *
      * @param libraryId 词汇库ID
+     * @param keyword 单词关键词
+     * @param level 词汇等级
      * @return 词汇库词条列表
      */
     @GetMapping("/libraries/{libraryId}/words")
-    public Result<List<VocabLibraryWordRespDTO>> listLibraryWords(@PathVariable String libraryId) {
-        return Results.success(vocabService.listLibraryWords(libraryId));
+    public Result<List<VocabLibraryWordRespDTO>> listLibraryWords(
+            @PathVariable String libraryId,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String level) {
+        return Results.success(vocabService.listLibraryWords(libraryId, keyword, level));
     }
 
     /**

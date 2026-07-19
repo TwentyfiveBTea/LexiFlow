@@ -51,9 +51,11 @@ public interface VocabService {
      * 获取指定词汇库中的词条列表
      *
      * @param libraryId 词汇库ID
+     * @param keyword 单词关键词
+     * @param level 词汇等级
      * @return 词汇库词条列表
      */
-    List<VocabLibraryWordRespDTO> listLibraryWords(String libraryId);
+    List<VocabLibraryWordRespDTO> listLibraryWords(String libraryId, String keyword, String level);
 
     /**
      * 获取指定词汇库的学习统计

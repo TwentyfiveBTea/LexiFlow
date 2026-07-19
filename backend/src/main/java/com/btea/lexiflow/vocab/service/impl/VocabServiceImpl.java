@@ -6,6 +6,7 @@ import com.btea.lexiflow.article.dao.entity.BizArticlesDO;
 import com.btea.lexiflow.article.dao.entity.RelArticleVocabDO;
 import com.btea.lexiflow.article.dao.mapper.BizArticlesMapper;
 import com.btea.lexiflow.article.dao.mapper.RelArticleVocabMapper;
+import com.btea.lexiflow.article.nlp.ArticleVocabAnalyzer;
 import com.btea.lexiflow.common.context.UserContext;
 import com.btea.lexiflow.common.convention.errorcode.BaseErrorCode;
 import com.btea.lexiflow.common.convention.exception.ClientException;
@@ -33,9 +34,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
-import java.util.function.Function;
-import java.util.stream.Collectors;
+import java.util.Set;
 
 /**
  * @Author: TwentyfiveBTea
@@ -53,6 +52,7 @@ public class VocabServiceImpl implements VocabService {
     private final RelArticleVocabMapper relArticleVocabMapper;
     private final BizVocabEnMapper bizVocabEnMapper;
     private final BizVocabJpMapper bizVocabJpMapper;
+    private final ArticleVocabAnalyzer articleVocabAnalyzer;
 
     /**
      * 创建词汇库
@@ -203,12 +203,16 @@ public class VocabServiceImpl implements VocabService {
      * 获取指定词汇库中的词条列表
      *
      * @param libraryId 词汇库ID
+     * @param keyword 单词关键词
+     * @param level 词汇等级
      * @return 词汇库词条列表
      */
     @Override
-    public List<VocabLibraryWordRespDTO> listLibraryWords(String libraryId) {
+    public List<VocabLibraryWordRespDTO> listLibraryWords(String libraryId, String keyword, String level) {
         String userId = getCurrentUserId();
         BizVocabLibraryDO library = getLibrary(libraryId, userId);
+        String normalizedKeyword = keyword == null ? "" : keyword.trim().toLowerCase(Locale.ROOT);
+        String normalizedLevel = normalizeLevel(library.getLanguageCode(), level);
         List<RelVocabLibraryWordDO> relations = relVocabLibraryWordMapper.selectList(new LambdaQueryWrapper<RelVocabLibraryWordDO>()
                 .eq(RelVocabLibraryWordDO::getLibraryId, libraryId)
                 .eq(RelVocabLibraryWordDO::getUserId, userId)
@@ -217,13 +221,11 @@ public class VocabServiceImpl implements VocabService {
         if (relations.isEmpty()) {
             return List.of();
         }
-        Map<Long, RelUserWordProgressDO> progresses = relUserWordProgressMapper.selectList(new LambdaQueryWrapper<RelUserWordProgressDO>()
-                        .eq(RelUserWordProgressDO::getUserId, userId)
-                        .eq(RelUserWordProgressDO::getLanguageCode, library.getLanguageCode())
-                        .eq(RelUserWordProgressDO::getLibraryStatus, VocabConstant.STATUS_NORMAL)
-                        .in(RelUserWordProgressDO::getWordId, relations.stream().map(RelVocabLibraryWordDO::getWordId).toList()))
-                .stream().collect(Collectors.toMap(RelUserWordProgressDO::getWordId, Function.identity(), (a, b) -> a));
-        return relations.stream().map(relation -> toWordResp(relation, progresses.get(relation.getWordId()), library.getLanguageCode())).toList();
+        Set<String> levelWords = loadLevelWords(library.getLanguageCode(), normalizedLevel);
+        return relations.stream()
+                .map(relation -> toWordResp(relation, library.getLanguageCode()))
+                .filter(word -> matchesWord(word, normalizedKeyword, levelWords))
+                .toList();
     }
 
     /**
@@ -363,7 +365,7 @@ public class VocabServiceImpl implements VocabService {
                 .build();
     }
 
-    private VocabLibraryWordRespDTO toWordResp(RelVocabLibraryWordDO relation, RelUserWordProgressDO progress, String languageCode) {
+    private VocabLibraryWordRespDTO toWordResp(RelVocabLibraryWordDO relation, String languageCode) {
         VocabLibraryWordRespDTO.VocabLibraryWordRespDTOBuilder builder = VocabLibraryWordRespDTO.builder()
                 .libraryWordId(relation.getId())
                 .wordId(relation.getWordId())
@@ -386,12 +388,57 @@ public class VocabServiceImpl implements VocabService {
                         .phrases(word.getPhrases());
             }
         }
-        if (progress != null) {
-            builder.learningStatus(progress.getStatus())
-                    .reviewCount(progress.getReviewCount())
-                    .nextReviewAt(progress.getNextReviewAt());
-        }
         return builder.build();
+    }
+
+    private String normalizeLevel(String languageCode, String level) {
+        if (level == null || level.isBlank()) {
+            return null;
+        }
+        String normalizedLevel = level.trim().toUpperCase(Locale.ROOT);
+        Set<String> supportedLevels = "ja".equals(languageCode)
+                ? VocabConstant.JAPANESE_LEVELS
+                : VocabConstant.ENGLISH_LEVELS;
+        if (!supportedLevels.contains(normalizedLevel)) {
+            throw new ClientException(BaseErrorCode.VOCAB_LEVEL_NOT_SUPPORTED);
+        }
+        return normalizedLevel;
+    }
+
+    private Set<String> loadLevelWords(String languageCode, String level) {
+        if (level == null) {
+            return null;
+        }
+        try {
+            return articleVocabAnalyzer.loadLevelWords(languageCode, level);
+        } catch (ClientException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ClientException(BaseErrorCode.VOCAB_NOT_FOUND);
+        }
+    }
+
+    private boolean matchesWord(VocabLibraryWordRespDTO word, String keyword, Set<String> levelWords) {
+        boolean matchesLevel = levelWords == null || levelWords.contains(normalizeWord(word.getWord()));
+        if (!matchesLevel) {
+            return false;
+        }
+        if (keyword.isEmpty()) {
+            return true;
+        }
+        String searchable = String.join(" ",
+                valueOrEmpty(word.getWord()), valueOrEmpty(word.getKana()), valueOrEmpty(word.getUs()),
+                valueOrEmpty(word.getUk()), valueOrEmpty(word.getTranslations()), valueOrEmpty(word.getPhrases()))
+                .toLowerCase(Locale.ROOT);
+        return searchable.contains(keyword);
+    }
+
+    private String normalizeWord(String word) {
+        return valueOrEmpty(word).trim().toLowerCase(Locale.ROOT);
+    }
+
+    private String valueOrEmpty(String value) {
+        return value == null ? "" : value;
     }
 
     private String normalizeLanguage(String languageCode) {

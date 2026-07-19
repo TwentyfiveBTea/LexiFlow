@@ -60,21 +60,6 @@ public class VocabLibraryWordRespDTO {
     private String phrases;
 
     /**
-     * 学习状态：0=新词，1=学习中，2=已掌握
-     */
-    private Integer learningStatus;
-
-    /**
-     * 累计复习次数
-     */
-    private Integer reviewCount;
-
-    /**
-     * 下次复习时间
-     */
-    private Date nextReviewAt;
-
-    /**
      * 加入词汇库时间
      */
     private Date addedAt;

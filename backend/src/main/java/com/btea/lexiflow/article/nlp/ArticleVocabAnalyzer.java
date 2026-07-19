@@ -189,7 +189,7 @@ public class ArticleVocabAnalyzer {
         return result;
     }
 
-    private Set<String> loadLevelWords(String languageCode, String analysisLevel) throws Exception {
+    public Set<String> loadLevelWords(String languageCode, String analysisLevel) throws Exception {
         Path dataDir = resolveDataDir(languageCode);
         String normalizedLevel = normalizeLevel(analysisLevel);
         if (!Files.exists(dataDir)) {

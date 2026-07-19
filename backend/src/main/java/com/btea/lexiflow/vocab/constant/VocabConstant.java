@@ -62,4 +62,17 @@ public final class VocabConstant {
      * 支持的语言标识集合
      */
     public static final Set<String> SUPPORTED_LANGUAGES = Set.of("en", "ja");
+
+    /**
+     * 英语词汇等级
+     */
+    public static final Set<String> ENGLISH_LEVELS = Set.of(
+            "BEC", "CET4", "CET6", "GMAT", "GRE", "IELTS", "LEVEL4", "LEVEL8", "SAT", "TOEFL",
+            "CHUZHONG", "GAOZHONG", "KAOYAN");
+
+    /**
+     * 日语词汇等级
+     */
+    public static final Set<String> JAPANESE_LEVELS = Set.of("N5", "N4", "N3", "N2", "N1");
+
 }
