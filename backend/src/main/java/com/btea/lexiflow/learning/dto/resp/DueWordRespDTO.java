@@ -28,6 +28,11 @@ public class DueWordRespDTO {
     private String languageCode;
 
     /**
+     * 词汇等级
+     */
+    private String level;
+
+    /**
      * 单词
      */
     private String word;

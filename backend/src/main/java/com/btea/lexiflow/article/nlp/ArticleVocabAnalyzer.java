@@ -33,6 +33,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 import static com.btea.lexiflow.article.constant.ArticleConstant.VOCAB_QUERY_BATCH_SIZE;
@@ -50,7 +51,35 @@ public class ArticleVocabAnalyzer {
     private final BizVocabJpMapper bizVocabJpMapper;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private final Map<String, Set<String>> levelWordCache = new ConcurrentHashMap<>();
     private volatile StanfordCoreNLP englishPipeline;
+
+    /**
+     * 获取词条所属的第一个词汇等级。
+     *
+     * @param languageCode 语言标识
+     * @param word         词条
+     * @return 词汇等级，未找到时返回 null
+     */
+    public String findLevel(String languageCode, String word) {
+        if (word == null || word.isBlank()) {
+            return null;
+        }
+        List<String> levels = "ja".equals(languageCode)
+                ? List.of("N5", "N4", "N3", "N2", "N1")
+                : List.of("BEC", "CET4", "CET6", "GMAT", "GRE", "IELTS", "LEVEL4", "LEVEL8", "SAT", "TOEFL", "CHUZHONG", "GAOZHONG", "KAOYAN");
+        String normalizedWord = "ja".equals(languageCode) ? word.trim() : normalizeEnglish(word);
+        try {
+            for (String level : levels) {
+                if (loadLevelWords(languageCode, level).contains(normalizedWord)) {
+                    return displayLevel(level);
+                }
+            }
+        } catch (Exception ignored) {
+            return null;
+        }
+        return null;
+    }
 
     /**
      * 分析文章词汇
@@ -192,6 +221,11 @@ public class ArticleVocabAnalyzer {
     public Set<String> loadLevelWords(String languageCode, String analysisLevel) throws Exception {
         Path dataDir = resolveDataDir(languageCode);
         String normalizedLevel = normalizeLevel(analysisLevel);
+        String cacheKey = languageCode + ":" + normalizedLevel;
+        Set<String> cachedWords = levelWordCache.get(cacheKey);
+        if (cachedWords != null) {
+            return cachedWords;
+        }
         if (!Files.exists(dataDir)) {
             throw new ClientException(BaseErrorCode.VOCAB_NOT_FOUND);
         }
@@ -221,7 +255,20 @@ public class ArticleVocabAnalyzer {
         if (words.isEmpty()) {
             throw new ClientException(BaseErrorCode.VOCAB_NOT_FOUND);
         }
-        return words;
+        Set<String> immutableWords = Set.copyOf(words);
+        levelWordCache.putIfAbsent(cacheKey, immutableWords);
+        return immutableWords;
+    }
+
+    private String displayLevel(String level) {
+        return switch (level) {
+            case "LEVEL4" -> "Level4";
+            case "LEVEL8" -> "Level8";
+            case "CHUZHONG" -> "初中";
+            case "GAOZHONG" -> "高中";
+            case "KAOYAN" -> "考研";
+            default -> level;
+        };
     }
 
     private boolean matchesLevelFile(String filename, String normalizedLevel, String languageCode) {

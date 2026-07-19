@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.btea.lexiflow.common.context.UserContext;
 import com.btea.lexiflow.common.convention.errorcode.BaseErrorCode;
 import com.btea.lexiflow.common.convention.exception.ClientException;
+import com.btea.lexiflow.article.nlp.ArticleVocabAnalyzer;
 import com.btea.lexiflow.learning.dao.entity.RelUserWordProgressDO;
 import com.btea.lexiflow.learning.dao.mapper.RelUserWordProgressMapper;
 import com.btea.lexiflow.learning.dto.req.WordReviewReqDTO;
@@ -44,6 +45,7 @@ public class LearningServiceImpl implements LearningService {
     private final BizVocabLibraryMapper libraryMapper;
     private final BizVocabEnMapper vocabEnMapper;
     private final BizVocabJpMapper vocabJpMapper;
+    private final ArticleVocabAnalyzer articleVocabAnalyzer;
 
     /**
      * 获取当前用户指定词汇库的待复习单词列表
@@ -207,6 +209,7 @@ public class LearningServiceImpl implements LearningService {
             BizVocabJpDO word = vocabJpMapper.selectById(progress.getWordId());
             if (word != null) {
                 builder.word(word.getWord())
+                        .level(articleVocabAnalyzer.findLevel(progress.getLanguageCode(), word.getWord()))
                         .kana(word.getKana())
                         .translations(word.getTranslations());
             }
@@ -214,6 +217,7 @@ public class LearningServiceImpl implements LearningService {
             BizVocabEnDO word = vocabEnMapper.selectById(progress.getWordId());
             if (word != null) {
                 builder.word(word.getWord())
+                        .level(articleVocabAnalyzer.findLevel(progress.getLanguageCode(), word.getWord()))
                         .us(word.getUs())
                         .uk(word.getUk())
                         .translations(word.getTranslations())
