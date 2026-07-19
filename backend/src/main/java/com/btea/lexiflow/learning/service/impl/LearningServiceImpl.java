@@ -24,9 +24,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.LinkedHashMap;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * @Author: TwentyfiveBTea
@@ -63,6 +65,12 @@ public class LearningServiceImpl implements LearningService {
         if (relations.isEmpty()) {
             return List.of();
         }
+        Map<String, RelVocabLibraryWordDO> relationsByWord = relations.stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        relation -> relation.getLanguageCode() + ":" + relation.getWordId(),
+                        relation -> relation,
+                        (first, ignored) -> first,
+                        LinkedHashMap::new));
         return progressMapper.selectList(new LambdaQueryWrapper<RelUserWordProgressDO>()
                         .eq(RelUserWordProgressDO::getUserId, userId)
                         .eq(RelUserWordProgressDO::getLanguageCode, library.getLanguageCode())
@@ -74,7 +82,39 @@ public class LearningServiceImpl implements LearningService {
                                 .le(RelUserWordProgressDO::getNextReviewAt, new Date()))
                         .orderByAsc(RelUserWordProgressDO::getNextReviewAt))
                 .stream()
-                .map(this::toDueResp)
+                .filter(progress -> relationsByWord.containsKey(progress.getLanguageCode() + ":" + progress.getWordId()))
+                .map(progress -> toDueResp(progress, relationsByWord.get(progress.getLanguageCode() + ":" + progress.getWordId())))
+                .toList();
+    }
+
+    @Override
+    public List<DueWordRespDTO> listDueWords() {
+        String userId = getCurrentUserId();
+        List<RelVocabLibraryWordDO> relations = libraryWordMapper.selectList(
+                new LambdaQueryWrapper<RelVocabLibraryWordDO>()
+                        .eq(RelVocabLibraryWordDO::getUserId, userId)
+                        .eq(RelVocabLibraryWordDO::getStatus, VocabConstant.STATUS_NORMAL));
+        if (relations.isEmpty()) {
+            return List.of();
+        }
+        Map<String, RelVocabLibraryWordDO> relationsByWord = relations.stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        relation -> relation.getLanguageCode() + ":" + relation.getWordId(),
+                        relation -> relation,
+                        (first, ignored) -> first,
+                        LinkedHashMap::new));
+        return progressMapper.selectList(new LambdaQueryWrapper<RelUserWordProgressDO>()
+                        .eq(RelUserWordProgressDO::getUserId, userId)
+                        .eq(RelUserWordProgressDO::getLibraryStatus, VocabConstant.STATUS_NORMAL)
+                        .in(RelUserWordProgressDO::getWordId,
+                                relations.stream().map(RelVocabLibraryWordDO::getWordId).distinct().toList())
+                        .and(q -> q.isNull(RelUserWordProgressDO::getNextReviewAt)
+                                .or()
+                                .le(RelUserWordProgressDO::getNextReviewAt, new Date()))
+                        .orderByAsc(RelUserWordProgressDO::getNextReviewAt))
+                .stream()
+                .filter(progress -> relationsByWord.containsKey(progress.getLanguageCode() + ":" + progress.getWordId()))
+                .map(progress -> toDueResp(progress, relationsByWord.get(progress.getLanguageCode() + ":" + progress.getWordId())))
                 .toList();
     }
 
@@ -158,8 +198,9 @@ public class LearningServiceImpl implements LearningService {
      * @param progress 用户单词学习进度
      * @return 待复习单词响应参数
      */
-    private DueWordRespDTO toDueResp(RelUserWordProgressDO progress) {
+    private DueWordRespDTO toDueResp(RelUserWordProgressDO progress, RelVocabLibraryWordDO relation) {
         DueWordRespDTO.DueWordRespDTOBuilder builder = DueWordRespDTO.builder()
+                .libraryWordId(relation == null ? null : relation.getId())
                 .wordId(progress.getWordId())
                 .languageCode(progress.getLanguageCode());
         if ("ja".equals(progress.getLanguageCode())) {

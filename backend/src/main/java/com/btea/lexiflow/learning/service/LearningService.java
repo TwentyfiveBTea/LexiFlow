@@ -21,6 +21,13 @@ public interface LearningService {
     List<DueWordRespDTO> listDueWords(String libraryId);
 
     /**
+     * 获取当前用户所有词汇库的待复习单词列表
+     *
+     * @return 待复习单词列表
+     */
+    List<DueWordRespDTO> listDueWords();
+
+    /**
      * 提交单词复习按钮结果并更新学习进度
      *
      * @param wordId 单词ID

@@ -30,14 +30,16 @@ public class LearningController {
     private final LearningService learningService;
 
     /**
-     * 获取当前用户指定词汇库的待复习单词列表
+     * 获取当前用户待复习单词列表，可按词汇库限定范围
      *
-     * @param libraryId 词汇库ID
+     * @param libraryId 可选的词汇库ID
      * @return 待复习单词列表
      */
     @GetMapping("/due")
-    public Result<List<DueWordRespDTO>> listDueWords(@RequestParam String libraryId) {
-        return Results.success(learningService.listDueWords(libraryId));
+    public Result<List<DueWordRespDTO>> listDueWords(@RequestParam(required = false) String libraryId) {
+        return Results.success(libraryId == null || libraryId.isBlank()
+                ? learningService.listDueWords()
+                : learningService.listDueWords(libraryId));
     }
 
     /**

@@ -13,6 +13,11 @@ import lombok.Data;
 public class DueWordRespDTO {
 
     /**
+     * 词汇库词条关系ID
+     */
+    private String libraryWordId;
+
+    /**
      * 单词ID
      */
     private Long wordId;
