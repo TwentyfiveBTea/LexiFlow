@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import {
-  Brain,
   CircleUserRound,
   Gauge,
   Library,
@@ -61,7 +60,6 @@ const navItems = [
   { label: '首页', to: '/dashboard', icon: Gauge },
   { label: '我的图书馆', to: '/articles', icon: Library },
   { label: '词汇库', to: '/vocabulary', icon: Languages },
-  { label: '记忆卡牌', to: '/vocabulary/core', icon: Brain },
   { label: '钱包', to: '/wallet', icon: WalletCards },
   { label: '设置', to: '/settings', icon: Settings },
 ]
@@ -91,6 +89,7 @@ const currentLabel = computed(() => navItems.find((item) => route.path.startsWit
           :key="item.to"
           :to="item.to"
           class="nav-link"
+          :class="{ 'nav-current': route.path === item.to || route.path.startsWith(item.to + '/') }"
           :title="collapsed ? item.label : undefined"
           @click="mobileOpen = false"
         >
@@ -188,7 +187,7 @@ const currentLabel = computed(() => navItems.find((item) => route.path.startsWit
 .sidebar-nav { padding: 12px 8px; display: grid; gap: 3px; overflow-y: auto; }
 .nav-link { min-height: 44px; display: flex; align-items: center; gap: 12px; padding: 0 13px; border-radius: 7px; color: var(--ink-muted); font-size: 14px; font-weight: 550; white-space: nowrap; }
 .nav-link:hover { color: var(--primary); background: var(--surface-low); }
-.nav-link.router-link-active { color: #5d3b1e; background: var(--secondary-soft); }
+.nav-link.router-link-active, .nav-link.nav-current { color: #5d3b1e; background: var(--secondary-soft); }
 .sidebar-foot { margin-top: auto; min-height: 66px; display: flex; align-items: center; padding: 13px 16px; border-top: 1px solid rgba(199,196,192,.7); color: var(--ink-muted); font-size: 11px; }
 .sidebar-foot.centered { min-height: 66px; align-items: center; padding-inline: 0; }
 .app-content { min-height: 100vh; margin-left: var(--sidebar-width); transition: margin-left .22s ease; }
