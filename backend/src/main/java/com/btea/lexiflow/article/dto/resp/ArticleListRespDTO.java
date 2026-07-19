@@ -39,21 +39,6 @@ public class ArticleListRespDTO {
     private Integer wordCount;
 
     /**
-     * 解析状态
-     */
-    private Integer parseStatus;
-
-    /**
-     * 翻译状态
-     */
-    private Integer translationStatus;
-
-    /**
-     * 词汇分析状态
-     */
-    private Integer analysisStatus;
-
-    /**
      * 创建时间
      */
     private Date createdAt;

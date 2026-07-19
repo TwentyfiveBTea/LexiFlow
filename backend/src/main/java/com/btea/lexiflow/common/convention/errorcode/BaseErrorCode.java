@@ -42,6 +42,7 @@ public enum BaseErrorCode implements IErrorCode {
     ARTICLE_ANALYSIS_FAILED("0004302", "文章词汇分析失败"),
     ARTICLE_TRANSLATION_FAILED("0004303", "文章翻译失败"),
     AI_RESPONSE_PARSE_FAILED("0004304", "AI响应解析失败"),
+    ARTICLE_LANGUAGE_NOT_SUPPORTED("0004305", "暂不支持该文章语言"),
 
     // 词汇处理（0005xxx）
     VOCAB_NOT_FOUND("0005300", "词汇不存在"),

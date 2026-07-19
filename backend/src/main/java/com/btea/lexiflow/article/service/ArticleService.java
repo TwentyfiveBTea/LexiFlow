@@ -44,11 +44,13 @@ public interface ArticleService {
     ArticleDetailRespDTO getArticleDetail(String articleId);
 
     /**
-     * 获取文章列表
+     * 查询文章列表
      *
+     * @param keyword 文章标题关键词
+     * @param languageCode 语言标识：en/ja
      * @return 文章列表
      */
-    List<ArticleListRespDTO> listArticles();
+    List<ArticleListRespDTO> listArticles(String keyword, String languageCode);
 
     /**
      * 获取文章命中词汇列表

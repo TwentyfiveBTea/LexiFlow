@@ -228,16 +228,22 @@ public class ArticleServiceImpl implements ArticleService {
     }
 
     /**
-     * 获取文章列表
+     * 查询文章列表
      *
+     * @param keyword 文章标题关键词
+     * @param languageCode 语言标识：en/ja
      * @return 文章列表
      */
     @Override
-    public List<ArticleListRespDTO> listArticles() {
+    public List<ArticleListRespDTO> listArticles(String keyword, String languageCode) {
         String userId = getCurrentUserId();
+        String normalizedKeyword = keyword == null ? "" : keyword.trim();
+        String normalizedLanguage = normalizeOptionalLanguage(languageCode);
         List<BizArticlesDO> articles = bizArticlesMapper.selectList(new LambdaQueryWrapper<BizArticlesDO>()
                 .eq(BizArticlesDO::getUserId, userId)
                 .eq(BizArticlesDO::getStatus, STATUS_NORMAL)
+                .like(!normalizedKeyword.isEmpty(), BizArticlesDO::getTitle, normalizedKeyword)
+                .eq(normalizedLanguage != null, BizArticlesDO::getLanguageCode, normalizedLanguage)
                 .orderByDesc(BizArticlesDO::getCreatedAt));
         log.info("获取文章列表成功: userId={}, articleCount={}", userId, articles.size());
         return articles.stream()
@@ -246,9 +252,6 @@ public class ArticleServiceImpl implements ArticleService {
                         .title(each.getTitle())
                         .languageCode(each.getLanguageCode())
                         .wordCount(each.getWordCount())
-                        .parseStatus(each.getParseStatus())
-                        .translationStatus(each.getTranslationStatus())
-                        .analysisStatus(each.getAnalysisStatus())
                         .createdAt(each.getCreatedAt())
                         .build())
                 .collect(Collectors.toList());
@@ -338,6 +341,17 @@ public class ArticleServiceImpl implements ArticleService {
             throw new ClientException(BaseErrorCode.ARTICLE_NOT_FOUND);
         }
         return article;
+    }
+
+    private String normalizeOptionalLanguage(String languageCode) {
+        if (languageCode == null || languageCode.isBlank()) {
+            return null;
+        }
+        String normalizedLanguage = languageCode.trim().toLowerCase(Locale.ROOT);
+        if (!SUPPORTED_LANGUAGES.contains(normalizedLanguage)) {
+            throw new ClientException(BaseErrorCode.ARTICLE_LANGUAGE_NOT_SUPPORTED);
+        }
+        return normalizedLanguage;
     }
 
     private void saveMatches(BizArticlesDO article, String analysisLevel, List<ArticleVocabMatch> matches) throws Exception {

@@ -61,13 +61,17 @@ public class ArticleController {
     }
 
     /**
-     * 获取文章列表
+     * 查询文章列表
      *
+     * @param keyword 文章标题关键词
+     * @param languageCode 语言标识：en/ja
      * @return 响应结果
      */
     @GetMapping("/list")
-    public Result<List<ArticleListRespDTO>> listArticles() {
-        return Results.success(articleService.listArticles());
+    public Result<List<ArticleListRespDTO>> listArticles(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String languageCode) {
+        return Results.success(articleService.listArticles(keyword, languageCode));
     }
 
     /**

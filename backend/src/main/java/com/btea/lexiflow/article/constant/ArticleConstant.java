@@ -1,5 +1,7 @@
 package com.btea.lexiflow.article.constant;
 
+import java.util.Set;
+
 /**
  * @Author: TwentyfiveBTea
  * @Date: 2026/7/4 18:45
@@ -24,6 +26,11 @@ public final class ArticleConstant {
      * 文章正常状态
      */
     public static final int STATUS_NORMAL = 1;
+
+    /**
+     * 当前支持的文章语言
+     */
+    public static final Set<String> SUPPORTED_LANGUAGES = Set.of("en", "ja");
 
     /**
      * 文章解析中
