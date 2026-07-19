@@ -20,6 +20,12 @@ const englishLevels = [
 ]
 const japaneseLevels = ['N5', 'N4', 'N3', 'N2', 'N1'].map((value) => ({ value, label: value }))
 const availableLevels = computed(() => collection.value.languageCode === 'ja' ? japaneseLevels : englishLevels)
+
+interface TranslationItem {
+  type: string
+  translation: string
+}
+
 const filteredWords = computed(() => {
   const keyword = query.value.trim().toLowerCase()
   return localWords.value.filter((word) => {
@@ -42,10 +48,24 @@ function formatDate(value: string) {
   return dateFormatter.format(new Date(value))
 }
 
-function formatJsonList(value: string, field: 'translation' | 'phrase') {
+function parseTranslations(value: string): TranslationItem[] {
   try {
     const items = JSON.parse(value) as Array<Record<string, string>>
-    return items.map((item) => field === 'phrase' && item.translation ? `${item.phrase} · ${item.translation}` : item[field] ?? '').filter(Boolean).join('；')
+    return items
+      .map((item) => ({
+        type: item.type?.trim() ?? '',
+        translation: (item.translation || item.meaning || '').trim(),
+      }))
+      .filter((item) => item.translation)
+  } catch {
+    return value ? [{ type: '', translation: value }] : []
+  }
+}
+
+function formatPhrases(value: string) {
+  try {
+    const items = JSON.parse(value) as Array<Record<string, string>>
+    return items.map((item) => item.translation ? `${item.phrase} · ${item.translation}` : item.phrase ?? '').filter(Boolean).join('；')
   } catch {
     return value
   }
@@ -73,7 +93,16 @@ function removeWord(word: Word) {
       <div class="table-head"><span>单词</span><span>释义与短语</span><span>发音</span><span>等级</span><span>加入时间</span><span aria-hidden="true"></span></div>
       <article v-for="word in filteredWords" :key="word.libraryWordId" class="word-row">
         <div class="term"><div class="term-text"><small v-if="word.kana">{{ word.kana }}</small><strong class="serif">{{ word.word }}</strong></div></div>
-        <div class="meaning"><strong>{{ formatJsonList(word.translations, 'translation') || '暂无释义' }}</strong><span v-if="word.phrases && word.phrases !== '[]'">{{ formatJsonList(word.phrases, 'phrase') }}</span></div>
+        <div class="meaning">
+          <template v-if="parseTranslations(word.translations).length">
+            <div v-for="(item, index) in parseTranslations(word.translations)" :key="`${item.type}-${index}`" class="translation-item">
+              <span v-if="item.type" class="part-of-speech">{{ item.type }}</span>
+              <strong>{{ item.translation }}</strong>
+            </div>
+          </template>
+          <strong v-else class="empty-value">暂无释义</strong>
+          <span v-if="word.phrases && word.phrases !== '[]'" class="phrases">{{ formatPhrases(word.phrases) }}</span>
+        </div>
         <div class="pronunciation"><span v-if="word.us">US {{ word.us }}</span><span v-if="word.uk">UK {{ word.uk }}</span></div>
         <div><span class="badge level-badge">{{ word.level }}</span></div>
         <div class="added-at">{{ formatDate(word.addedAt) }}</div>
@@ -93,7 +122,7 @@ function removeWord(word: Word) {
 .word-table { position: relative; z-index: 1; overflow: hidden; }.table-head, .word-row { display: grid; grid-template-columns: 1.15fr 1.9fr 1.05fr .55fr 1.15fr 42px; gap: 17px; align-items: center; padding: 0 22px; }
 .table-head { min-height: 46px; color: var(--ink-muted); background: var(--surface-low); font-size: 11px; font-weight: 700; text-transform: uppercase; }.word-row { min-height: 104px; border-top: 1px solid rgba(199,196,192,.7); }
 .term { min-width: 0; }.term-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }.term strong { overflow: hidden; color: var(--primary); font-size: 19px; text-overflow: ellipsis; white-space: nowrap; }.term small { color: var(--ink-muted); font-size: 12px; }
-.meaning { display: grid; gap: 5px; min-width: 0; }.meaning strong { overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }.meaning span { overflow: hidden; color: var(--ink-muted); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.meaning { display: grid; gap: 5px; min-width: 0; }.translation-item { min-width: 0; display: flex; align-items: baseline; gap: 7px; }.translation-item strong { overflow: hidden; font-size: 13px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }.translation-item .part-of-speech { flex: 0 0 auto; min-width: 28px; color: var(--secondary); font-size: 11px; font-weight: 750; }.meaning .phrases { overflow: hidden; color: var(--ink-muted); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }.meaning .empty-value { color: var(--ink-muted); font-size: 13px; font-weight: 600; }
 .pronunciation { display: grid; gap: 4px; color: var(--ink-muted); font-size: 12.5px; line-height: 1.45; }.level-badge { color: var(--secondary); background: var(--secondary-soft); }.added-at { color: var(--ink-muted); font-size: 12.5px; line-height: 1.45; white-space: nowrap; }.delete-word { color: var(--error); }.delete-word:hover { color: white; background: var(--error); }
 .table-empty { padding: 50px; text-align: center; color: var(--ink-muted); }
 @media (max-width: 1000px) { .table-head, .word-row { grid-template-columns: 1.15fr 1.8fr .55fr 1fr 42px; }.table-head span:nth-child(3), .pronunciation { display: none; }.word-row { gap: 12px; } }
