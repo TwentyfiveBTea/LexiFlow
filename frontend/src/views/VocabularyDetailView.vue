@@ -1,16 +1,14 @@
 <script setup lang="ts">
-import { ArrowLeft, Check, ChevronDown, Filter, Search, Trash2 } from 'lucide-vue-next'
-import { onClickOutside } from '@vueuse/core'
+import { ArrowLeft, Filter, Search, Trash2 } from 'lucide-vue-next'
 import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import AppSelect from '@/components/AppSelect.vue'
 import { collections, words } from '@/data/demo'
 import type { Word } from '@/data/demo'
 
 const route = useRoute()
 const query = ref('')
 const level = ref('')
-const levelOpen = ref(false)
-const levelFilterArea = ref<HTMLElement | null>(null)
 const localWords = ref<Word[]>([...words])
 const collection = computed(() => collections.find((item) => item.libraryId === route.params.id) ?? collections[0]!)
 const englishLevels = [
@@ -22,7 +20,6 @@ const englishLevels = [
 ]
 const japaneseLevels = ['N5', 'N4', 'N3', 'N2', 'N1'].map((value) => ({ value, label: value }))
 const availableLevels = computed(() => collection.value.languageCode === 'ja' ? japaneseLevels : englishLevels)
-const selectedLevelLabel = computed(() => availableLevels.value.find((item) => item.value === level.value)?.label ?? '全部等级')
 const filteredWords = computed(() => {
   const keyword = query.value.trim().toLowerCase()
   return localWords.value.filter((word) => {
@@ -35,11 +32,6 @@ const filteredWords = computed(() => {
 
 watch(() => collection.value.languageCode, () => {
   level.value = ''
-  levelOpen.value = false
-})
-
-onClickOutside(levelFilterArea, () => {
-  levelOpen.value = false
 })
 
 const dateFormatter = new Intl.DateTimeFormat('zh-CN', {
@@ -63,10 +55,6 @@ function removeWord(word: Word) {
   localWords.value = localWords.value.filter((item) => item.libraryWordId !== word.libraryWordId)
 }
 
-function selectLevel(value: string) {
-  level.value = value
-  levelOpen.value = false
-}
 </script>
 
 <template>
@@ -78,15 +66,7 @@ function selectLevel(value: string) {
 
     <section class="word-toolbar surface fade-in">
       <label class="word-search"><Search :size="18" /><input v-model="query" placeholder="搜索单词" /></label>
-      <div ref="levelFilterArea" class="level-filter">
-        <button class="level-trigger" type="button" aria-haspopup="listbox" :aria-expanded="levelOpen" @click="levelOpen = !levelOpen" @keydown.esc="levelOpen = false"><Filter :size="16" /><span>{{ selectedLevelLabel }}</span><ChevronDown :size="14" :class="{ rotated: levelOpen }" /></button>
-        <Transition name="filter-menu">
-          <div v-if="levelOpen" class="level-menu surface" role="listbox" aria-label="选择词汇等级">
-            <button type="button" role="option" :aria-selected="level === ''" :class="{ active: level === '' }" @click="selectLevel('')"><span>全部等级</span><Check v-if="level === ''" :size="14" /></button>
-            <button v-for="item in availableLevels" :key="item.value" type="button" role="option" :aria-selected="level === item.value" :class="{ active: level === item.value }" @click="selectLevel(item.value)"><span>{{ item.label }}</span><Check v-if="level === item.value" :size="14" /></button>
-          </div>
-        </Transition>
-      </div>
+      <AppSelect v-model="level" class="level-filter" :options="[{ value: '', label: '全部等级' }, ...availableLevels]" label="选择词汇等级" :icon="Filter" :columns="2" menu-width="286px" align="right" />
     </section>
 
     <section class="word-table surface fade-in">
@@ -109,8 +89,7 @@ function selectLevel(value: string) {
 .detail-header { margin-bottom: 28px; }
 .word-toolbar { position: relative; z-index: 10; min-height: 66px; display: flex; align-items: center; gap: 12px; padding: 10px 12px; margin-bottom: 18px; overflow: visible; }
 .word-search { height: 44px; flex: 1; display: flex; align-items: center; gap: 9px; padding: 0 12px; border: 1px solid transparent; border-radius: 7px; color: var(--ink-muted); background: var(--surface-low); }.word-search:focus-within { border-color: var(--primary); }.word-search input { width: 100%; border: 0; outline: 0; background: transparent; }
-.level-filter { position: relative; width: 158px; height: 44px; flex: 0 0 auto; }.level-trigger { width: 100%; height: 100%; display: flex; align-items: center; gap: 7px; padding: 0 11px; border: 1px solid var(--outline); border-radius: 7px; color: var(--ink-muted); background: white; }.level-trigger:hover, .level-trigger:focus-visible, .level-filter:has(.level-menu) .level-trigger { color: var(--primary); border-color: var(--primary); outline: none; }.level-trigger span { flex: 1; overflow: hidden; color: var(--ink); text-align: left; text-overflow: ellipsis; white-space: nowrap; }.level-trigger svg:last-child { transition: transform .18s ease; }.level-trigger svg.rotated { transform: rotate(180deg); }
-.level-menu { position: absolute; z-index: 30; top: calc(100% + 8px); right: 0; width: 286px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px; padding: 7px; box-shadow: 0 14px 34px rgba(45,45,45,.13), 0 2px 8px rgba(45,45,45,.05); }.level-menu button { min-height: 34px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 10px; border: 0; border-radius: 5px; color: var(--ink-muted); background: transparent; font-size: 12px; text-align: left; }.level-menu button:hover, .level-menu button:focus-visible { color: var(--primary); background: var(--surface-low); outline: none; }.level-menu button.active { color: #5d3b1e; background: var(--secondary-soft); font-weight: 700; }.filter-menu-enter-active { transition: opacity .16s ease-out, transform .2s cubic-bezier(.22, 1, .36, 1); transform-origin: right top; }.filter-menu-leave-active { transition: opacity .12s ease-in, transform .15s ease-in; transform-origin: right top; }.filter-menu-enter-from, .filter-menu-leave-to { opacity: 0; transform: translateY(-4px) scale(.985); }
+.level-filter { width: 158px; flex: 0 0 auto; }
 .word-table { position: relative; z-index: 1; overflow: hidden; }.table-head, .word-row { display: grid; grid-template-columns: 1.15fr 1.9fr 1.05fr .55fr 1.15fr 42px; gap: 17px; align-items: center; padding: 0 22px; }
 .table-head { min-height: 46px; color: var(--ink-muted); background: var(--surface-low); font-size: 11px; font-weight: 700; text-transform: uppercase; }.word-row { min-height: 104px; border-top: 1px solid rgba(199,196,192,.7); }
 .term { min-width: 0; }.term div { display: grid; gap: 3px; min-width: 0; }.term strong { overflow: hidden; color: var(--primary); font-size: 19px; text-overflow: ellipsis; white-space: nowrap; }.term small { color: var(--ink-muted); }
