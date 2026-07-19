@@ -42,6 +42,12 @@ export interface CreditLedgerResponse {
   completedAt: string
 }
 
+export interface ChangePasswordRequest {
+  oldPassword: string
+  newPassword: string
+  confirmPassword: string
+}
+
 export const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL ?? '/api/v1',
   timeout: 20_000,
@@ -64,6 +70,21 @@ api.interceptors.response.use((response) => {
 export async function getUserProfile() {
   const response = await api.get<ApiResult<UserProfileResponse>>('/user/profile')
   return response.data.data
+}
+
+export async function changeUserAvatar(file: File) {
+  const formData = new FormData()
+  formData.append('avatar', file)
+  const response = await api.post<ApiResult<string>>('/user/profile/change-avatar', formData)
+  return response.data.data
+}
+
+export async function changeUsername(username: string) {
+  await api.post<ApiResult<void>>('/user/profile/change-username', { username })
+}
+
+export async function changePassword(payload: ChangePasswordRequest) {
+  await api.post<ApiResult<void>>('/user/profile/change-password', payload)
 }
 
 export async function getRechargeRecords(page: number, pageSize: number) {

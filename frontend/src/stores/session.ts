@@ -21,12 +21,21 @@ export const useSessionStore = defineStore('session', () => {
 
   function updateProfile(profile: UserProfileResponse) {
     email.value = profile.email
-    avatar.value = profile.avatar
     registeredDays.value = profile.registeredDays
     localStorage.setItem('lexiflow.email', profile.email)
     localStorage.setItem('lexiflow.registeredDays', String(profile.registeredDays))
-    if (profile.avatar) localStorage.setItem('lexiflow.avatar', profile.avatar)
+    setAvatar(profile.avatar)
+  }
+
+  function setAvatar(nextAvatar: string | null) {
+    avatar.value = nextAvatar
+    if (nextAvatar) localStorage.setItem('lexiflow.avatar', nextAvatar)
     else localStorage.removeItem('lexiflow.avatar')
+  }
+
+  function setUserName(nextUserName: string) {
+    userName.value = nextUserName
+    localStorage.setItem('lexiflow.userName', nextUserName)
   }
 
   function signOut() {
@@ -34,5 +43,5 @@ export const useSessionStore = defineStore('session', () => {
     localStorage.removeItem('lexiflow.token')
   }
 
-  return { token, userName, email, avatar, registeredDays, isAuthenticated, signIn, updateProfile, signOut }
+  return { token, userName, email, avatar, registeredDays, isAuthenticated, signIn, updateProfile, setAvatar, setUserName, signOut }
 })
