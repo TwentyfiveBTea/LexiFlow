@@ -58,7 +58,6 @@ export interface DueWordResponse {
   us: string | null
   uk: string | null
   translations: string | null
-  phrases: string | null
 }
 
 export const api = axios.create({
