@@ -33,7 +33,6 @@ const settings = reactive({
   lineHeight: '1.7',
   highlight: true,
   interfaceLanguage: 'zh-CN',
-  learningLanguage: 'en',
 })
 
 const readingFontOptions = [
@@ -55,12 +54,6 @@ const interfaceLanguageOptions = [
   { value: 'zh-CN', label: '简体中文' },
   { value: 'en', label: 'English' },
   { value: 'ja', label: '日本語' },
-]
-const learningLanguageOptions = [
-  { value: 'en', label: '英语' },
-  { value: 'ja', label: '日语' },
-  { value: 'fr', label: '法语' },
-  { value: 'de', label: '德语' },
 ]
 const canSubmitPassword = computed(() => Boolean(
   passwordForm.oldPassword
@@ -239,10 +232,9 @@ async function logout() {
       </article>
 
       <article class="settings-card language-card surface fade-in wide">
-        <div class="card-title"><span><Languages :size="20" /></span><div><h2 class="serif">语言</h2><p>界面与默认学习语言。</p></div></div>
-        <div class="form-grid">
+        <div class="card-title"><span><Languages :size="20" /></span><div><h2 class="serif">语言</h2><p>界面显示语言</p></div></div>
+        <div class="language-field">
           <div><span class="field-label">界面语言</span><AppSelect v-model="settings.interfaceLanguage" :options="interfaceLanguageOptions" label="选择界面语言" /></div>
-          <div><span class="field-label">默认学习语言</span><AppSelect v-model="settings.learningLanguage" :options="learningLanguageOptions" label="选择默认学习语言" /></div>
         </div>
       </article>
 
@@ -302,7 +294,7 @@ async function logout() {
 .card-title { display: flex; align-items: flex-start; gap: 12px; padding-bottom: 20px; margin-bottom: 20px; border-bottom: 1px solid rgba(199,196,192,.7); }.card-title > span { width: 38px; height: 38px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 7px; color: var(--primary); background: var(--primary-soft); }.card-title h2 { margin: 0; color: var(--primary); font-size: 21px; }.card-title p { margin: 4px 0 0; color: var(--ink-muted); font-size: 12px; }
 .account-profile { display: flex; align-items: center; gap: 16px; padding-bottom: 20px; margin-bottom: 20px; border-bottom: 1px solid rgba(199,196,192,.55); }.profile-avatar { position: relative; width: 70px; height: 70px; flex: 0 0 auto; display: grid; place-items: center; padding: 0; border: 1px solid var(--outline); border-radius: 50%; color: var(--secondary); background: var(--surface-high); }.profile-avatar img, .avatar-preview img { width: 100%; height: 100%; display: block; border-radius: inherit; object-fit: cover; }.profile-avatar > span { position: absolute; right: -2px; bottom: 1px; width: 25px; height: 25px; display: grid; place-items: center; border: 2px solid white; border-radius: 50%; color: white; background: var(--primary); }.account-profile > div { display: grid; align-items: start; gap: 5px; }.account-profile strong { color: var(--primary); font-size: 18px; }.avatar-action { margin: 0; }
 .account-fields { display: grid; gap: 17px; }.readonly-field { width: 100%; height: 44px; display: flex; align-items: center; overflow: hidden; padding: 0 13px; border: 1px solid var(--outline); border-radius: 7px; color: var(--ink-muted); background: var(--surface-container); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }.username-control { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; }.username-control .field { font-size: 13px; }.username-control .btn:disabled { opacity: .5; cursor: not-allowed; }.inline-message { margin: 7px 0 0; color: var(--success); font-size: 11px; }
-.form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }.form-grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }.text-action { display: inline-flex; align-items: center; gap: 6px; padding: 0; border: 0; color: var(--secondary); background: transparent; font-size: 13px; font-weight: 700; }.password-action-row { display: flex; align-items: center; gap: 12px; margin-top: 18px; }.success-message { color: var(--success); font-size: 11px; }
+.form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }.form-grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }.language-field { width: 100%; }.text-action { display: inline-flex; align-items: center; gap: 6px; padding: 0; border: 0; color: var(--secondary); background: transparent; font-size: 13px; font-weight: 700; }.password-action-row { display: flex; align-items: center; gap: 12px; margin-top: 18px; }.success-message { color: var(--success); font-size: 11px; }
 .toggle-row { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 58px; padding: 16px 0 0; margin-top: 18px; border-top: 1px solid rgba(199,196,192,.65); cursor: pointer; }.toggle-row span { display: grid; gap: 4px; }.toggle-row strong { font-size: 13px; }.toggle-row small { color: var(--ink-muted); font-size: 11px; }.toggle-row input { position: absolute; opacity: 0; }.toggle-row i { position: relative; width: 42px; height: 23px; flex: 0 0 auto; border-radius: 20px; background: var(--surface-high); transition: background .18s ease; }.toggle-row i::after { content: ''; position: absolute; width: 17px; height: 17px; left: 3px; top: 3px; border-radius: 50%; background: white; box-shadow: 0 1px 3px rgba(0,0,0,.2); transition: transform .18s ease; }.toggle-row input:checked + i { background: var(--primary); }.toggle-row input:checked + i::after { transform: translateX(19px); }
 .danger { border-color: #d7b8b8; }.danger .card-title > span { color: var(--error); background: #f3e3e3; }.danger-title { align-items: center; padding: 0; margin: 0; border-bottom: 0; }.danger-title > div { min-width: 0; flex: 1; }.danger-title .btn { flex: 0 0 auto; }
 .modal-backdrop { position: fixed; z-index: 60; inset: 0; display: grid; place-items: center; padding: 22px; background: rgba(27,28,28,.3); }.avatar-modal, .password-modal { width: min(100%, 440px); padding: 28px 30px; }.modal-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }.modal-heading h2 { margin: 0; color: var(--primary); font-size: 26px; }.avatar-picker { width: 100%; min-height: 104px; display: flex; align-items: center; gap: 14px; padding: 16px; margin-top: 24px; border: 1px dashed var(--outline); border-radius: 7px; color: var(--ink-muted); background: var(--surface-low); text-align: left; }.avatar-picker:hover, .avatar-picker:focus-visible { color: var(--primary); border-color: var(--primary); outline: none; }.avatar-preview { width: 64px; height: 64px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 50%; color: var(--secondary); background: var(--surface-high); }.avatar-picker-copy { min-width: 0; flex: 1; display: grid; gap: 5px; }.avatar-picker-copy strong { overflow: hidden; color: var(--ink); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }.avatar-picker-copy small { font-size: 11px; }.password-fields { display: grid; gap: 17px; margin-top: 24px; }.password-input { height: 44px; display: flex; align-items: center; border: 1px solid var(--outline); border-radius: 7px; background: var(--surface-low); transition: border-color .18s ease, box-shadow .18s ease; }.password-input:focus-within { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(50,78,88,.1); }.password-input input { min-width: 0; flex: 1; height: 100%; padding: 0 13px; border: 0; outline: 0; color: var(--ink); background: transparent; font-size: 13px; }.password-input button { width: 42px; height: 42px; display: grid; place-items: center; flex: 0 0 auto; border: 0; color: var(--ink-muted); background: transparent; }.password-input button:hover { color: var(--primary); }.password-hint { display: block; margin-top: 6px; color: var(--ink-muted); font-size: 10.5px; }.form-message { margin: 12px 0 0; font-size: 12px; }.error-message { color: var(--error); }.modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }.modal-actions .btn:disabled { opacity: .45; cursor: not-allowed; }
