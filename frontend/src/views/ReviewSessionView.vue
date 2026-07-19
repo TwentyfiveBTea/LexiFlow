@@ -19,6 +19,7 @@ const demoWords: DueWordResponse[] = words.map((word) => ({
   libraryWordId: word.libraryWordId,
   wordId: word.wordId,
   languageCode: word.languageCode,
+  level: word.level,
   word: word.word,
   kana: word.kana || null,
   us: word.us || null,

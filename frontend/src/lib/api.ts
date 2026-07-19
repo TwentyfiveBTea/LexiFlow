@@ -52,6 +52,7 @@ export interface DueWordResponse {
   libraryWordId: string | null
   wordId: number
   languageCode: 'en' | 'ja'
+  level: string | null
   word: string
   kana: string | null
   us: string | null
