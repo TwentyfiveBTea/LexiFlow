@@ -220,8 +220,7 @@ public class LearningServiceImpl implements LearningService {
                         .level(articleVocabAnalyzer.findLevel(progress.getLanguageCode(), word.getWord()))
                         .us(word.getUs())
                         .uk(word.getUk())
-                        .translations(word.getTranslations())
-                        .phrases(word.getPhrases());
+                        .translations(word.getTranslations());
             }
         }
         return builder.build();

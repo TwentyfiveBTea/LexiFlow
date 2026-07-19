@@ -56,9 +56,4 @@ public class DueWordRespDTO {
      * 释义
      */
     private String translations;
-
-    /**
-     * 短语
-     */
-    private String phrases;
 }
