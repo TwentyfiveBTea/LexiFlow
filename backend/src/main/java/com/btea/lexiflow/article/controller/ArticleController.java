@@ -4,6 +4,7 @@ import com.btea.lexiflow.article.dto.req.ArticleAnalyzeReqDTO;
 import com.btea.lexiflow.article.dto.resp.ArticleAnalyzeRespDTO;
 import com.btea.lexiflow.article.dto.resp.ArticleDetailRespDTO;
 import com.btea.lexiflow.article.dto.resp.ArticleListRespDTO;
+import com.btea.lexiflow.article.dto.resp.ArticleProcessingDetailRespDTO;
 import com.btea.lexiflow.article.dto.resp.ArticleUploadRespDTO;
 import com.btea.lexiflow.article.dto.resp.ArticleVocabOccurrenceRespDTO;
 import com.btea.lexiflow.article.dto.resp.ArticleVocabRespDTO;
@@ -72,6 +73,17 @@ public class ArticleController {
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) String languageCode) {
         return Results.success(articleService.listArticles(keyword, languageCode));
+    }
+
+    /**
+     * 获取文章处理详情
+     *
+     * @param articleId 文章ID
+     * @return 文章处理详情
+     */
+    @GetMapping("/{articleId}/processing-detail")
+    public Result<ArticleProcessingDetailRespDTO> getArticleProcessingDetail(@PathVariable String articleId) {
+        return Results.success(articleService.getArticleProcessingDetail(articleId));
     }
 
     /**

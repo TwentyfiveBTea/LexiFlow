@@ -4,6 +4,7 @@ import com.btea.lexiflow.article.dto.req.ArticleAnalyzeReqDTO;
 import com.btea.lexiflow.article.dto.resp.ArticleAnalyzeRespDTO;
 import com.btea.lexiflow.article.dto.resp.ArticleDetailRespDTO;
 import com.btea.lexiflow.article.dto.resp.ArticleListRespDTO;
+import com.btea.lexiflow.article.dto.resp.ArticleProcessingDetailRespDTO;
 import com.btea.lexiflow.article.dto.resp.ArticleUploadRespDTO;
 import com.btea.lexiflow.article.dto.resp.ArticleVocabOccurrenceRespDTO;
 import com.btea.lexiflow.article.dto.resp.ArticleVocabRespDTO;
@@ -51,6 +52,14 @@ public interface ArticleService {
      * @return 文章列表
      */
     List<ArticleListRespDTO> listArticles(String keyword, String languageCode);
+
+    /**
+     * 获取文章处理详情
+     *
+     * @param articleId 文章ID
+     * @return 文章处理详情
+     */
+    ArticleProcessingDetailRespDTO getArticleProcessingDetail(String articleId);
 
     /**
      * 获取文章命中词汇列表

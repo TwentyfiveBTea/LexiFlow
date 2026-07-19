@@ -258,6 +258,27 @@ public class ArticleServiceImpl implements ArticleService {
     }
 
     /**
+     * 获取文章处理详情
+     *
+     * @param articleId 文章ID
+     * @return 文章处理详情
+     */
+    @Override
+    public ArticleProcessingDetailRespDTO getArticleProcessingDetail(String articleId) {
+        String userId = getCurrentUserId();
+        BizArticlesDO article = getUserArticle(articleId, userId);
+        return ArticleProcessingDetailRespDTO.builder()
+                .wordCount(article.getWordCount())
+                .parseStatus(article.getParseStatus())
+                .translationStatus(article.getTranslationStatus())
+                .analysisStatus(article.getAnalysisStatus())
+                .parsedAt(article.getParsedAt())
+                .translatedAt(article.getTranslatedAt())
+                .analyzedAt(article.getAnalyzedAt())
+                .build();
+    }
+
+    /**
      * 获取文章命中词汇列表
      *
      * @param articleId 文章ID
