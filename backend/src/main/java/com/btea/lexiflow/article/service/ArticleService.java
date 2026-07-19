@@ -71,6 +71,14 @@ public interface ArticleService {
     List<ArticleVocabRespDTO> listArticleVocabs(String articleId, String analysisLevel);
 
     /**
+     * 获取文章已解析的词汇等级
+     *
+     * @param articleId 文章ID
+     * @return 已解析的词汇等级列表
+     */
+    List<String> listArticleVocabLevels(String articleId);
+
+    /**
      * 获取词汇出现位置列表
      *
      * @param articleId 文章ID

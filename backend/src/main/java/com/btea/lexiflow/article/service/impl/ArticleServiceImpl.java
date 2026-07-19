@@ -218,7 +218,6 @@ public class ArticleServiceImpl implements ArticleService {
         return ArticleDetailRespDTO.builder()
                 .articleId(article.getId())
                 .title(article.getTitle())
-                .fileSize(article.getFileSize())
                 .parsedContent(article.getParsedContent())
                 .languageCode(article.getLanguageCode())
                 .wordCount(article.getWordCount())
@@ -293,6 +292,36 @@ public class ArticleServiceImpl implements ArticleService {
         log.info("获取文章命中词汇列表成功: userId={}, articleId={}, analysisLevel={}, vocabCount={}",
                 userId, articleId, analysisLevel, vocabs.size());
         return vocabs;
+    }
+
+    /**
+     * 获取文章已解析的词汇等级
+     *
+     * @param articleId 文章ID
+     * @return 已解析的词汇等级列表
+     */
+    @Override
+    public List<String> listArticleVocabLevels(String articleId) {
+        String userId = getCurrentUserId();
+        getUserArticle(articleId, userId);
+        List<RelArticleVocabDO> articleVocabs = relArticleVocabMapper.selectList(
+                new LambdaQueryWrapper<RelArticleVocabDO>()
+                        .select(RelArticleVocabDO::getAnalysisLevel)
+                        .eq(RelArticleVocabDO::getArticleId, articleId)
+                        .eq(RelArticleVocabDO::getUserId, userId)
+                        .groupBy(RelArticleVocabDO::getAnalysisLevel)
+                        .orderByAsc(RelArticleVocabDO::getAnalysisLevel));
+        List<String> levels = articleVocabs.stream()
+                .map(RelArticleVocabDO::getAnalysisLevel)
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(each -> !each.isEmpty())
+                .map(each -> each.toUpperCase(Locale.ROOT))
+                .distinct()
+                .sorted()
+                .toList();
+        log.info("获取文章词汇等级成功: userId={}, articleId={}, levels={}", userId, articleId, levels);
+        return levels;
     }
 
     /**

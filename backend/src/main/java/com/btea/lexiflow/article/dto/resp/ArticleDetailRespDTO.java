@@ -29,11 +29,6 @@ public class ArticleDetailRespDTO {
     private String title;
 
     /**
-     * 文件大小，单位：字节
-     */
-    private Long fileSize;
-
-    /**
      * 解析后的文章正文内容
      */
     private String parsedContent;

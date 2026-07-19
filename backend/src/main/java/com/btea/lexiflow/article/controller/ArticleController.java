@@ -111,6 +111,17 @@ public class ArticleController {
     }
 
     /**
+     * 获取文章已解析的词汇等级
+     *
+     * @param articleId 文章ID
+     * @return 已解析的词汇等级列表
+     */
+    @GetMapping("/{articleId}/vocab-levels")
+    public Result<List<String>> listArticleVocabLevels(@PathVariable String articleId) {
+        return Results.success(articleService.listArticleVocabLevels(articleId));
+    }
+
+    /**
      * 获取词汇出现位置列表
      *
      * @param articleId 文章ID
