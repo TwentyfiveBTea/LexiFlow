@@ -1,5 +1,6 @@
 package com.btea.lexiflow.pay.controller;
 
+import com.btea.lexiflow.common.convention.result.PageRespDTO;
 import com.btea.lexiflow.common.convention.result.Result;
 import com.btea.lexiflow.common.convention.result.Results;
 import com.btea.lexiflow.pay.dto.req.PaymentOrderCreateReqDTO;
@@ -19,8 +20,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-
-import java.util.List;
 
 /**
  * @Author: TwentyfiveBTea
@@ -56,9 +55,10 @@ public class PaymentController {
      * 获取当前用户充值记录
      */
     @GetMapping("/recharges")
-    public Result<List<RechargeRecordRespDTO>> listRechargeRecords(
-            @RequestParam(required = false) Integer limit) {
-        return Results.success(paymentService.listRechargeRecords(limit));
+    public Result<PageRespDTO<RechargeRecordRespDTO>> listRechargeRecords(
+            @RequestParam(defaultValue = "1") Integer page,
+            @RequestParam(defaultValue = "10") Integer pageSize) {
+        return Results.success(paymentService.listRechargeRecords(page, pageSize));
     }
 
     /**
@@ -73,9 +73,10 @@ public class PaymentController {
      * 获取当前用户的文章Credits使用记录
      */
     @GetMapping("/credits/ledger")
-    public Result<List<CreditLedgerRespDTO>> listCreditLedger(
-            @RequestParam(required = false) Integer limit) {
-        return Results.success(creditAccountService.listCurrentLedger(limit));
+    public Result<PageRespDTO<CreditLedgerRespDTO>> listCreditLedger(
+            @RequestParam(defaultValue = "1") Integer page,
+            @RequestParam(defaultValue = "10") Integer pageSize) {
+        return Results.success(creditAccountService.listCurrentLedger(page, pageSize));
     }
 
 }

@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.btea.lexiflow.common.context.UserContext;
 import com.btea.lexiflow.common.convention.errorcode.BaseErrorCode;
 import com.btea.lexiflow.common.convention.exception.ClientException;
+import com.btea.lexiflow.common.convention.result.PageRespDTO;
 import com.btea.lexiflow.pay.constant.AiUsageConstant;
 import com.btea.lexiflow.pay.constant.CreditConstant;
 import com.btea.lexiflow.pay.dao.entity.BizCreditAccountDO;
@@ -70,19 +71,27 @@ public class CreditAccountServiceImpl implements CreditAccountService {
     /**
      * 获取当前用户的文章Credits使用记录
      *
-     * @param limit 返回数量
-     * @return 文章Credits使用记录列表
+     * @param page 页码
+     * @param pageSize 每页记录数
+     * @return 文章Credits使用记录分页结果
      */
     @Override
-    public List<CreditLedgerRespDTO> listCurrentLedger(Integer limit) {
+    public PageRespDTO<CreditLedgerRespDTO> listCurrentLedger(Integer page, Integer pageSize) {
         String userId = getCurrentUserId();
-        int queryLimit = limit == null ? 50 : Math.min(Math.max(limit, 1), 100);
-        return creditReservationMapper.selectSettledUsageByUser(
+        int currentPage = page == null ? 1 : Math.max(page, 1);
+        int currentPageSize = pageSize == null ? 10 : Math.min(Math.max(pageSize, 1), 100);
+        long offset = (long) (currentPage - 1) * currentPageSize;
+        long total = creditReservationMapper.countSettledUsageByUser(
+                userId,
+                CreditConstant.RESERVATION_STATUS_SETTLED);
+        List<CreditLedgerRespDTO> records = creditReservationMapper.selectSettledUsageByUser(
                 userId,
                 CreditConstant.RESERVATION_STATUS_SETTLED,
                 AiUsageConstant.REQUEST_STATUS_SUCCESS,
                 AiUsageConstant.BILLING_STATUS_SETTLED,
-                queryLimit);
+                offset,
+                currentPageSize);
+        return PageRespDTO.of(records, total, currentPage, currentPageSize);
     }
 
     private String getCurrentUserId() {

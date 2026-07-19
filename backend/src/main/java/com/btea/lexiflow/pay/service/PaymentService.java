@@ -1,5 +1,6 @@
 package com.btea.lexiflow.pay.service;
 
+import com.btea.lexiflow.common.convention.result.PageRespDTO;
 import com.btea.lexiflow.pay.dto.req.PaymentOrderCreateReqDTO;
 import com.btea.lexiflow.pay.dto.resp.PaymentOrderCreateRespDTO;
 import com.btea.lexiflow.pay.dto.resp.PaymentOrderRespDTO;
@@ -34,10 +35,11 @@ public interface PaymentService {
     /**
      * 获取当前用户的充值记录
      *
-     * @param limit 返回数量
-     * @return 充值记录列表
+     * @param page 页码
+     * @param pageSize 每页记录数
+     * @return 充值记录分页结果
      */
-    List<RechargeRecordRespDTO> listRechargeRecords(Integer limit);
+    PageRespDTO<RechargeRecordRespDTO> listRechargeRecords(Integer page, Integer pageSize);
 
     /**
      * 系统补偿查询支付订单

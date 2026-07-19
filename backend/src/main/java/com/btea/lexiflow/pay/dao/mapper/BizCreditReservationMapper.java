@@ -38,7 +38,8 @@ public interface BizCreditReservationMapper extends BaseMapper<BizCreditReservat
      * @param reservationStatus 预占结算状态
      * @param requestStatus AI请求成功状态
      * @param billingStatus AI计费结算状态
-     * @param limit 返回数量
+     * @param offset 分页偏移量
+     * @param pageSize 每页记录数
      * @return 文章Credits使用记录
      */
     @Select("""
@@ -57,12 +58,30 @@ public interface BizCreditReservationMapper extends BaseMapper<BizCreditReservat
               AND r.status = #{reservationStatus}
             GROUP BY r.id, r.article_id, r.consumed_credits, r.completed_at
             ORDER BY r.completed_at DESC
-            LIMIT #{limit}
+            LIMIT #{offset}, #{pageSize}
             """)
     List<CreditLedgerRespDTO> selectSettledUsageByUser(
             @Param("userId") String userId,
             @Param("reservationStatus") Integer reservationStatus,
             @Param("requestStatus") Integer requestStatus,
             @Param("billingStatus") Integer billingStatus,
-            @Param("limit") Integer limit);
+            @Param("offset") Long offset,
+            @Param("pageSize") Integer pageSize);
+
+    /**
+     * 统计用户已结算的文章Credits使用记录数量
+     *
+     * @param userId 用户ID
+     * @param reservationStatus 预占结算状态
+     * @return 已结算记录数量
+     */
+    @Select("""
+            SELECT COUNT(*)
+            FROM biz_credit_reservation
+            WHERE user_id = #{userId}
+              AND status = #{reservationStatus}
+            """)
+    long countSettledUsageByUser(
+            @Param("userId") String userId,
+            @Param("reservationStatus") Integer reservationStatus);
 }

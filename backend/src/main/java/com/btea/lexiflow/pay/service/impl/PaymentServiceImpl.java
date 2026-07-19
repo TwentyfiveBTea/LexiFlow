@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.btea.lexiflow.common.context.UserContext;
 import com.btea.lexiflow.common.convention.errorcode.BaseErrorCode;
 import com.btea.lexiflow.common.convention.exception.ClientException;
+import com.btea.lexiflow.common.convention.result.PageRespDTO;
 import com.btea.lexiflow.pay.config.CreditBillingProperties;
 import com.btea.lexiflow.pay.config.EpayProperties;
 import com.btea.lexiflow.pay.constant.PaymentConstant;
@@ -129,21 +130,28 @@ public class PaymentServiceImpl implements PaymentService {
     /**
      * 获取当前用户的充值记录
      *
-     * @param limit 返回数量
-     * @return 充值记录列表
+     * @param page 页码
+     * @param pageSize 每页记录数
+     * @return 充值记录分页结果
      */
     @Override
-    public List<RechargeRecordRespDTO> listRechargeRecords(Integer limit) {
-        int queryLimit = limit == null ? 50 : Math.min(Math.max(limit, 1), 100);
-        return paymentOrderMapper.selectList(new LambdaQueryWrapper<BizPaymentOrderDO>()
-                        .eq(BizPaymentOrderDO::getUserId, getCurrentUserId())
-                        .eq(BizPaymentOrderDO::getOrderStatus, PaymentConstant.ORDER_STATUS_PAID)
-                        .eq(BizPaymentOrderDO::getCreditStatus, PaymentConstant.CREDIT_STATUS_CREDITED)
+    public PageRespDTO<RechargeRecordRespDTO> listRechargeRecords(Integer page, Integer pageSize) {
+        int currentPage = page == null ? 1 : Math.max(page, 1);
+        int currentPageSize = pageSize == null ? 10 : Math.min(Math.max(pageSize, 1), 100);
+        String userId = getCurrentUserId();
+        LambdaQueryWrapper<BizPaymentOrderDO> queryWrapper = new LambdaQueryWrapper<BizPaymentOrderDO>()
+                .eq(BizPaymentOrderDO::getUserId, userId)
+                .eq(BizPaymentOrderDO::getOrderStatus, PaymentConstant.ORDER_STATUS_PAID)
+                .eq(BizPaymentOrderDO::getCreditStatus, PaymentConstant.CREDIT_STATUS_CREDITED);
+        long total = paymentOrderMapper.selectCount(queryWrapper);
+        long offset = (long) (currentPage - 1) * currentPageSize;
+        List<RechargeRecordRespDTO> records = paymentOrderMapper.selectList(queryWrapper
                         .orderByDesc(BizPaymentOrderDO::getCreditedAt)
-                        .last("LIMIT " + queryLimit))
+                        .last("LIMIT " + offset + ", " + currentPageSize))
                 .stream()
                 .map(this::toRechargeRecordResp)
                 .toList();
+        return PageRespDTO.of(records, total, currentPage, currentPageSize);
     }
 
     /**
