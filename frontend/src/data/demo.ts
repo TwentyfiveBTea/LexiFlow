@@ -1,14 +1,29 @@
 export interface Article {
   id: string
   language: string
+  articleId: string
+  languageCode: 'en' | 'ja'
   source: string
   title: string
   excerpt: string
   date: string
   words: number
+  wordCount: number
+  createdAt: string
   progress: number
   readTime: string
   tone: 'blue' | 'clay' | 'charcoal' | 'sage'
+  processingDetail: ArticleProcessingDetail
+}
+
+export interface ArticleProcessingDetail {
+  wordCount: number
+  parseStatus: number
+  translationStatus: number
+  analysisStatus: number
+  parsedAt: string | null
+  translatedAt: string | null
+  analyzedAt: string | null
 }
 
 export interface VocabularyCollection {
@@ -43,10 +58,10 @@ export interface Word {
 }
 
 export const articles: Article[] = [
-  { id: 'algorithmic-sentience', language: '英语', source: 'Lexis Review', title: 'The Jurisprudence of Algorithmic Sentience', excerpt: 'As artificial intelligence models approach theoretical autonomy, legal frameworks struggle to define liability and synthetic rights.', date: '今天', words: 38, progress: 62, readTime: '14 分钟', tone: 'blue' },
-  { id: 'urban-space', language: '法语', source: 'Le Monde', title: "L'Architecture de Demain: Repenser l'Espace Urbain", excerpt: 'Une exploration des tendances architecturales qui redéfinissent nos villes face aux défis climatiques.', date: '2 天前', words: 42, progress: 65, readTime: '11 分钟', tone: 'clay' },
-  { id: 'philosophy-silence', language: '德语', source: 'Der Spiegel', title: 'Die Philosophie der Stille in einer lauten Welt', excerpt: 'Warum wir das Schweigen wieder lernen müssen, um klarer zu denken und besser zu verstehen.', date: '4 天前', words: 27, progress: 31, readTime: '9 分钟', tone: 'charcoal' },
-  { id: 'memory-language', language: '日语', source: '思想', title: '記憶と言語のあいだにあるもの', excerpt: '言葉を学ぶことは、世界を見るための新しい輪郭を手に入れることでもある。', date: '7 月 14 日', words: 51, progress: 100, readTime: '18 分钟', tone: 'sage' },
+  { id: 'algorithmic-sentience', articleId: 'algorithmic-sentience', language: '英语', languageCode: 'en', source: 'Lexis Review', title: 'The Jurisprudence of Algorithmic Sentience', excerpt: 'As artificial intelligence models approach theoretical autonomy, legal frameworks struggle to define liability and synthetic rights.', date: '今天', words: 1380, wordCount: 1380, createdAt: '2026-07-19T08:30:00+08:00', progress: 100, readTime: '14 分钟', tone: 'blue', processingDetail: { wordCount: 1380, parseStatus: 2, translationStatus: 2, analysisStatus: 2, parsedAt: '2026-07-19T08:31:00+08:00', translatedAt: '2026-07-19T08:34:00+08:00', analyzedAt: '2026-07-19T08:36:00+08:00' } },
+  { id: 'language-acquisition', articleId: 'language-acquisition', language: '英语', languageCode: 'en', source: 'Language Review', title: 'How Deep Reading Shapes Language Acquisition', excerpt: 'Sustained attention to complex texts strengthens vocabulary, inference, and long-term recall.', date: '2 天前', words: 965, wordCount: 965, createdAt: '2026-07-17T15:20:00+08:00', progress: 100, readTime: '11 分钟', tone: 'clay', processingDetail: { wordCount: 965, parseStatus: 2, translationStatus: 2, analysisStatus: 1, parsedAt: '2026-07-17T15:21:00+08:00', translatedAt: '2026-07-17T15:24:00+08:00', analyzedAt: null } },
+  { id: 'academic-memory', articleId: 'academic-memory', language: '英语', languageCode: 'en', source: 'Academic Notes', title: 'Memory, Context, and Academic Vocabulary', excerpt: 'Academic vocabulary becomes durable when learners encounter it across meaningful contexts.', date: '4 天前', words: 1124, wordCount: 1124, createdAt: '2026-07-15T10:05:00+08:00', progress: 100, readTime: '9 分钟', tone: 'charcoal', processingDetail: { wordCount: 1124, parseStatus: 2, translationStatus: 2, analysisStatus: 2, parsedAt: '2026-07-15T10:06:00+08:00', translatedAt: '2026-07-15T10:09:00+08:00', analyzedAt: '2026-07-15T10:12:00+08:00' } },
+  { id: 'memory-language', articleId: 'memory-language', language: '日语', languageCode: 'ja', source: '思想', title: '記憶と言語のあいだにあるもの', excerpt: '言葉を学ぶことは、世界を見るための新しい輪郭を手に入れることでもある。', date: '7 月 14 日', words: 860, wordCount: 860, createdAt: '2026-07-14T18:40:00+08:00', progress: 100, readTime: '18 分钟', tone: 'sage', processingDetail: { wordCount: 860, parseStatus: 2, translationStatus: 2, analysisStatus: 2, parsedAt: '2026-07-14T18:41:00+08:00', translatedAt: '2026-07-14T18:45:00+08:00', analyzedAt: '2026-07-14T18:47:00+08:00' } },
 ]
 
 export const collections: VocabularyCollection[] = [
