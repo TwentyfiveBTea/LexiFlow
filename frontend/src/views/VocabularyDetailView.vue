@@ -72,9 +72,9 @@ function removeWord(word: Word) {
     <section class="word-table surface fade-in">
       <div class="table-head"><span>单词</span><span>释义与短语</span><span>发音</span><span>等级</span><span>加入时间</span><span aria-hidden="true"></span></div>
       <article v-for="word in filteredWords" :key="word.libraryWordId" class="word-row">
-        <div class="term"><div><strong class="serif">{{ word.word }}</strong><small v-if="word.kana">{{ word.kana }}</small></div></div>
+        <div class="term"><div class="term-text"><small v-if="word.kana">{{ word.kana }}</small><strong class="serif">{{ word.word }}</strong></div></div>
         <div class="meaning"><strong>{{ formatJsonList(word.translations, 'translation') || '暂无释义' }}</strong><span v-if="word.phrases && word.phrases !== '[]'">{{ formatJsonList(word.phrases, 'phrase') }}</span></div>
-        <div class="pronunciation"><span v-if="word.us">US {{ word.us }}</span><span v-if="word.uk">UK {{ word.uk }}</span><span v-if="word.kana">{{ word.kana }}</span></div>
+        <div class="pronunciation"><span v-if="word.us">US {{ word.us }}</span><span v-if="word.uk">UK {{ word.uk }}</span></div>
         <div><span class="badge level-badge">{{ word.level }}</span></div>
         <div class="added-at">{{ formatDate(word.addedAt) }}</div>
         <button class="delete-word icon-btn" type="button" :aria-label="`从词汇库删除 ${word.word}`" title="从词汇库删除" @click="removeWord(word)"><Trash2 :size="16" /></button>
@@ -88,11 +88,11 @@ function removeWord(word: Word) {
 .back-link { display: inline-flex; align-items: center; gap: 6px; margin-bottom: 26px; color: var(--ink-muted); font-size: 13px; font-weight: 650; }.back-link:hover { color: var(--primary); }
 .detail-header { margin-bottom: 28px; }
 .word-toolbar { position: relative; z-index: 10; min-height: 66px; display: flex; align-items: center; gap: 12px; padding: 10px 12px; margin-bottom: 18px; overflow: visible; }
-.word-search { height: 44px; flex: 1; display: flex; align-items: center; gap: 9px; padding: 0 12px; border: 1px solid transparent; border-radius: 7px; color: var(--ink-muted); background: var(--surface-low); }.word-search:focus-within { border-color: var(--primary); }.word-search input { width: 100%; border: 0; outline: 0; background: transparent; }
-.level-filter { width: 158px; flex: 0 0 auto; }
+.word-search { height: 44px; min-width: 0; flex: 1 1 auto; display: flex; align-items: center; gap: 9px; padding: 0 12px; border: 1px solid transparent; border-radius: 7px; color: var(--ink-muted); background: var(--surface-low); }.word-search:focus-within { border-color: var(--primary); }.word-search input { width: 100%; border: 0; outline: 0; background: transparent; }
+.level-filter { width: 132px; flex: 0 0 auto; }
 .word-table { position: relative; z-index: 1; overflow: hidden; }.table-head, .word-row { display: grid; grid-template-columns: 1.15fr 1.9fr 1.05fr .55fr 1.15fr 42px; gap: 17px; align-items: center; padding: 0 22px; }
 .table-head { min-height: 46px; color: var(--ink-muted); background: var(--surface-low); font-size: 11px; font-weight: 700; text-transform: uppercase; }.word-row { min-height: 104px; border-top: 1px solid rgba(199,196,192,.7); }
-.term { min-width: 0; }.term div { display: grid; gap: 3px; min-width: 0; }.term strong { overflow: hidden; color: var(--primary); font-size: 19px; text-overflow: ellipsis; white-space: nowrap; }.term small { color: var(--ink-muted); }
+.term { min-width: 0; }.term-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }.term strong { overflow: hidden; color: var(--primary); font-size: 19px; text-overflow: ellipsis; white-space: nowrap; }.term small { color: var(--ink-muted); font-size: 12px; }
 .meaning { display: grid; gap: 5px; min-width: 0; }.meaning strong { overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }.meaning span { overflow: hidden; color: var(--ink-muted); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 .pronunciation { display: grid; gap: 4px; color: var(--ink-muted); font-size: 12.5px; line-height: 1.45; }.level-badge { color: var(--secondary); background: var(--secondary-soft); }.added-at { color: var(--ink-muted); font-size: 12.5px; line-height: 1.45; white-space: nowrap; }.delete-word { color: var(--error); }.delete-word:hover { color: white; background: var(--error); }
 .table-empty { padding: 50px; text-align: center; color: var(--ink-muted); }

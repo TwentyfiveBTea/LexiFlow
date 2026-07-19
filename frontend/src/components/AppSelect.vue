@@ -51,7 +51,7 @@ function select(value: string) {
 </script>
 
 <template>
-  <div ref="selectArea" class="app-select">
+  <div ref="selectArea" class="app-select" :class="{ open }">
     <button class="select-trigger" type="button" aria-haspopup="listbox" :aria-label="label" :aria-expanded="open" @click="open = !open" @keydown.esc="open = false">
       <component :is="icon" v-if="icon" :size="16" />
       <span>{{ selectedLabel }}</span>
@@ -59,7 +59,7 @@ function select(value: string) {
     </button>
     <Transition name="select-menu">
       <div v-if="open" class="select-menu surface" role="listbox" :aria-label="label" :style="menuStyle">
-        <button v-for="item in options" :key="item.value" type="button" role="option" :aria-selected="modelValue === item.value" :class="{ active: modelValue === item.value }" @click="select(item.value)">
+        <button v-for="item in options" :key="item.value" type="button" role="option" :aria-selected="modelValue === item.value" :class="{ active: modelValue === item.value }" @click.stop="select(item.value)">
           <span>{{ item.label }}</span>
           <Check v-if="modelValue === item.value" :size="14" />
         </button>
@@ -69,7 +69,7 @@ function select(value: string) {
 </template>
 
 <style scoped>
-.app-select { position: relative; width: 100%; height: 44px; }
+.app-select { position: relative; z-index: 0; width: 100%; height: 44px; }.app-select.open { z-index: 80; }
 .select-trigger { width: 100%; height: 100%; display: flex; align-items: center; gap: 7px; padding: 0 11px; border: 1px solid var(--outline); border-radius: 7px; color: var(--ink-muted); background: var(--surface-lowest); font-size: 12.5px; }
 .select-trigger:hover, .select-trigger:focus-visible, .app-select:has(.select-menu) .select-trigger { color: var(--primary); border-color: var(--primary); outline: none; }
 .select-trigger span { min-width: 0; flex: 1; overflow: hidden; color: var(--ink); text-align: left; text-overflow: ellipsis; white-space: nowrap; }

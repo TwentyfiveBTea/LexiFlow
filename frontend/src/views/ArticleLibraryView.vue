@@ -4,11 +4,17 @@ import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { articles } from '@/data/demo'
 import type { Article } from '@/data/demo'
+import AppSelect from '@/components/AppSelect.vue'
 
 const router = useRouter()
 const query = ref('')
 const view = ref<'grid' | 'list'>('grid')
 const languageFilter = ref<'all' | 'en' | 'ja'>('all')
+const languageOptions = [
+  { value: 'all', label: '全部语言' },
+  { value: 'en', label: '英语' },
+  { value: 'ja', label: '日语' },
+]
 const selectedArticle = ref<Article | null>(null)
 const filteredArticles = computed(() => {
   const keyword = query.value.trim().toLowerCase()
@@ -59,11 +65,7 @@ function formatStatus(value: number) {
 
     <section class="library-toolbar surface fade-in">
       <label class="search-field"><Search :size="18" /><input v-model="query" placeholder="搜索标题" /></label>
-      <div class="language-filter" role="radiogroup" aria-label="按语言筛选文章">
-        <button type="button" role="radio" :aria-checked="languageFilter === 'all'" :class="{ active: languageFilter === 'all' }" @click="languageFilter = 'all'">全部</button>
-        <button type="button" role="radio" :aria-checked="languageFilter === 'en'" :class="{ active: languageFilter === 'en' }" @click="languageFilter = 'en'">en</button>
-        <button type="button" role="radio" :aria-checked="languageFilter === 'ja'" :class="{ active: languageFilter === 'ja' }" @click="languageFilter = 'ja'">ja</button>
-      </div>
+      <AppSelect v-model="languageFilter" class="language-select" :options="languageOptions" label="按语言筛选文章" menu-width="132px" align="right" />
       <div class="view-switch" aria-label="视图切换">
         <button type="button" :class="{ active: view === 'grid' }" aria-label="网格视图" @click="view = 'grid'"><Grid2X2 :size="17" /></button>
         <button type="button" :class="{ active: view === 'list' }" aria-label="列表视图" @click="view = 'list'"><List :size="18" /></button>
@@ -106,13 +108,11 @@ function formatStatus(value: number) {
 </template>
 
 <style scoped>
-.library-toolbar { min-height: 66px; display: flex; align-items: center; gap: 12px; padding: 10px 12px; margin-bottom: 28px; }
+.library-toolbar { position: relative; z-index: 20; min-height: 66px; display: flex; align-items: center; gap: 12px; padding: 10px 12px; margin-bottom: 28px; }
 .search-field { height: 44px; flex: 1; display: flex; align-items: center; gap: 10px; padding: 0 13px; border: 1px solid transparent; border-radius: 7px; color: var(--ink-muted); background: var(--surface-low); }
 .search-field:focus-within { border-color: var(--primary); }
 .search-field input { width: 100%; border: 0; outline: 0; background: transparent; }
-.language-filter { height: 44px; display: grid; grid-template-columns: repeat(3, minmax(38px, auto)); gap: 2px; padding: 3px; border: 1px solid var(--outline); border-radius: 7px; background: var(--surface-low); }
-.language-filter button { min-width: 0; padding: 0 10px; border: 0; border-radius: 5px; color: var(--ink-muted); background: transparent; font-size: 11px; font-weight: 650; text-transform: lowercase; transition: color .16s ease, background-color .16s ease, box-shadow .16s ease; }
-.language-filter button:hover { color: var(--primary); }.language-filter button:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }.language-filter button.active { color: var(--primary); background: white; box-shadow: 0 1px 4px rgba(45,45,45,.11); }
+.language-select { width: 132px; flex: 0 0 auto; }
 .view-switch { height: 44px; display: flex; padding: 3px; border: 1px solid var(--outline); border-radius: 7px; }
 .view-switch button { width: 36px; display: grid; place-items: center; border: 0; border-radius: 5px; color: var(--ink-muted); background: transparent; }
 .view-switch button.active { color: var(--primary); background: var(--surface-high); }
@@ -139,5 +139,5 @@ function formatStatus(value: number) {
 .detail-list { margin: 0; border-top: 1px solid var(--outline); }.detail-list div { min-height: 43px; display: flex; align-items: center; justify-content: space-between; gap: 18px; border-bottom: 1px solid rgba(199,196,192,.7); }.detail-list div.count { min-height: 49px; }.detail-list dt { color: var(--ink-muted); font-size: 12px; }.detail-list dd { margin: 0; color: var(--ink); font-size: 12px; font-weight: 650; white-space: nowrap; }.detail-list .count dd { color: var(--primary); font-family: 'Literata', Georgia, serif; font-size: 21px; }.detail-list .status dd { color: var(--success); }.detail-list dd.pending { color: var(--ink-muted); font-weight: 500; }
 .modal-actions { display: flex; justify-content: flex-end; margin-top: 22px; }
 @media (max-width: 1100px) { .article-grid { grid-template-columns: 1fr; } }
-@media (max-width: 640px) { .library-toolbar { align-items: stretch; flex-wrap: wrap; }.search-field { flex-basis: 100%; }.language-filter { flex: 1; }.article-card { min-height: 218px; gap: 14px; padding: 16px; }.cover { width: 72px; flex-basis: 72px; }.article-meta div { align-items: flex-start; flex-direction: column; gap: 2px; }.article-meta dd { white-space: normal; }.article-detail-modal { padding: 24px; }.detail-list div { align-items: flex-start; flex-direction: column; gap: 3px; padding-block: 10px; }.detail-list dd { white-space: normal; } }
+@media (max-width: 640px) { .library-toolbar { align-items: stretch; flex-wrap: wrap; }.search-field { flex-basis: 100%; }.language-select { flex: 1; width: auto; }.article-card { min-height: 218px; gap: 14px; padding: 16px; }.cover { width: 72px; flex-basis: 72px; }.article-meta div { align-items: flex-start; flex-direction: column; gap: 2px; }.article-meta dd { white-space: normal; }.article-detail-modal { padding: 24px; }.detail-list div { align-items: flex-start; flex-direction: column; gap: 3px; padding-block: 10px; }.detail-list dd { white-space: normal; } }
 </style>
