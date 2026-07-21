@@ -60,7 +60,7 @@ function formatStatus(value: number) {
 <template>
   <main class="page">
     <header class="page-header fade-in">
-      <div><p class="eyebrow">Repository · {{ articles.length }} texts</p><h1 class="page-title">文章库</h1><p class="page-description">整理所有阅读材料，回到任何一段仍值得推敲的文本。</p></div>
+      <div><p class="eyebrow">Repository · {{ articles.length }} texts</p><h1 class="page-title">文章库</h1><p class="page-description">整理所有阅读材料，回到任何一段仍值得推敲的文本</p></div>
     </header>
 
     <section class="library-toolbar surface fade-in">
@@ -88,7 +88,7 @@ function formatStatus(value: number) {
       </article>
     </section>
 
-    <div v-if="!filteredArticles.length" class="empty surface"><Search :size="26" /><h2 class="serif">没有找到文章</h2><p>换一个关键词或语言筛选试试。</p></div>
+    <div v-if="!filteredArticles.length" class="empty surface"><Search :size="26" /><h2 class="serif">没有找到文章</h2><p>换一个关键词或语言筛选试试</p></div>
 
     <Transition name="dialog">
       <div v-if="selectedArticle" class="modal-backdrop" @click.self="selectedArticle = null">

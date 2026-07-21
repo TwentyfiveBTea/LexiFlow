@@ -90,10 +90,10 @@ export const articles: Article[] = [
 ]
 
 export const collections: VocabularyCollection[] = [
-  { libraryId: 'core', name: '考研核心词汇', languageCode: 'en', description: '覆盖考研英语阅读与写作中的核心高频词汇。', wordCount: 1280, createdAt: '2026-06-18T09:30:00+08:00', updatedAt: '2026-07-19T08:15:00+08:00', tone: 'blue', statistics: { totalCount: 1280, newCount: 105, learningCount: 100, masteredCount: 1075, dueCount: 64 } },
-  { libraryId: 'economist', name: '经济学人高频词', languageCode: 'en', description: '整理经济学人文章中的商业、政治与社会议题词汇。', wordCount: 450, createdAt: '2026-06-26T14:20:00+08:00', updatedAt: '2026-07-18T21:40:00+08:00', tone: 'clay', statistics: { totalCount: 450, newCount: 140, learningCount: 108, masteredCount: 202, dueCount: 48 } },
-  { libraryId: 'academic', name: '学术写作必备', languageCode: 'en', description: '收录论文写作中常用的论证、衔接与研究方法词汇。', wordCount: 320, createdAt: '2026-07-02T11:05:00+08:00', updatedAt: '2026-07-19T06:10:00+08:00', tone: 'charcoal', statistics: { totalCount: 320, newCount: 200, learningCount: 82, masteredCount: 38, dueCount: 22 } },
-  { libraryId: 'literature', name: '现代文学鉴赏', languageCode: 'ja', description: '用于日本现代文学阅读的表达、意象与评论词汇。', wordCount: 615, createdAt: '2026-05-12T16:45:00+08:00', updatedAt: '2026-07-16T19:25:00+08:00', tone: 'sage', statistics: { totalCount: 615, newCount: 21, learningCount: 28, masteredCount: 566, dueCount: 75 } },
+  { libraryId: 'core', name: '考研核心词汇', languageCode: 'en', description: '覆盖考研英语阅读与写作中的核心高频词汇', wordCount: 1280, createdAt: '2026-06-18T09:30:00+08:00', updatedAt: '2026-07-19T08:15:00+08:00', tone: 'blue', statistics: { totalCount: 1280, newCount: 105, learningCount: 100, masteredCount: 1075, dueCount: 64 } },
+  { libraryId: 'economist', name: '经济学人高频词', languageCode: 'en', description: '整理经济学人文章中的商业、政治与社会议题词汇', wordCount: 450, createdAt: '2026-06-26T14:20:00+08:00', updatedAt: '2026-07-18T21:40:00+08:00', tone: 'clay', statistics: { totalCount: 450, newCount: 140, learningCount: 108, masteredCount: 202, dueCount: 48 } },
+  { libraryId: 'academic', name: '学术写作必备', languageCode: 'en', description: '收录论文写作中常用的论证、衔接与研究方法词汇', wordCount: 320, createdAt: '2026-07-02T11:05:00+08:00', updatedAt: '2026-07-19T06:10:00+08:00', tone: 'charcoal', statistics: { totalCount: 320, newCount: 200, learningCount: 82, masteredCount: 38, dueCount: 22 } },
+  { libraryId: 'literature', name: '现代文学鉴赏', languageCode: 'ja', description: '用于日本现代文学阅读的表达、意象与评论词汇', wordCount: 615, createdAt: '2026-05-12T16:45:00+08:00', updatedAt: '2026-07-16T19:25:00+08:00', tone: 'sage', statistics: { totalCount: 615, newCount: 21, learningCount: 28, masteredCount: 566, dueCount: 75 } },
 ]
 
 export const rechargeRecordsDemo: DemoRechargeRecord[] = [

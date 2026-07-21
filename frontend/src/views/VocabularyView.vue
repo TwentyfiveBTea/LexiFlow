@@ -99,7 +99,7 @@ function openStatistics(collection: VocabularyCollection) {
 <template>
   <main class="page">
     <header class="page-header fade-in">
-      <div><p class="eyebrow">Repository · Collections</p><h1 class="page-title">词汇库</h1><p class="page-description">分类管理词汇资源，建立深度阅读与学术研究的知识枢纽。</p></div>
+      <div><p class="eyebrow">Repository · Collections</p><h1 class="page-title">词汇库</h1><p class="page-description">分类管理词汇资源，建立深度阅读与学术研究的知识枢纽</p></div>
       <div class="header-actions">
         <label class="compact-search"><Search :size="17" /><input v-model="query" placeholder="搜索词库" /></label>
         <AppSelect v-model="languageFilter" class="language-select" :options="languageOptions" label="按语言筛选词汇库" menu-width="132px" align="right" />
@@ -120,7 +120,7 @@ function openStatistics(collection: VocabularyCollection) {
           <div class="collection-actions"><span class="language-badge">{{ collection.languageCode }}</span><button class="icon-btn" :aria-label="`查看 ${collection.name} 统计`" title="查看学习统计" @click.stop="openStatistics(collection)"><MoreVertical :size="19" /></button></div>
         </div>
         <div class="collection-heading"><h2 class="serif">{{ collection.name }}</h2></div>
-        <p class="collection-description">{{ collection.description || '暂无词汇库描述。' }}</p>
+        <p class="collection-description">{{ collection.description || '暂无词汇库描述' }}</p>
         <dl class="collection-meta">
           <div><dt>正常词条</dt><dd>{{ collection.wordCount.toLocaleString() }}</dd></div>
           <div><dt>创建时间</dt><dd>{{ formatDate(collection.createdAt) }}</dd></div>
@@ -128,7 +128,7 @@ function openStatistics(collection: VocabularyCollection) {
         </dl>
       </article>
 
-      <button class="create-card fade-in" @click="openCreate"><span><Plus :size="25" /></span><strong class="serif">创建新词库</strong><small>建立英语或日语词汇库，整理专属学习资料。</small></button>
+      <button class="create-card fade-in" @click="openCreate"><span><Plus :size="25" /></span><strong class="serif">创建新词库</strong><small>建立英语或日语词汇库，整理专属学习资料</small></button>
     </section>
 
     <Transition name="dialog">

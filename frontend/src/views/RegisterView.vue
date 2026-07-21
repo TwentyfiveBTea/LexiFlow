@@ -19,9 +19,9 @@ const isValid = computed(() => email.value && username.value && passwordPattern.
 
 async function submit() {
   if (!isValid.value) {
-    if (!passwordPattern.test(password.value)) message.value = '密码长度不少于 6 位，且必须包含大小写字母。'
-    else if (password.value !== confirmPassword.value) message.value = '两次输入的密码不一致。'
-    else message.value = '请完整填写信息并同意服务条款。'
+    if (!passwordPattern.test(password.value)) message.value = '密码长度不少于 6 位，且必须包含大小写字母'
+    else if (password.value !== confirmPassword.value) message.value = '两次输入的密码不一致'
+    else message.value = '请完整填写信息并同意服务条款'
     return
   }
   session.signIn(username.value, 'demo-session', email.value)
@@ -49,7 +49,7 @@ async function submit() {
           <div class="field-group"><label class="field-label" for="confirm-password">确认密码</label><input id="confirm-password" v-model="confirmPassword" class="field" type="password" placeholder="再次输入密码" required /></div>
         </div>
 
-        <label class="agreement"><input v-model="agreed" type="checkbox" /><span class="check"><Check :size="13" /></span><span>我已阅读并同意服务条款与隐私政策。</span></label>
+        <label class="agreement"><input v-model="agreed" type="checkbox" /><span class="check"><Check :size="13" /></span><span>我已阅读并同意服务条款与隐私政策</span></label>
         <p v-if="message" class="form-message">{{ message }}</p>
         <button class="btn btn-primary submit" type="submit">创建账号</button>
       </form>

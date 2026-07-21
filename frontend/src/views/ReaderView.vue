@@ -130,7 +130,7 @@ async function addToLibrary(vocab: ArticleVocabResponse, library: VocabLibraryRe
     addMessages.value[vocab.articleVocabId] = `已加入“${library.name}”`
     libraryPickerFor.value = null
   } catch {
-    addMessages.value[vocab.articleVocabId] = '加入失败，请稍后重试。'
+    addMessages.value[vocab.articleVocabId] = '加入失败，请稍后重试'
   }
 }
 
@@ -218,7 +218,7 @@ async function loadReader() {
     selectedLevel.value = levels[0] ?? ''
   } catch {
     if (import.meta.env.DEV) useDemoReader()
-    else error.value = '文章详情加载失败，请稍后重试。'
+    else error.value = '文章详情加载失败，请稍后重试'
   } finally {
     loading.value = false
   }
@@ -282,8 +282,8 @@ onBeforeUnmount(() => window.removeEventListener('scroll', updateProgress))
         </div>
 
         <div v-if="vocabLoading" class="panel-state">正在加载词汇...</div>
-        <div v-else-if="!levelOptions.length" class="panel-state">这篇文章还没有已解析的词汇等级。</div>
-        <div v-else-if="!articleVocabs.length" class="panel-state">当前等级没有命中词汇。</div>
+        <div v-else-if="!levelOptions.length" class="panel-state">这篇文章还没有已解析的词汇等级</div>
+        <div v-else-if="!articleVocabs.length" class="panel-state">当前等级没有命中词汇</div>
         <div v-else class="word-index">
           <article v-for="vocab in articleVocabs" :key="vocab.articleVocabId" class="word-item" :class="{ active: expandedVocabId === vocab.articleVocabId }">
             <button class="word-row" type="button" :aria-expanded="expandedVocabId === vocab.articleVocabId" @click="toggleWord(vocab)">

@@ -81,7 +81,7 @@ function removeWord(word: Word) {
   <main class="page">
     <RouterLink class="back-link" to="/vocabulary"><ArrowLeft :size="16" />返回词汇库</RouterLink>
     <header class="page-header detail-header fade-in">
-      <div><p class="eyebrow">Collection · {{ collection.wordCount.toLocaleString() }} words</p><h1 class="page-title">{{ collection.name }}</h1><p class="page-description">按掌握度安排下一次记忆练习，持续巩固阅读中真正遇到的词。</p></div>
+      <div><p class="eyebrow">Collection · {{ collection.wordCount.toLocaleString() }} words</p><h1 class="page-title">{{ collection.name }}</h1><p class="page-description">按掌握度安排下一次记忆练习，持续巩固阅读中真正遇到的词</p></div>
     </header>
 
     <section class="word-toolbar surface fade-in">
@@ -108,7 +108,7 @@ function removeWord(word: Word) {
         <div class="added-at">{{ formatDate(word.addedAt) }}</div>
         <button class="delete-word icon-btn" type="button" :aria-label="`从词汇库删除 ${word.word}`" title="从词汇库删除" @click="removeWord(word)"><Trash2 :size="16" /></button>
       </article>
-      <div v-if="!filteredWords.length" class="table-empty">没有符合条件的单词。</div>
+      <div v-if="!filteredWords.length" class="table-empty">没有符合条件的单词</div>
     </section>
   </main>
 </template>

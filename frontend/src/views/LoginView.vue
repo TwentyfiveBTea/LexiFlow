@@ -27,7 +27,7 @@ async function submit() {
       <div class="intro-copy">
         <h1 class="serif">Turn what you read into what you remember.</h1>
         <p class="intro-english">A smart language learning platform based on news, literature, and academic research.</p>
-        <p class="intro-chinese">读有所得，记有所长。<br />一个基于新闻、文献及学术研究的智能语言学习平台。</p>
+        <p class="intro-chinese">读有所得，记有所长<br />一个基于新闻、文献及学术研究的智能语言学习平台</p>
       </div>
     </section>
 

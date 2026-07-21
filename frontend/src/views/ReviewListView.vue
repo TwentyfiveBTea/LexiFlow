@@ -57,7 +57,7 @@ async function loadDueWords() {
       usingDemoData.value = true
       dueWords.value = demoWords
     } else {
-      error.value = '待复习单词加载失败，请稍后重试。'
+      error.value = '待复习单词加载失败，请稍后重试'
     }
   } finally {
     loading.value = false
@@ -87,7 +87,7 @@ onMounted(() => { void loadDueWords() })
 
     <section v-if="loading" class="review-state surface fade-in"><RefreshCw :size="20" class="spin" /><p>正在加载待复习单词...</p></section>
     <section v-else-if="error" class="review-state surface fade-in"><p>{{ error }}</p><button class="btn btn-secondary" type="button" @click="loadDueWords">重新加载</button></section>
-    <section v-else-if="!dueWords.length" class="review-state surface fade-in"><BookOpenCheck :size="24" /><strong>今天没有待复习单词</strong><p>新的到期词条会在这里出现。</p></section>
+    <section v-else-if="!dueWords.length" class="review-state surface fade-in"><BookOpenCheck :size="24" /><strong>今天没有待复习单词</strong><p>新的到期词条会在这里出现</p></section>
     <section v-else class="review-table surface fade-in">
       <div class="review-table-head"><span>词条</span><span>释义</span><span>发音</span><span>等级</span><span>语言</span></div>
       <article v-for="word in dueWords" :key="word.libraryWordId ?? `${word.languageCode}-${word.wordId}`" class="review-row">

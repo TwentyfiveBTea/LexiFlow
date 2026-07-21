@@ -62,7 +62,7 @@ async function loadSession() {
       usingDemoData.value = true
       sessionWords.value = demoWords
     } else {
-      error.value = '复习单词加载失败，请稍后重试。'
+      error.value = '复习单词加载失败，请稍后重试'
     }
   } finally {
     loading.value = false
@@ -77,7 +77,7 @@ async function submitRating(rating: 'UNKNOWN' | 'VAGUE' | 'KNOWN') {
     await reviewWord(currentWord.value.wordId, currentWord.value.languageCode, rating)
   } catch {
     if (!usingDemoData.value && !import.meta.env.DEV) {
-      error.value = '提交复习结果失败，请重试。'
+      error.value = '提交复习结果失败，请重试'
       submitting.value = false
       return
     }
@@ -104,7 +104,7 @@ onMounted(() => { void loadSession() })
     <RouterLink class="back-link" to="/review"><ArrowLeft :size="16" />返回单词复习</RouterLink>
     <section v-if="loading" class="session-state surface fade-in"><span class="loading-line"></span><p>正在准备复习...</p></section>
     <section v-else-if="error" class="session-state surface fade-in"><CircleAlert :size="22" /><p>{{ error }}</p><button class="btn btn-secondary" type="button" @click="loadSession">重新加载</button></section>
-    <section v-else-if="!currentWord" class="session-state surface fade-in"><Check :size="24" /><strong>今天的复习已经完成</strong><p>回到列表查看新的待复习词条。</p><RouterLink class="btn btn-primary" to="/review">返回列表</RouterLink></section>
+    <section v-else-if="!currentWord" class="session-state surface fade-in"><Check :size="24" /><strong>今天的复习已经完成</strong><p>回到列表查看新的待复习词条</p><RouterLink class="btn btn-primary" to="/review">返回列表</RouterLink></section>
     <section v-else class="session-shell fade-in">
       <header class="session-heading"><div><p class="eyebrow">Focused recall<span v-if="usingDemoData"> · Demo</span></p><h1 class="page-title">逐个复习</h1></div><strong>{{ progressLabel }}</strong></header>
       <div class="session-progress"><span :style="{ width: `${progressPercent}%` }"></span></div>

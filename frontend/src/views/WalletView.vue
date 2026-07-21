@@ -88,7 +88,7 @@ async function loadRecordPage(page: number) {
         creditRecords.value = paginateDemo<CreditLedgerResponse>(creditLedgerRecordsDemo, page)
       }
     } else {
-      recordsError.value = '记录加载失败，请确认服务状态后重试。'
+      recordsError.value = '记录加载失败，请确认服务状态后重试'
     }
   } finally {
     recordsLoading.value = false
@@ -118,7 +118,7 @@ function selectAmount(amount: number) {
 
 function openPaymentDialog() {
   if (!amountValid.value) {
-    paymentNotice.value = '请输入 1 至 100 元之间的有效金额。'
+    paymentNotice.value = '请输入 1 至 100 元之间的有效金额'
     return
   }
   paymentNotice.value = ''
@@ -131,13 +131,13 @@ function closePaymentDialog() {
 
 function confirmPayment() {
   paymentDialogOpen.value = false
-  paymentNotice.value = '支付接口暂未接入，当前仅展示付款确认流程。'
+  paymentNotice.value = '支付接口暂未接入，当前仅展示付款确认流程'
 }
 </script>
 
 <template>
   <main class="page">
-    <header class="page-header fade-in"><div><p class="eyebrow">Credits & billing</p><h1 class="page-title">我的钱包</h1><p class="page-description">管理账户额度与充值记录。</p></div><div class="header-actions"><button class="btn btn-secondary" type="button" @click="openRecordDialog('recharge')"><History :size="17" />交易记录</button><button class="btn btn-secondary" type="button" @click="openRecordDialog('credits')"><Coins :size="17" />Credits 使用记录</button></div></header>
+    <header class="page-header fade-in"><div><p class="eyebrow">Credits & billing</p><h1 class="page-title">我的钱包</h1><p class="page-description">管理账户额度与充值记录</p></div><div class="header-actions"><button class="btn btn-secondary" type="button" @click="openRecordDialog('recharge')"><History :size="17" />交易记录</button><button class="btn btn-secondary" type="button" @click="openRecordDialog('credits')"><Coins :size="17" />Credits 使用记录</button></div></header>
 
     <section class="balance-panel surface fade-in">
       <div><span class="balance-icon"><WalletCards :size="22" /></span><p>可用额度</p><strong class="serif balance-value">{{ availableCredits.toLocaleString('en-US') }} <small>Credits</small><span class="balance-equivalent">≈ ¥{{ approximateBalanceCny }} CNY</span></strong></div>
@@ -146,7 +146,7 @@ function confirmPayment() {
     </section>
 
     <section class="recharge-section fade-in">
-      <div class="section-heading"><p class="eyebrow">Add credits</p><h2 class="serif">添加资金</h2><p>选择金额和付款方式。</p></div>
+      <div class="section-heading"><p class="eyebrow">Add credits</p><h2 class="serif">添加资金</h2><p>选择金额和付款方式</p></div>
       <div class="amount-grid">
         <button v-for="amount in amounts" :key="amount" class="amount-card surface" :class="{ selected: selectedAmount === amount && customAmount === null }" type="button" @click="selectAmount(amount)">
           <span class="amount-main"><strong class="serif">{{ amount }}</strong><small>CNY</small></span>
@@ -182,7 +182,7 @@ function confirmPayment() {
             <div>
               <p class="eyebrow">{{ activeRecordDialog === 'recharge' ? 'Recharge history' : 'Credits ledger' }}</p>
               <div class="records-title-row"><h2 id="records-dialog-title" class="serif">{{ activeRecordDialog === 'recharge' ? '交易记录' : 'Credits 使用记录' }}</h2><span v-if="usingDemoData" class="demo-badge">示例数据</span></div>
-              <p>{{ activeRecordDialog === 'recharge' ? '查看已完成支付并到账的充值订单。' : '查看文章处理产生的 Credits 消耗。' }}</p>
+              <p>{{ activeRecordDialog === 'recharge' ? '查看已完成支付并到账的充值订单' : '查看文章处理产生的 Credits 消耗' }}</p>
             </div>
             <button class="icon-btn" type="button" aria-label="关闭记录弹窗" title="关闭" @click="closeRecordDialog"><X :size="18" /></button>
           </header>
@@ -190,7 +190,7 @@ function confirmPayment() {
           <div class="records-content" :aria-busy="recordsLoading">
             <div v-if="recordsLoading" class="records-state"><span class="loading-line"></span><p>正在加载记录...</p></div>
             <div v-else-if="recordsError" class="records-state error-state"><p>{{ recordsError }}</p><button class="btn btn-secondary" type="button" @click="loadRecordPage(activePage.page)">重新加载</button></div>
-            <div v-else-if="activePage.records.length === 0" class="records-state"><span class="empty-icon"><History v-if="activeRecordDialog === 'recharge'" :size="21" /><Coins v-else :size="21" /></span><strong>暂无记录</strong><p>{{ activeRecordDialog === 'recharge' ? '完成充值后，交易会显示在这里。' : '完成文章处理后，Credits 消耗会显示在这里。' }}</p></div>
+            <div v-else-if="activePage.records.length === 0" class="records-state"><span class="empty-icon"><History v-if="activeRecordDialog === 'recharge'" :size="21" /><Coins v-else :size="21" /></span><strong>暂无记录</strong><p>{{ activeRecordDialog === 'recharge' ? '完成充值后，交易会显示在这里' : '完成文章处理后，Credits 消耗会显示在这里' }}</p></div>
 
             <div v-else class="records-table-wrap">
               <table v-if="activeRecordDialog === 'recharge'" class="records-table">
