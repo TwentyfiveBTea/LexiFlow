@@ -77,9 +77,9 @@ async function saveUsername() {
   try {
     await requestUsernameChange(username)
     session.setUserName(username)
-    usernameMessage.value = '用户名已更新。'
+    usernameMessage.value = '用户名已更新'
   } catch (error) {
-    usernameMessage.value = error instanceof Error ? error.message : '用户名更新失败。'
+    usernameMessage.value = error instanceof Error ? error.message : '用户名更新失败'
   } finally {
     usernameSaving.value = false
   }
@@ -133,7 +133,7 @@ async function saveAvatar() {
     avatarError.value = false
     closeAvatarPicker()
   } catch (error) {
-    avatarMessage.value = error instanceof Error ? error.message : '头像更新失败。'
+    avatarMessage.value = error instanceof Error ? error.message : '头像更新失败'
   } finally {
     avatarSaving.value = false
   }
@@ -159,15 +159,15 @@ function closePasswordDialog() {
 async function savePassword() {
   if (passwordSaving.value) return
   if (!passwordForm.oldPassword) {
-    passwordMessage.value = '请输入旧密码。'
+    passwordMessage.value = '请输入旧密码'
     return
   }
   if (!passwordPattern.test(passwordForm.newPassword)) {
-    passwordMessage.value = '新密码长度不少于 6 位，且必须包含大小写字母。'
+    passwordMessage.value = '新密码长度不少于 6 位，且必须包含大小写字母'
     return
   }
   if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-    passwordMessage.value = '两次输入的新密码不一致。'
+    passwordMessage.value = '两次输入的新密码不一致'
     return
   }
 
@@ -176,9 +176,9 @@ async function savePassword() {
   try {
     await requestPasswordChange({ ...passwordForm })
     closePasswordDialog()
-    passwordNotice.value = '密码已更新。'
+    passwordNotice.value = '密码已更新'
   } catch (error) {
-    passwordMessage.value = error instanceof Error ? error.message : '密码更新失败。'
+    passwordMessage.value = error instanceof Error ? error.message : '密码更新失败'
   } finally {
     passwordSaving.value = false
   }
@@ -192,19 +192,26 @@ async function logout() {
 
 <template>
   <main class="page settings-page">
-    <header class="page-header fade-in"><div><p class="eyebrow">Preferences</p><h1 class="page-title">应用设置</h1><p class="page-description">管理账号、阅读体验与学习语言。</p></div><button class="btn btn-primary" @click="save"><Check v-if="saved" :size="17" /><Save v-else :size="17" />{{ saved ? '已保存' : '保存更改' }}</button></header>
+    <header class="page-header fade-in"><div><p class="eyebrow">Preferences</p><h1 class="page-title">应用设置</h1><p class="page-description">管理账号、阅读体验与学习语言</p></div><button class="btn btn-primary" @click="save"><Check v-if="saved" :size="17" /><Save v-else :size="17" />{{ saved ? '已保存' : '保存更改' }}</button></header>
 
     <section class="settings-grid">
       <article class="settings-card account-card surface fade-in wide">
-        <div class="card-title"><span><UserRound :size="20" /></span><div><h2 class="serif">账号信息</h2><p>用于登录和展示的个人资料。</p></div></div>
+        <div class="card-title"><span><UserRound :size="20" /></span><div><h2 class="serif">账号信息</h2><p>用于登录和展示的个人资料</p></div></div>
 
         <div class="account-profile">
-          <button class="profile-avatar" type="button" aria-label="更换头像" title="更换头像" @click="openAvatarPicker">
-            <img v-if="session.avatar && !avatarError" :src="session.avatar" alt="当前头像" @error="avatarError = true" />
-            <UserRound v-else :size="30" />
-            <span><Camera :size="14" /></span>
-          </button>
-          <div><strong class="serif">{{ session.userName }}</strong><button class="text-action avatar-action" type="button" @click="openAvatarPicker">更换头像</button></div>
+          <div class="avatar-summary">
+            <button class="profile-avatar" type="button" aria-label="更换头像" title="更换头像" @click="openAvatarPicker">
+              <img v-if="session.avatar && !avatarError" :src="session.avatar" alt="当前头像" @error="avatarError = true" />
+              <UserRound v-else :size="30" />
+              <span><Camera :size="14" /></span>
+            </button>
+            <div><strong class="serif">{{ session.userName }}</strong><button class="text-action avatar-action" type="button" @click="openAvatarPicker">更换头像</button></div>
+          </div>
+          <div class="profile-username">
+            <label class="field-label" for="settings-username">用户名</label>
+            <div class="username-control"><input id="settings-username" v-model="settings.username" class="field" /><button class="btn btn-secondary" type="button" :disabled="usernameSaving || !settings.username.trim()" @click="saveUsername">{{ usernameSaving ? '更改中...' : '更改用户名' }}</button></div>
+            <p v-if="usernameMessage" class="inline-message">{{ usernameMessage }}</p>
+          </div>
         </div>
 
         <div class="account-fields">
@@ -212,23 +219,18 @@ async function logout() {
             <span class="field-label">电子邮件</span>
             <div class="readonly-field" :title="session.email">{{ session.email }}</div>
           </div>
-          <div>
-            <label class="field-label" for="settings-username">用户名</label>
-            <div class="username-control"><input id="settings-username" v-model="settings.username" class="field" /><button class="btn btn-secondary" type="button" :disabled="usernameSaving || !settings.username.trim()" @click="saveUsername">{{ usernameSaving ? '更改中...' : '更改用户名' }}</button></div>
-            <p v-if="usernameMessage" class="inline-message">{{ usernameMessage }}</p>
-          </div>
         </div>
         <div class="password-action-row"><button class="text-action password-action" type="button" @click="openPasswordDialog"><LockKeyhole :size="15" />修改密码</button><span v-if="passwordNotice" class="success-message">{{ passwordNotice }}</span></div>
       </article>
 
       <article class="settings-card surface fade-in wide">
-        <div class="card-title"><span><MonitorCog :size="20" /></span><div><h2 class="serif">阅读偏好</h2><p>调整长时间精读时的排版体验。</p></div></div>
+        <div class="card-title"><span><MonitorCog :size="20" /></span><div><h2 class="serif">阅读偏好</h2><p>调整长时间精读时的排版体验</p></div></div>
         <div class="form-grid three">
           <div><span class="field-label">正文字体</span><AppSelect v-model="settings.readingFont" :options="readingFontOptions" label="选择正文字体" /></div>
           <div><span class="field-label">字号</span><AppSelect v-model="settings.fontSize" :options="fontSizeOptions" label="选择正文字号" /></div>
           <div><span class="field-label">行高</span><AppSelect v-model="settings.lineHeight" :options="lineHeightOptions" label="选择正文行高" /></div>
         </div>
-        <label class="toggle-row"><span><strong>自动标记生词</strong><small>在精读正文中显示可点击的词汇下划线。</small></span><input v-model="settings.highlight" type="checkbox" /><i></i></label>
+        <label class="toggle-row"><span><strong>自动标记生词</strong><small>在精读正文中显示可点击的词汇下划线</small></span><input v-model="settings.highlight" type="checkbox" /><i></i></label>
       </article>
 
       <article class="settings-card language-card surface fade-in wide">
@@ -239,7 +241,7 @@ async function logout() {
       </article>
 
       <article class="settings-card danger surface fade-in wide">
-        <div class="card-title danger-title"><span><ShieldAlert :size="20" /></span><div><h2 class="serif">账号操作</h2><p>退出当前设备的登录状态。</p></div><button class="btn btn-secondary" type="button" @click="logout"><LogOut :size="16" />退出登录</button></div>
+        <div class="card-title danger-title"><span><ShieldAlert :size="20" /></span><div><h2 class="serif">账号操作</h2><p>退出当前设备的登录状态</p></div><button class="btn btn-secondary" type="button" @click="logout"><LogOut :size="16" />退出登录</button></div>
       </article>
     </section>
 
@@ -274,7 +276,7 @@ async function logout() {
             <div>
               <label class="field-label" for="new-password">新密码</label>
               <div class="password-input"><input id="new-password" v-model="passwordForm.newPassword" :type="passwordVisibility.next ? 'text' : 'password'" autocomplete="new-password" required /><button type="button" :aria-label="passwordVisibility.next ? '隐藏新密码' : '显示新密码'" :title="passwordVisibility.next ? '隐藏密码' : '显示密码'" @click="passwordVisibility.next = !passwordVisibility.next"><EyeOff v-if="passwordVisibility.next" :size="17" /><Eye v-else :size="17" /></button></div>
-              <small class="password-hint">不少于 6 位，且必须包含大小写字母。</small>
+              <small class="password-hint">不少于 6 位，且必须包含大小写字母</small>
             </div>
             <div>
               <label class="field-label" for="confirm-password">确认新密码</label>
@@ -292,11 +294,11 @@ async function logout() {
 <style scoped>
 .settings-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 18px; }.settings-card { position: relative; padding: 26px; }.settings-card:focus-within { z-index: 20; }.settings-card.wide { grid-column: 1 / -1; }
 .card-title { display: flex; align-items: flex-start; gap: 12px; padding-bottom: 20px; margin-bottom: 20px; border-bottom: 1px solid rgba(199,196,192,.7); }.card-title > span { width: 38px; height: 38px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 7px; color: var(--primary); background: var(--primary-soft); }.card-title h2 { margin: 0; color: var(--primary); font-size: 21px; }.card-title p { margin: 4px 0 0; color: var(--ink-muted); font-size: 12px; }
-.account-profile { display: flex; align-items: center; gap: 16px; padding-bottom: 20px; margin-bottom: 20px; border-bottom: 1px solid rgba(199,196,192,.55); }.profile-avatar { position: relative; width: 70px; height: 70px; flex: 0 0 auto; display: grid; place-items: center; padding: 0; border: 1px solid var(--outline); border-radius: 50%; color: var(--secondary); background: var(--surface-high); }.profile-avatar img, .avatar-preview img { width: 100%; height: 100%; display: block; border-radius: inherit; object-fit: cover; }.profile-avatar > span { position: absolute; right: -2px; bottom: 1px; width: 25px; height: 25px; display: grid; place-items: center; border: 2px solid white; border-radius: 50%; color: white; background: var(--primary); }.account-profile > div { display: grid; align-items: start; gap: 5px; }.account-profile strong { color: var(--primary); font-size: 18px; }.avatar-action { margin: 0; }
+.account-profile { display: grid; grid-template-columns: minmax(210px, .55fr) minmax(0, 1fr); align-items: end; gap: 24px; padding-bottom: 20px; margin-bottom: 20px; border-bottom: 1px solid rgba(199,196,192,.55); }.avatar-summary { display: flex; align-items: center; gap: 16px; transform: translateY(8px); }.avatar-summary > div { display: grid; align-items: start; gap: 5px; }.avatar-summary strong { color: var(--primary); font-size: 18px; }.profile-username { min-width: 0; }.profile-avatar { position: relative; width: 70px; height: 70px; flex: 0 0 auto; display: grid; place-items: center; padding: 0; border: 1px solid var(--outline); border-radius: 50%; color: var(--secondary); background: var(--surface-high); }.profile-avatar img, .avatar-preview img { width: 100%; height: 100%; display: block; border-radius: inherit; object-fit: cover; }.profile-avatar > span { position: absolute; right: -2px; bottom: 1px; width: 25px; height: 25px; display: grid; place-items: center; border: 2px solid white; border-radius: 50%; color: white; background: var(--primary); }.avatar-action { margin: 0; }
 .account-fields { display: grid; gap: 17px; }.readonly-field { width: 100%; height: 44px; display: flex; align-items: center; overflow: hidden; padding: 0 13px; border: 1px solid var(--outline); border-radius: 7px; color: var(--ink-muted); background: var(--surface-container); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }.username-control { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; }.username-control .field { font-size: 13px; }.username-control .btn:disabled { opacity: .5; cursor: not-allowed; }.inline-message { margin: 7px 0 0; color: var(--success); font-size: 11px; }
 .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }.form-grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }.language-field { width: 100%; }.text-action { display: inline-flex; align-items: center; gap: 6px; padding: 0; border: 0; color: var(--secondary); background: transparent; font-size: 13px; font-weight: 700; }.password-action-row { display: flex; align-items: center; gap: 12px; margin-top: 18px; }.success-message { color: var(--success); font-size: 11px; }
 .toggle-row { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 58px; padding: 16px 0 0; margin-top: 18px; border-top: 1px solid rgba(199,196,192,.65); cursor: pointer; }.toggle-row span { display: grid; gap: 4px; }.toggle-row strong { font-size: 13px; }.toggle-row small { color: var(--ink-muted); font-size: 11px; }.toggle-row input { position: absolute; opacity: 0; }.toggle-row i { position: relative; width: 42px; height: 23px; flex: 0 0 auto; border-radius: 20px; background: var(--surface-high); transition: background .18s ease; }.toggle-row i::after { content: ''; position: absolute; width: 17px; height: 17px; left: 3px; top: 3px; border-radius: 50%; background: white; box-shadow: 0 1px 3px rgba(0,0,0,.2); transition: transform .18s ease; }.toggle-row input:checked + i { background: var(--primary); }.toggle-row input:checked + i::after { transform: translateX(19px); }
 .danger { border-color: #d7b8b8; }.danger .card-title > span { color: var(--error); background: #f3e3e3; }.danger-title { align-items: center; padding: 0; margin: 0; border-bottom: 0; }.danger-title > div { min-width: 0; flex: 1; }.danger-title .btn { flex: 0 0 auto; }
 .modal-backdrop { position: fixed; z-index: 60; inset: 0; display: grid; place-items: center; padding: 22px; background: rgba(27,28,28,.3); }.avatar-modal, .password-modal { width: min(100%, 440px); padding: 28px 30px; }.modal-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }.modal-heading h2 { margin: 0; color: var(--primary); font-size: 26px; }.avatar-picker { width: 100%; min-height: 104px; display: flex; align-items: center; gap: 14px; padding: 16px; margin-top: 24px; border: 1px dashed var(--outline); border-radius: 7px; color: var(--ink-muted); background: var(--surface-low); text-align: left; }.avatar-picker:hover, .avatar-picker:focus-visible { color: var(--primary); border-color: var(--primary); outline: none; }.avatar-preview { width: 64px; height: 64px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 50%; color: var(--secondary); background: var(--surface-high); }.avatar-picker-copy { min-width: 0; flex: 1; display: grid; gap: 5px; }.avatar-picker-copy strong { overflow: hidden; color: var(--ink); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }.avatar-picker-copy small { font-size: 11px; }.password-fields { display: grid; gap: 17px; margin-top: 24px; }.password-input { height: 44px; display: flex; align-items: center; border: 1px solid var(--outline); border-radius: 7px; background: var(--surface-low); transition: border-color .18s ease, box-shadow .18s ease; }.password-input:focus-within { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(50,78,88,.1); }.password-input input { min-width: 0; flex: 1; height: 100%; padding: 0 13px; border: 0; outline: 0; color: var(--ink); background: transparent; font-size: 13px; }.password-input button { width: 42px; height: 42px; display: grid; place-items: center; flex: 0 0 auto; border: 0; color: var(--ink-muted); background: transparent; }.password-input button:hover { color: var(--primary); }.password-hint { display: block; margin-top: 6px; color: var(--ink-muted); font-size: 10.5px; }.form-message { margin: 12px 0 0; font-size: 12px; }.error-message { color: var(--error); }.modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }.modal-actions .btn:disabled { opacity: .45; cursor: not-allowed; }
-@media (max-width: 760px) { .settings-grid { grid-template-columns: 1fr; }.settings-card.wide { grid-column: auto; }.form-grid, .form-grid.three { grid-template-columns: 1fr; }.username-control { grid-template-columns: 1fr; }.danger-title { align-items: stretch; flex-wrap: wrap; }.danger-title .btn { width: 100%; }.avatar-modal { padding: 24px 20px; } }
+@media (max-width: 760px) { .settings-grid { grid-template-columns: 1fr; }.settings-card.wide { grid-column: auto; }.account-profile { grid-template-columns: 1fr; align-items: start; }.avatar-summary { transform: none; }.form-grid, .form-grid.three { grid-template-columns: 1fr; }.username-control { grid-template-columns: 1fr; }.danger-title { align-items: stretch; flex-wrap: wrap; }.danger-title .btn { width: 100%; }.avatar-modal { padding: 24px 20px; } }
 </style>
