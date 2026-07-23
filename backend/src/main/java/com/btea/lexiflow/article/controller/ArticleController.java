@@ -76,6 +76,16 @@ public class ArticleController {
     }
 
     /**
+     * 查询首页最近创建的文章
+     *
+     * @return 最近创建的文章列表
+     */
+    @GetMapping("/recent")
+    public Result<List<ArticleListRespDTO>> listRecentArticles() {
+        return Results.success(articleService.listArticles(null, null).stream().limit(2).toList());
+    }
+
+    /**
      * 获取文章处理详情
      *
      * @param articleId 文章ID
