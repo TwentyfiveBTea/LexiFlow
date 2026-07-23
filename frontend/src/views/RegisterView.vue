@@ -3,6 +3,7 @@ import { Check, Eye, EyeOff } from 'lucide-vue-next'
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import BrandMark from '@/components/BrandMark.vue'
+import { login, register } from '@/lib/api'
 import { useSessionStore } from '@/stores/session'
 
 const router = useRouter()
@@ -24,8 +25,19 @@ async function submit() {
     else message.value = '请完整填写信息并同意服务条款'
     return
   }
-  session.signIn(username.value, 'demo-session', email.value)
-  await router.push('/dashboard')
+  try {
+    await register({
+      email: email.value,
+      username: username.value,
+      password: password.value,
+      confirmPassword: confirmPassword.value,
+    })
+    const response = await login({ email: email.value, password: password.value })
+    session.signIn(response, username.value)
+    await router.push('/dashboard')
+  } catch (error) {
+    message.value = error instanceof Error ? error.message : '注册失败，请稍后重试'
+  }
 }
 </script>
 

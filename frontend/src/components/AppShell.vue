@@ -16,13 +16,15 @@ import {
 import { onClickOutside } from '@vueuse/core'
 import { computed, ref } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
-import { getUserProfile } from '@/lib/api'
+import { getUserProfile, logout as requestLogout } from '@/lib/api'
+import { usePreferencesStore } from '@/stores/preferences'
 import { useSessionStore } from '@/stores/session'
 import BrandMark from './BrandMark.vue'
 
 const route = useRoute()
 const router = useRouter()
 const session = useSessionStore()
+const preferences = usePreferencesStore()
 const collapsed = ref(false)
 const mobileOpen = ref(false)
 const profileOpen = ref(false)
@@ -37,6 +39,11 @@ onClickOutside(profileArea, () => {
 
 async function logout() {
   profileOpen.value = false
+  try {
+    await requestLogout()
+  } catch {
+    // Clear the local session even when the server is unavailable.
+  }
   session.signOut()
   await router.push('/login')
 }
@@ -57,16 +64,25 @@ async function toggleProfile() {
   }
 }
 
-const navItems = [
-  { label: '首页', to: '/dashboard', icon: Gauge },
-  { label: '我的图书馆', to: '/articles', icon: Library },
-  { label: '词汇库', to: '/vocabulary', icon: Languages },
-  { label: '单词复习', to: '/review', icon: SpellCheck },
-  { label: '钱包', to: '/wallet', icon: WalletCards },
-  { label: '设置', to: '/settings', icon: Settings },
-]
+const navItems = computed(() => {
+  const labels = preferences.interfaceLanguage === 'en'
+    ? ['Home', 'Library', 'Vocabulary', 'Review', 'Wallet', 'Settings']
+    : preferences.interfaceLanguage === 'ja'
+      ? ['ホーム', 'ライブラリ', '単語帳', '復習', 'ウォレット', '設定']
+      : ['首页', '我的图书馆', '词汇库', '单词复习', '钱包', '设置']
+  return [
+    { label: labels[0], to: '/dashboard', icon: Gauge },
+    { label: labels[1], to: '/articles', icon: Library },
+    { label: labels[2], to: '/vocabulary', icon: Languages },
+    { label: labels[3], to: '/review', icon: SpellCheck },
+    { label: labels[4], to: '/wallet', icon: WalletCards },
+    { label: labels[5], to: '/settings', icon: Settings },
+  ]
+})
 
-const currentLabel = computed(() => navItems.find((item) => route.path.startsWith(item.to))?.label ?? 'LexiFlow')
+const currentLabel = computed(() => navItems.value.find((item) => route.path.startsWith(item.to))?.label ?? 'LexiFlow')
+const accountDayLabel = computed(() => preferences.interfaceLanguage === 'en' ? `Day ${session.registeredDays} since joining` : preferences.interfaceLanguage === 'ja' ? `登録から${session.registeredDays}日目` : `这是你注册的第 ${session.registeredDays} 天`)
+const logoutLabel = computed(() => preferences.interfaceLanguage === 'en' ? 'Log out' : preferences.interfaceLanguage === 'ja' ? 'ログアウト' : '退出登录')
 </script>
 
 <template>
@@ -110,11 +126,11 @@ const currentLabel = computed(() => navItems.find((item) => route.path.startsWit
                   <CircleUserRound v-else :size="27" :stroke-width="1.45" />
                 </span>
                 <span class="account-email" :title="session.email">{{ session.email }}</span>
-                <small>这是你注册的第 {{ session.registeredDays }} 天</small>
+                <small>{{ accountDayLabel }}</small>
               </div>
               <button class="logout-button" type="button" @click="logout">
                 <LogOut :size="16" :stroke-width="1.8" />
-                <span>退出登录</span>
+                <span>{{ logoutLabel }}</span>
               </button>
             </section>
           </Transition>

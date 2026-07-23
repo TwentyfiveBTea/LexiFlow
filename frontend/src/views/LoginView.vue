@@ -3,20 +3,30 @@ import { ArrowRight, Eye, EyeOff } from 'lucide-vue-next'
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import BrandMark from '@/components/BrandMark.vue'
+import { login } from '@/lib/api'
 import { useSessionStore } from '@/stores/session'
 
 const router = useRouter()
 const session = useSessionStore()
-const email = ref('scholar@example.com')
-const password = ref('lexiflow')
+const email = ref('')
+const password = ref('')
 const showPassword = ref(false)
 const loading = ref(false)
+const message = ref('')
 
 async function submit() {
+  if (loading.value) return
   loading.value = true
-  await new Promise((resolve) => setTimeout(resolve, 450))
-  session.signIn(email.value.split('@')[0] || '学者', 'demo-session', email.value)
-  await router.push('/dashboard')
+  message.value = ''
+  try {
+    const response = await login({ email: email.value, password: password.value })
+    session.signIn(response)
+    await router.push('/dashboard')
+  } catch (error) {
+    message.value = error instanceof Error ? error.message : '登录失败，请稍后重试'
+  } finally {
+    loading.value = false
+  }
 }
 </script>
 
@@ -53,6 +63,7 @@ async function submit() {
           <button class="btn btn-primary submit" type="submit" :disabled="loading">
             {{ loading ? '正在进入…' : '登录到工作区' }}<ArrowRight v-if="!loading" :size="17" />
           </button>
+          <p v-if="message" class="form-message" role="alert">{{ message }}</p>
         </form>
 
         <p class="auth-switch">还没有账号？<RouterLink to="/register">创建账号</RouterLink></p>
@@ -83,6 +94,7 @@ form { display: grid; }
 .password-field button { position: absolute; right: 8px; top: 3px; width: 38px; height: 38px; display: grid; place-items: center; border: 0; color: var(--ink-muted); background: transparent; }
 .submit { width: 100%; margin-top: 8px; }
 .submit:disabled { opacity: .65; cursor: wait; }
+.form-message { margin: 14px 0 0; color: var(--error); font-size: 13px; }
 .auth-switch { margin: 24px 0 0; text-align: center; color: var(--ink-muted); font-size: 13px; }
 .auth-switch a { margin-left: 5px; color: var(--secondary); font-weight: 700; }
 

@@ -13,6 +13,18 @@ export interface LoginResponse {
   token: string
 }
 
+export interface LoginRequest {
+  email: string
+  password: string
+}
+
+export interface RegisterRequest {
+  email: string
+  username: string
+  password: string
+  confirmPassword: string
+}
+
 export interface UserProfileResponse {
   avatar: string | null
   email: string
@@ -25,6 +37,24 @@ export interface PageResponse<T> {
   page: number
   pageSize: number
   totalPages: number
+}
+
+export interface ArticleUploadResponse {
+  articleId: string
+  title: string
+  languageCode: string
+  parseStatus: number
+  translationStatus: number
+}
+
+export interface ArticleProcessingDetailResponse {
+  wordCount: number
+  parseStatus: number
+  translationStatus: number
+  analysisStatus: number
+  parsedAt: string | null
+  translatedAt: string | null
+  analyzedAt: string | null
 }
 
 export interface RechargeRecordResponse {
@@ -93,6 +123,26 @@ export interface ArticleVocabResponse {
   kana: string | null
 }
 
+export interface ArticleVocabOccurrenceResponse {
+  occurrenceId: string
+  articleVocabId: string
+  wordId: number
+  normalizedText: string
+  posTag: string | null
+  posType: string | null
+  sentence: string
+  startOffset: number
+  endOffset: number
+}
+
+export interface ArticleAnalyzeResponse {
+  articleId: string
+  analysisLevel: string
+  reused: boolean
+  matchedWordCount: number
+  vocabs: ArticleVocabResponse[]
+}
+
 export interface VocabLibraryResponse {
   libraryId: string
   name: string
@@ -101,6 +151,58 @@ export interface VocabLibraryResponse {
   wordCount: number
   createdAt: string
   updatedAt: string
+}
+
+export interface VocabLibraryWordResponse {
+  libraryWordId: string
+  wordId: number
+  languageCode: 'en' | 'ja'
+  word: string
+  kana: string | null
+  us: string | null
+  uk: string | null
+  translations: string | null
+  phrases: string | null
+  addedAt: string
+}
+
+export interface VocabLibraryStatisticsResponse {
+  libraryId: string
+  totalCount: number
+  newCount: number
+  learningCount: number
+  masteredCount: number
+  dueCount: number
+}
+
+export interface CreateVocabLibraryRequest {
+  name: string
+  languageCode: 'en' | 'ja'
+  description?: string
+}
+
+export interface CreditAccountResponse {
+  availableCredits: number
+  frozenCredits: number
+  status: number
+  updatedAt: string
+}
+
+export interface CreatePaymentOrderRequest {
+  amountYuan: number
+  clientRequestNo: string
+  deviceType?: string
+}
+
+export interface CreatePaymentOrderResponse {
+  orderNo: string
+  amountMinor: number
+  totalCredits: number
+  orderStatus: number
+  expiresAt: string
+  submitUrl: string
+  method: string
+  parameters: Record<string, string>
 }
 
 export const api = axios.create({
@@ -125,6 +227,19 @@ api.interceptors.response.use((response) => {
 export async function getUserProfile() {
   const response = await api.get<ApiResult<UserProfileResponse>>('/user/profile')
   return response.data.data
+}
+
+export async function login(payload: LoginRequest) {
+  const response = await api.post<ApiResult<LoginResponse>>('/auth/login', payload)
+  return response.data.data
+}
+
+export async function register(payload: RegisterRequest) {
+  await api.post<ApiResult<void>>('/auth/register', payload)
+}
+
+export async function logout() {
+  await api.post<ApiResult<void>>('/auth/logout')
 }
 
 export async function changeUserAvatar(file: File) {
@@ -168,6 +283,28 @@ export async function getRecentArticles() {
   return response.data.data
 }
 
+export async function getArticles(params?: { keyword?: string; languageCode?: 'en' | 'ja' }) {
+  const response = await api.get<ApiResult<ArticleListResponse[]>>('/article/list', { params })
+  return response.data.data
+}
+
+export async function getArticleProcessingDetail(articleId: string) {
+  const response = await api.get<ApiResult<ArticleProcessingDetailResponse>>(`/article/${articleId}/processing-detail`)
+  return response.data.data
+}
+
+export async function uploadArticle(file: File) {
+  const formData = new FormData()
+  formData.append('file', file)
+  const response = await api.post<ApiResult<ArticleUploadResponse>>('/article/upload', formData)
+  return response.data.data
+}
+
+export async function analyzeArticle(articleId: string, analysisLevel: string) {
+  const response = await api.post<ApiResult<ArticleAnalyzeResponse>>(`/article/${articleId}/analyze`, { analysisLevel })
+  return response.data.data
+}
+
 export async function getArticleVocabLevels(articleId: string) {
   const response = await api.get<ApiResult<string[]>>(`/article/${articleId}/vocab-levels`)
   return response.data.data
@@ -180,11 +317,35 @@ export async function getArticleVocabs(articleId: string, analysisLevel: string)
   return response.data.data
 }
 
-export async function getVocabLibraries(languageCode: 'en' | 'ja') {
+export async function getArticleVocabOccurrences(articleId: string, articleVocabId: string) {
+  const response = await api.get<ApiResult<ArticleVocabOccurrenceResponse[]>>(`/article/${articleId}/vocabs/${articleVocabId}/occurrences`)
+  return response.data.data
+}
+
+export async function getVocabLibraries(params?: { keyword?: string; languageCode?: 'en' | 'ja' }) {
   const response = await api.get<ApiResult<VocabLibraryResponse[]>>('/vocab/libraries', {
-    params: { languageCode },
+    params,
   })
   return response.data.data
+}
+
+export async function createVocabLibrary(payload: CreateVocabLibraryRequest) {
+  const response = await api.post<ApiResult<VocabLibraryResponse>>('/vocab/libraries', payload)
+  return response.data.data
+}
+
+export async function getVocabLibraryWords(libraryId: string, params?: { keyword?: string; level?: string }) {
+  const response = await api.get<ApiResult<VocabLibraryWordResponse[]>>(`/vocab/libraries/${libraryId}/words`, { params })
+  return response.data.data
+}
+
+export async function getVocabLibraryStatistics(libraryId: string) {
+  const response = await api.get<ApiResult<VocabLibraryStatisticsResponse>>(`/vocab/libraries/${libraryId}/statistics`)
+  return response.data.data
+}
+
+export async function deleteVocabLibraryWord(libraryId: string, wordId: number, languageCode: 'en' | 'ja') {
+  await api.delete<ApiResult<void>>(`/vocab/libraries/${libraryId}/words/${wordId}`, { params: { languageCode } })
 }
 
 export async function deleteVocabLibrary(libraryId: string) {
@@ -210,5 +371,15 @@ export async function getCreditLedger(page: number, pageSize: number) {
   const response = await api.get<ApiResult<PageResponse<CreditLedgerResponse>>>('/pay/credits/ledger', {
     params: { page, pageSize },
   })
+  return response.data.data
+}
+
+export async function getCreditAccount() {
+  const response = await api.get<ApiResult<CreditAccountResponse>>('/pay/credits/account')
+  return response.data.data
+}
+
+export async function createPaymentOrder(payload: CreatePaymentOrderRequest) {
+  const response = await api.post<ApiResult<CreatePaymentOrderResponse>>('/pay/orders', payload)
   return response.data.data
 }

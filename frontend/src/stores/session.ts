@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
-import type { UserProfileResponse } from '@/lib/api'
+import type { LoginResponse, UserProfileResponse } from '@/lib/api'
 
 export const useSessionStore = defineStore('session', () => {
   const token = ref(localStorage.getItem('lexiflow.token'))
@@ -10,13 +10,14 @@ export const useSessionStore = defineStore('session', () => {
   const registeredDays = ref(Number(localStorage.getItem('lexiflow.registeredDays')) || 1)
   const isAuthenticated = computed(() => Boolean(token.value))
 
-  function signIn(name = '学者', nextToken = 'demo-session', accountEmail = 'scholar@example.com') {
-    token.value = nextToken
+  function signIn(response: LoginResponse, name = response.email.split('@')[0] || '学者') {
+    token.value = response.token
     userName.value = name
-    email.value = accountEmail
-    localStorage.setItem('lexiflow.token', nextToken)
+    email.value = response.email
+    setAvatar(response.avatar)
+    localStorage.setItem('lexiflow.token', response.token)
     localStorage.setItem('lexiflow.userName', name)
-    localStorage.setItem('lexiflow.email', accountEmail)
+    localStorage.setItem('lexiflow.email', response.email)
   }
 
   function updateProfile(profile: UserProfileResponse) {
