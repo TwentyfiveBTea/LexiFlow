@@ -70,6 +70,14 @@ export interface ArticleDetailResponse {
   createdAt: string
 }
 
+export interface ArticleListResponse {
+  articleId: string
+  title: string
+  languageCode: 'en' | 'ja'
+  wordCount: number
+  createdAt: string
+}
+
 export interface ArticleVocabResponse {
   articleVocabId: string
   wordId: number
@@ -152,6 +160,11 @@ export async function reviewWord(wordId: number, languageCode: 'en' | 'ja', rati
 
 export async function getArticleDetail(articleId: string) {
   const response = await api.get<ApiResult<ArticleDetailResponse>>(`/article/${articleId}`)
+  return response.data.data
+}
+
+export async function getRecentArticles() {
+  const response = await api.get<ApiResult<ArticleListResponse[]>>('/article/recent')
   return response.data.data
 }
 

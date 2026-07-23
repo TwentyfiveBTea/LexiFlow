@@ -3,7 +3,8 @@ import { ArrowRight, BookOpen, FileText, Upload } from 'lucide-vue-next'
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { articles } from '@/data/demo'
-import { getTodayDueWordCount } from '@/lib/api'
+import { getRecentArticles, getTodayDueWordCount } from '@/lib/api'
+import type { ArticleListResponse } from '@/lib/api'
 import { useSessionStore } from '@/stores/session'
 
 const router = useRouter()
@@ -11,15 +12,47 @@ const session = useSessionStore()
 const fileInput = ref<HTMLInputElement | null>(null)
 const notice = ref('')
 const dueWordCount = ref(24)
+const recentArticles = ref<Array<Pick<ArticleListResponse, 'articleId' | 'title' | 'languageCode' | 'createdAt'>>>(
+  articles.slice(0, 2).map((article) => ({
+    articleId: article.articleId,
+    title: article.title,
+    languageCode: article.languageCode,
+    createdAt: article.createdAt,
+  })),
+)
 const weekday = computed(() => new Intl.DateTimeFormat('en-US', { weekday: 'long' }).format(new Date()).toUpperCase())
 
 onMounted(async () => {
-  try {
-    dueWordCount.value = await getTodayDueWordCount()
-  } catch {
-    if (!import.meta.env.DEV) dueWordCount.value = 0
+  const [recentResult, dueCountResult] = await Promise.allSettled([getRecentArticles(), getTodayDueWordCount()])
+  if (recentResult.status === 'fulfilled') {
+    recentArticles.value = recentResult.value.map((article) => ({
+      articleId: article.articleId,
+      title: article.title,
+      languageCode: article.languageCode,
+      createdAt: article.createdAt,
+    }))
+  } else if (!import.meta.env.DEV) {
+    recentArticles.value = []
+  }
+  if (dueCountResult.status === 'fulfilled') {
+    dueWordCount.value = dueCountResult.value
+  } else if (!import.meta.env.DEV) {
+    dueWordCount.value = 0
   }
 })
+
+const dateFormatter = new Intl.DateTimeFormat('zh-CN', {
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  hour12: false,
+})
+
+function formatCreatedAt(value: string) {
+  return dateFormatter.format(new Date(value))
+}
 
 function upload(event: Event) {
   const target = event.target as HTMLInputElement
@@ -50,13 +83,11 @@ function upload(event: Event) {
         <section class="recent-section fade-in">
           <div class="section-title"><div><p class="eyebrow">Continue reading</p><h2 class="serif">最近文章</h2></div><RouterLink to="/articles">查看图书馆<ArrowRight :size="15" /></RouterLink></div>
           <div class="article-list">
-            <button v-for="article in articles.slice(0, 2)" :key="article.id" class="article-row surface" @click="router.push(`/reader/${article.id}`)">
-              <div class="book-cover" :class="article.tone"><FileText :size="28" :stroke-width="1.35" /><span>{{ article.language }}</span></div>
+            <button v-for="article in recentArticles" :key="article.articleId" class="article-row surface" @click="router.push(`/reader/${article.articleId}`)">
+              <div class="book-cover"><FileText :size="26" :stroke-width="1.35" /><span>{{ article.languageCode }}</span></div>
               <div class="article-main">
-                <div class="article-meta"><span class="badge">{{ article.language }}</span><span>{{ article.source }} · {{ article.date }}</span></div>
+                <div class="article-meta"><span class="language-badge">{{ article.languageCode }}</span><span>创建时间 · {{ formatCreatedAt(article.createdAt) }}</span></div>
                 <h3 class="serif">{{ article.title }}</h3>
-                <p>{{ article.excerpt }}</p>
-                <div class="article-progress"><span>采摘 {{ article.words }} 词</span><div class="progress"><span :style="{ width: `${article.progress}%` }"></span></div><small>{{ article.progress }}%</small></div>
               </div>
             </button>
           </div>
@@ -91,21 +122,19 @@ function upload(event: Event) {
 .section-title .eyebrow { margin-bottom: 4px; }
 .section-title a { display: flex; align-items: center; gap: 5px; color: var(--secondary); font-size: 13px; font-weight: 650; }
 .article-list { display: grid; gap: 12px; }
-.article-row { width: 100%; display: flex; gap: 20px; padding: 18px; text-align: left; transition: border-color .18s ease, transform .18s ease; }
+.article-row { width: 100%; display: flex; gap: 16px; min-height: 116px; padding: 16px; text-align: left; transition: border-color .18s ease, transform .18s ease; }
 .article-row:hover { border-color: var(--primary); transform: translateY(-1px); }
-.book-cover { width: 76px; height: 104px; flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; border-radius: 4px; color: white; background: var(--primary); }
+.book-cover { width: 64px; height: 84px; flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; border-radius: 4px; color: white; background: var(--primary); }
 .book-cover span { font-size: 10px; font-weight: 700; }
 .book-cover.clay { background: var(--secondary); }.book-cover.charcoal { background: #454848; }.book-cover.sage { background: #597166; }
-.article-main { min-width: 0; flex: 1; }
+.article-main { min-width: 0; flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 8px; }
 .article-meta { display: flex; align-items: center; gap: 8px; color: var(--ink-muted); font-size: 11px; }
-.article-main h3 { margin: 8px 0 5px; color: var(--ink); font-size: 19px; line-height: 1.35; }
-.article-main > p { margin: 0; overflow: hidden; color: var(--ink-muted); font-size: 13px; line-height: 1.55; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-.article-progress { margin-top: 13px; display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; color: var(--secondary); font-size: 11px; font-weight: 650; }
-.article-progress small { color: var(--ink-muted); }
+.article-main h3 { margin: 0; color: var(--ink); font-size: 19px; line-height: 1.35; }
+.language-badge { width: fit-content; min-height: 22px; display: inline-flex; align-items: center; padding: 0 7px; border-radius: 4px; color: var(--secondary); background: var(--secondary-soft); font-size: 10px; font-weight: 750; text-transform: lowercase; }
 .insights-column { position: sticky; top: 24px; display: grid; gap: 14px; }
 .review-card { padding: 24px; border-radius: 8px; color: white; background: var(--primary); }
 .review-card .eyebrow { color: #d3e1e4; }.review-card h2 { margin: 0; font-size: 24px; }
 .review-card .btn { width: 100%; margin-top: 22px; color: var(--primary); background: white; }
 @media (max-width: 1050px) { .dashboard-grid { grid-template-columns: 1fr; } .insights-column { position: static; grid-template-columns: 1fr; } }
-@media (max-width: 720px) { .article-row { gap: 14px; }.book-cover { width: 58px; height: 82px; }.article-main > p { display: none; }.article-progress { grid-template-columns: auto 1fr; }.article-progress small { display: none; }.insights-column { grid-template-columns: 1fr; } }
+@media (max-width: 720px) { .article-row { gap: 14px; min-height: 104px; }.book-cover { width: 58px; height: 72px; }.article-main h3 { font-size: 17px; }.article-meta { flex-wrap: wrap; gap: 6px; }.insights-column { grid-template-columns: 1fr; } }
 </style>
