@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { BookOpen, GraduationCap, MoreVertical, Plus, Search, TrendingUp, X } from 'lucide-vue-next'
+import { BookOpen, GraduationCap, MoreVertical, Plus, Search, Trash2, TrendingUp, X } from 'lucide-vue-next'
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { collections } from '@/data/demo'
 import type { VocabularyCollection } from '@/data/demo'
 import AppSelect from '@/components/AppSelect.vue'
+import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import { deleteVocabLibrary } from '@/lib/api'
 
 const router = useRouter()
 const query = ref('')
@@ -20,7 +22,11 @@ const newLanguage = ref<'en' | 'ja'>('en')
 const newDescription = ref('')
 const selectedCollection = ref<VocabularyCollection | null>(null)
 const createdCollections = ref<VocabularyCollection[]>([])
-const allCollections = computed(() => [...collections, ...createdCollections.value])
+const deletedCollectionIds = ref<string[]>([])
+const deleteError = ref('')
+const deleteDialogOpen = ref(false)
+const allCollections = computed(() => [...collections, ...createdCollections.value]
+  .filter((item) => !deletedCollectionIds.value.includes(item.libraryId)))
 const filtered = computed(() => {
   const keyword = query.value.trim().toLowerCase()
   return allCollections.value.filter((item) => {
@@ -93,6 +99,30 @@ function createCollection() {
 
 function openStatistics(collection: VocabularyCollection) {
   selectedCollection.value = collection
+  deleteError.value = ''
+}
+
+function requestDeleteCollection() {
+  if (!selectedCollection.value) return
+  deleteError.value = ''
+  deleteDialogOpen.value = true
+}
+
+async function confirmDeleteCollection() {
+  const collection = selectedCollection.value
+  if (!collection) return
+
+  deleteDialogOpen.value = false
+  deleteError.value = ''
+  try {
+    if (!import.meta.env.DEV && !collection.libraryId.startsWith('custom-')) {
+      await deleteVocabLibrary(collection.libraryId)
+    }
+    deletedCollectionIds.value = [...deletedCollectionIds.value, collection.libraryId]
+    selectedCollection.value = null
+  } catch (error) {
+    deleteError.value = error instanceof Error ? error.message : '删除词库失败'
+  }
 }
 </script>
 
@@ -156,7 +186,7 @@ function openStatistics(collection: VocabularyCollection) {
     <Transition name="dialog">
       <div v-if="selectedCollection" class="modal-backdrop" @click.self="selectedCollection = null">
         <section class="dialog-panel statistics-modal surface" role="dialog" aria-modal="true" aria-labelledby="statistics-title">
-          <div class="modal-heading"><div><p class="eyebrow">Learning statistics</p><h2 id="statistics-title" class="serif">词库学习统计</h2><p>{{ selectedCollection.name }}</p></div><button class="icon-btn" type="button" aria-label="关闭学习统计弹窗" @click="selectedCollection = null"><X :size="18" /></button></div>
+          <div class="modal-heading"><div><p class="eyebrow">Learning statistics</p><h2 id="statistics-title" class="serif">词库详细信息</h2><p>{{ selectedCollection.name }}</p></div><button class="icon-btn" type="button" aria-label="关闭词库详细信息弹窗" @click="selectedCollection = null"><X :size="18" /></button></div>
           <dl class="statistics-list">
             <div v-for="item in statisticsItems" :key="item.key" :class="{ total: item.key === 'total' }"><dt>{{ item.label }}</dt><dd class="serif">{{ item.value.toLocaleString() }}</dd></div>
           </dl>
@@ -167,10 +197,19 @@ function openStatistics(collection: VocabularyCollection) {
               <div v-for="item in chartSegments" :key="item.key"><span><i :class="`legend-${item.key}`"></i>{{ item.label }}</span><strong>{{ item.value.toLocaleString() }} · {{ item.percentage.toFixed(1) }}%</strong></div>
             </div>
           </div>
-          <div class="modal-actions"><button class="btn btn-primary" type="button" @click="selectedCollection = null">完成</button></div>
+          <p v-if="deleteError" class="delete-error">{{ deleteError }}</p>
+          <div class="modal-actions"><button class="icon-btn danger-action" type="button" aria-label="删除词库" title="删除词库" @click="requestDeleteCollection"><Trash2 :size="17" /></button><button class="btn btn-primary" type="button" @click="selectedCollection = null">完成</button></div>
         </section>
       </div>
     </Transition>
+
+    <ConfirmDialog
+      :visible="deleteDialogOpen"
+      title="删除词库"
+      message="删除之后该词库不能恢复，确定要继续吗？"
+      @close="deleteDialogOpen = false"
+      @confirm="confirmDeleteCollection"
+    />
   </main>
 </template>
 
@@ -218,7 +257,7 @@ function openStatistics(collection: VocabularyCollection) {
 .distribution-bar span { height: 100%; }.distribution-bar span + span { box-shadow: inset 1px 0 rgba(255,255,255,.9); }.segment-total, .legend-total { background: #203f4a; }.segment-mastered, .legend-mastered { background: #3f7758; }.segment-new, .legend-new { background: #ad4f3f; }.segment-learning, .legend-learning { background: #3676a3; }.segment-due, .legend-due { background: #d09a2f; }
 .distribution-legend { display: grid; grid-template-columns: 1fr 1fr; gap: 7px 18px; margin-top: 12px; }
 .distribution-legend div { min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--ink-muted); font-size: 10px; }.distribution-legend div > span { display: flex; align-items: center; gap: 6px; white-space: nowrap; }.distribution-legend i { width: 7px; height: 7px; flex: 0 0 auto; border-radius: 50%; }.distribution-legend strong { color: var(--ink); font-size: 10px; white-space: nowrap; }
-.modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
+.delete-error { margin: 14px 0 0; color: var(--error); font-size: 12px; }.modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }.danger-action { margin-right: auto; color: var(--error); border-color: #d7b8b8; }.danger-action:hover { color: #8f3028; border-color: var(--error); background: #f8eaea; }
 @media (max-width: 1100px) { .collection-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 800px) { .header-actions { flex-wrap: wrap; justify-content: flex-start; } }
 @media (max-width: 700px) { .header-actions { align-items: stretch; flex-direction: column; }.compact-search, .language-select { width: 100%; }.collection-grid { grid-template-columns: 1fr; } }

@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { FileText, Grid2X2, List, MoreVertical, Search, X } from 'lucide-vue-next'
+import { FileText, Grid2X2, List, MoreVertical, Search, Trash2, X } from 'lucide-vue-next'
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { articles } from '@/data/demo'
 import type { Article } from '@/data/demo'
 import AppSelect from '@/components/AppSelect.vue'
+import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import { deleteArticle } from '@/lib/api'
 
 const router = useRouter()
 const query = ref('')
@@ -16,12 +18,16 @@ const languageOptions = [
   { value: 'ja', label: '日语' },
 ]
 const selectedArticle = ref<Article | null>(null)
+const deletedArticleIds = ref<string[]>([])
+const deleteError = ref('')
+const deleteDialogOpen = ref(false)
 const filteredArticles = computed(() => {
   const keyword = query.value.trim().toLowerCase()
   return articles.filter((article) => {
+    const matchesDeleted = !deletedArticleIds.value.includes(article.articleId)
     const matchesKeyword = !keyword || article.title.toLowerCase().includes(keyword)
     const matchesLanguage = languageFilter.value === 'all' || article.languageCode === languageFilter.value
-    return matchesKeyword && matchesLanguage
+    return matchesDeleted && matchesKeyword && matchesLanguage
   })
 })
 
@@ -55,6 +61,29 @@ function formatDate(value: string | null) {
 function formatStatus(value: number) {
   return `${value} · ${['待处理', '处理中', '已完成', '处理失败'][value] ?? '未知状态'}`
 }
+
+function requestDeleteArticle() {
+  if (!selectedArticle.value) return
+  deleteError.value = ''
+  deleteDialogOpen.value = true
+}
+
+async function confirmDeleteArticle() {
+  const article = selectedArticle.value
+  if (!article) return
+
+  deleteDialogOpen.value = false
+  deleteError.value = ''
+  try {
+    if (!import.meta.env.DEV) {
+      await deleteArticle(article.articleId)
+    }
+    deletedArticleIds.value = [...deletedArticleIds.value, article.articleId]
+    selectedArticle.value = null
+  } catch (error) {
+    deleteError.value = error instanceof Error ? error.message : '删除文章失败'
+  }
+}
 </script>
 
 <template>
@@ -74,7 +103,7 @@ function formatStatus(value: number) {
 
     <section class="article-grid" :class="{ list: view === 'list' }">
       <article v-for="(article, index) in filteredArticles" :key="article.articleId" class="article-card surface fade-in" :style="{ animationDelay: `${index * 70}ms` }">
-        <button class="more icon-btn" type="button" :aria-label="`查看 ${article.title} 详细信息`" title="查看文章详细信息" @click="selectedArticle = article"><MoreVertical :size="18" /></button>
+        <button class="more icon-btn" type="button" :aria-label="`查看 ${article.title} 详细信息`" title="查看文章详细信息" @click="selectedArticle = article; deleteError = ''"><MoreVertical :size="18" /></button>
         <button class="cover" :class="article.tone" @click="router.push(`/reader/${article.articleId}`)"><FileText :size="38" :stroke-width="1.2" /></button>
         <div class="article-copy">
           <span class="language-badge">{{ article.languageCode }}</span>
@@ -100,10 +129,19 @@ function formatStatus(value: number) {
           <dl class="detail-list">
             <div v-for="item in detailItems" :key="item.label" :class="item.type"><dt>{{ item.label }}</dt><dd :class="{ pending: item.value === '尚未完成' }">{{ item.value }}</dd></div>
           </dl>
-          <div class="modal-actions"><button class="btn btn-primary" type="button" @click="selectedArticle = null">完成</button></div>
+          <p v-if="deleteError" class="delete-error">{{ deleteError }}</p>
+          <div class="modal-actions"><button class="icon-btn danger-action" type="button" aria-label="删除文章" title="删除文章" @click="requestDeleteArticle"><Trash2 :size="17" /></button><button class="btn btn-primary" type="button" @click="selectedArticle = null">完成</button></div>
         </section>
       </div>
     </Transition>
+
+    <ConfirmDialog
+      :visible="deleteDialogOpen"
+      title="删除文章"
+      message="删除之后该文章不能恢复，确定要继续吗？"
+      @close="deleteDialogOpen = false"
+      @confirm="confirmDeleteArticle"
+    />
   </main>
 </template>
 
@@ -137,7 +175,7 @@ function formatStatus(value: number) {
 .article-detail-modal { width: min(100%, 540px); padding: 28px 30px; }
 .modal-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; margin-bottom: 22px; }.modal-heading h2 { margin: 0; color: var(--primary); font-size: 26px; }.modal-heading > div > p:last-child { max-width: 410px; margin: 6px 0 0; overflow: hidden; color: var(--ink-muted); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
 .detail-list { margin: 0; border-top: 1px solid var(--outline); }.detail-list div { min-height: 43px; display: flex; align-items: center; justify-content: space-between; gap: 18px; border-bottom: 1px solid rgba(199,196,192,.7); }.detail-list div.count { min-height: 49px; }.detail-list dt { color: var(--ink-muted); font-size: 12px; }.detail-list dd { margin: 0; color: var(--ink); font-size: 12px; font-weight: 650; white-space: nowrap; }.detail-list .count dd { color: var(--primary); font-family: 'Literata', Georgia, serif; font-size: 21px; }.detail-list .status dd { color: var(--success); }.detail-list dd.pending { color: var(--ink-muted); font-weight: 500; }
-.modal-actions { display: flex; justify-content: flex-end; margin-top: 22px; }
+.delete-error { margin: 14px 0 0; color: var(--error); font-size: 12px; }.modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }.danger-action { margin-right: auto; color: var(--error); border-color: #d7b8b8; }.danger-action:hover { color: #8f3028; border-color: var(--error); background: #f8eaea; }
 @media (max-width: 1100px) { .article-grid { grid-template-columns: 1fr; } }
 @media (max-width: 640px) { .library-toolbar { align-items: stretch; flex-wrap: wrap; }.search-field { flex-basis: 100%; }.language-select { flex: 1; width: auto; }.article-card { min-height: 218px; gap: 14px; padding: 16px; }.cover { width: 72px; flex-basis: 72px; }.article-meta div { align-items: flex-start; flex-direction: column; gap: 2px; }.article-meta dd { white-space: normal; }.article-detail-modal { padding: 24px; }.detail-list div { align-items: flex-start; flex-direction: column; gap: 3px; padding-block: 10px; }.detail-list dd { white-space: normal; } }
 </style>
