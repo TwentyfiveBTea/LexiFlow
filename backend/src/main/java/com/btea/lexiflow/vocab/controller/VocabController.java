@@ -2,6 +2,7 @@ package com.btea.lexiflow.vocab.controller;
 
 import com.btea.lexiflow.common.convention.result.Result;
 import com.btea.lexiflow.common.convention.result.Results;
+import com.btea.lexiflow.learning.service.LearningService;
 import com.btea.lexiflow.vocab.dto.req.VocabLibraryCreateReqDTO;
 import com.btea.lexiflow.vocab.dto.req.VocabLibraryWordAddReqDTO;
 import com.btea.lexiflow.vocab.dto.resp.VocabLibraryRespDTO;
@@ -10,14 +11,7 @@ import com.btea.lexiflow.vocab.dto.resp.VocabLibraryWordRespDTO;
 import com.btea.lexiflow.vocab.service.VocabService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
@@ -32,6 +26,7 @@ import java.util.List;
 public class VocabController {
 
     private final VocabService vocabService;
+    private final LearningService learningService;
 
     /**
      * 创建词汇库
@@ -125,5 +120,15 @@ public class VocabController {
                                           @RequestParam String languageCode) {
         vocabService.deleteLibraryWord(libraryId, wordId, languageCode);
         return Results.success();
+    }
+
+    /**
+     * 查询当前用户当天剩余待复习单词数量
+     *
+     * @return 当天剩余待复习单词数量
+     */
+    @GetMapping("/due")
+    public Result<Integer> countTodayDueWords() {
+        return Results.success(learningService.listDueWords().size());
     }
 }

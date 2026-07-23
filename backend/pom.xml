@@ -35,7 +35,7 @@
         <hutool.version>5.8.31</hutool.version>
         <langchain4j.version>1.0.0-beta5</langchain4j.version>
         <lingua.version>1.2.2</lingua.version>
-        <lombok.version>1.18.30</lombok.version>
+        <lombok.version>1.18.38</lombok.version>
     </properties>
 
     <dependencies>
