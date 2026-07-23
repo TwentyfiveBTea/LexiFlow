@@ -3,11 +3,13 @@ import { Camera, Check, Eye, EyeOff, ImageUp, Languages, LockKeyhole, LogOut, Mo
 import { computed, onBeforeUnmount, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import AppSelect from '@/components/AppSelect.vue'
-import { changePassword as requestPasswordChange, changeUserAvatar, changeUsername as requestUsernameChange } from '@/lib/api'
+import { changePassword as requestPasswordChange, changeUserAvatar, changeUsername as requestUsernameChange, logout as requestLogout } from '@/lib/api'
+import { usePreferencesStore } from '@/stores/preferences'
 import { useSessionStore } from '@/stores/session'
 
 const router = useRouter()
 const session = useSessionStore()
+const preferences = usePreferencesStore()
 const saved = ref(false)
 const usernameSaving = ref(false)
 const usernameMessage = ref('')
@@ -28,33 +30,56 @@ const passwordForm = reactive({ oldPassword: '', newPassword: '', confirmPasswor
 const passwordPattern = /^(?=.*[a-z])(?=.*[A-Z]).{6,}$/
 const settings = reactive({
   username: session.userName,
-  readingFont: 'Literata',
-  fontSize: '19',
-  lineHeight: '1.7',
-  highlight: true,
-  interfaceLanguage: 'zh-CN',
+  readingFont: preferences.readingFont,
+  fontSize: preferences.fontSize,
+  lineHeight: preferences.lineHeight,
+  highlight: preferences.highlight,
+  interfaceLanguage: preferences.interfaceLanguage,
 })
 
-const readingFontOptions = [
+const readingFontOptions = computed(() => [
   { value: 'Literata', label: 'Literata' },
   { value: 'Georgia', label: 'Georgia' },
   { value: '宋体', label: '宋体' },
-]
-const fontSizeOptions = [
+])
+const fontSizeOptions = computed(() => [
   { value: '17', label: '17px' },
   { value: '19', label: '19px' },
   { value: '21', label: '21px' },
-]
-const lineHeightOptions = [
-  { value: '1.6', label: '舒适' },
-  { value: '1.7', label: '宽松' },
-  { value: '1.85', label: '非常宽松' },
-]
-const interfaceLanguageOptions = [
+])
+const lineHeightOptions = computed(() => {
+  if (preferences.interfaceLanguage === 'en') return [{ value: '1.6', label: 'Comfortable' }, { value: '1.7', label: 'Relaxed' }, { value: '1.85', label: 'Very relaxed' }]
+  if (preferences.interfaceLanguage === 'ja') return [{ value: '1.6', label: '快適' }, { value: '1.7', label: 'ゆったり' }, { value: '1.85', label: 'とてもゆったり' }]
+  return [{ value: '1.6', label: '舒适' }, { value: '1.7', label: '宽松' }, { value: '1.85', label: '非常宽松' }]
+})
+const interfaceLanguageOptions = computed(() => [
   { value: 'zh-CN', label: '简体中文' },
   { value: 'en', label: 'English' },
   { value: 'ja', label: '日本語' },
-]
+])
+const settingsCopy = computed(() => {
+  if (preferences.interfaceLanguage === 'en') return {
+    eyebrow: 'Preferences', title: 'Settings', description: 'Manage your account, reading experience, and learning language',
+    account: 'Account information', accountDescription: 'Personal details used for sign-in and display', avatar: 'Change avatar', username: 'Username', email: 'Email', changeUsername: 'Change username', password: 'Change password',
+    reading: 'Reading preferences', readingDescription: 'Tune the layout for long reading sessions', font: 'Body font', size: 'Font size', lineHeight: 'Line height',
+    autoMark: 'Automatically mark words', autoMarkDescription: 'Show clickable vocabulary markers in the reading text', language: 'Language', languageDescription: 'Interface display language', interfaceLanguage: 'Interface language',
+    accountActions: 'Account actions', accountActionsDescription: 'End the current device session', logout: 'Log out', save: 'Save changes', saved: 'Saved',
+  }
+  if (preferences.interfaceLanguage === 'ja') return {
+    eyebrow: 'Preferences', title: '設定', description: 'アカウント、読書体験、学習言語を管理します',
+    account: 'アカウント情報', accountDescription: 'ログインと表示に使うプロフィール', avatar: 'アバターを変更', username: 'ユーザー名', email: 'メールアドレス', changeUsername: 'ユーザー名を変更', password: 'パスワードを変更',
+    reading: '読書設定', readingDescription: '長時間の精読に合わせて表示を調整します', font: '本文フォント', size: '文字サイズ', lineHeight: '行間',
+    autoMark: '単語を自動マーク', autoMarkDescription: '本文中にクリックできる単語マーカーを表示', language: '言語', languageDescription: 'インターフェースの表示言語', interfaceLanguage: '表示言語',
+    accountActions: 'アカウント操作', accountActionsDescription: '現在のデバイスからログアウト', logout: 'ログアウト', save: '変更を保存', saved: '保存済み',
+  }
+  return {
+    eyebrow: 'Preferences', title: '应用设置', description: '管理账号、阅读体验与学习语言',
+    account: '账号信息', accountDescription: '用于登录和展示的个人资料', avatar: '更换头像', username: '用户名', email: '电子邮件', changeUsername: '更改用户名', password: '修改密码',
+    reading: '阅读偏好', readingDescription: '调整长时间精读时的排版体验', font: '正文字体', size: '字号', lineHeight: '行高',
+    autoMark: '自动标记生词', autoMarkDescription: '在精读正文中显示可点击的词汇下划线', language: '语言', languageDescription: '界面显示语言', interfaceLanguage: '界面语言',
+    accountActions: '账号操作', accountActionsDescription: '退出当前设备的登录状态', logout: '退出登录', save: '保存更改', saved: '已保存',
+  }
+})
 const canSubmitPassword = computed(() => Boolean(
   passwordForm.oldPassword
   && passwordPattern.test(passwordForm.newPassword)
@@ -64,6 +89,13 @@ const canSubmitPassword = computed(() => Boolean(
 onBeforeUnmount(clearAvatarPreviewUrl)
 
 function save() {
+  preferences.save({
+    readingFont: settings.readingFont,
+    fontSize: settings.fontSize,
+    lineHeight: settings.lineHeight,
+    highlight: settings.highlight,
+    interfaceLanguage: settings.interfaceLanguage,
+  })
   saved.value = true
   setTimeout(() => { saved.value = false }, 2200)
 }
@@ -185,6 +217,11 @@ async function savePassword() {
 }
 
 async function logout() {
+  try {
+    await requestLogout()
+  } catch {
+    // Clear the local session even when the server is unavailable.
+  }
   session.signOut()
   await router.push('/login')
 }
@@ -192,11 +229,11 @@ async function logout() {
 
 <template>
   <main class="page settings-page">
-    <header class="page-header fade-in"><div><p class="eyebrow">Preferences</p><h1 class="page-title">应用设置</h1><p class="page-description">管理账号、阅读体验与学习语言</p></div><button class="btn btn-primary" @click="save"><Check v-if="saved" :size="17" /><Save v-else :size="17" />{{ saved ? '已保存' : '保存更改' }}</button></header>
+    <header class="page-header fade-in"><div><p class="eyebrow">{{ settingsCopy.eyebrow }}</p><h1 class="page-title">{{ settingsCopy.title }}</h1><p class="page-description">{{ settingsCopy.description }}</p></div><button class="btn btn-primary" @click="save"><Check v-if="saved" :size="17" /><Save v-else :size="17" />{{ saved ? settingsCopy.saved : settingsCopy.save }}</button></header>
 
     <section class="settings-grid">
       <article class="settings-card account-card surface fade-in wide">
-        <div class="card-title"><span><UserRound :size="20" /></span><div><h2 class="serif">账号信息</h2><p>用于登录和展示的个人资料</p></div></div>
+        <div class="card-title"><span><UserRound :size="20" /></span><div><h2 class="serif">{{ settingsCopy.account }}</h2><p>{{ settingsCopy.accountDescription }}</p></div></div>
 
         <div class="account-profile">
           <div class="avatar-summary">
@@ -205,43 +242,43 @@ async function logout() {
               <UserRound v-else :size="30" />
               <span><Camera :size="14" /></span>
             </button>
-            <div><strong class="serif">{{ session.userName }}</strong><button class="text-action avatar-action" type="button" @click="openAvatarPicker">更换头像</button></div>
+            <div><strong class="serif">{{ session.userName }}</strong><button class="text-action avatar-action" type="button" @click="openAvatarPicker">{{ settingsCopy.avatar }}</button></div>
           </div>
           <div class="profile-username">
-            <label class="field-label" for="settings-username">用户名</label>
-            <div class="username-control"><input id="settings-username" v-model="settings.username" class="field" /><button class="btn btn-secondary" type="button" :disabled="usernameSaving || !settings.username.trim()" @click="saveUsername">{{ usernameSaving ? '更改中...' : '更改用户名' }}</button></div>
+            <label class="field-label" for="settings-username">{{ settingsCopy.username }}</label>
+            <div class="username-control"><input id="settings-username" v-model="settings.username" class="field" /><button class="btn btn-secondary" type="button" :disabled="usernameSaving || !settings.username.trim()" @click="saveUsername">{{ usernameSaving ? '...' : settingsCopy.changeUsername }}</button></div>
             <p v-if="usernameMessage" class="inline-message">{{ usernameMessage }}</p>
           </div>
         </div>
 
         <div class="account-fields">
           <div>
-            <span class="field-label">电子邮件</span>
+            <span class="field-label">{{ settingsCopy.email }}</span>
             <div class="readonly-field" :title="session.email">{{ session.email }}</div>
           </div>
         </div>
-        <div class="password-action-row"><button class="text-action password-action" type="button" @click="openPasswordDialog"><LockKeyhole :size="15" />修改密码</button><span v-if="passwordNotice" class="success-message">{{ passwordNotice }}</span></div>
+        <div class="password-action-row"><button class="text-action password-action" type="button" @click="openPasswordDialog"><LockKeyhole :size="15" />{{ settingsCopy.password }}</button><span v-if="passwordNotice" class="success-message">{{ passwordNotice }}</span></div>
       </article>
 
       <article class="settings-card surface fade-in wide">
-        <div class="card-title"><span><MonitorCog :size="20" /></span><div><h2 class="serif">阅读偏好</h2><p>调整长时间精读时的排版体验</p></div></div>
+        <div class="card-title"><span><MonitorCog :size="20" /></span><div><h2 class="serif">{{ settingsCopy.reading }}</h2><p>{{ settingsCopy.readingDescription }}</p></div></div>
         <div class="form-grid three">
-          <div><span class="field-label">正文字体</span><AppSelect v-model="settings.readingFont" :options="readingFontOptions" label="选择正文字体" /></div>
-          <div><span class="field-label">字号</span><AppSelect v-model="settings.fontSize" :options="fontSizeOptions" label="选择正文字号" /></div>
-          <div><span class="field-label">行高</span><AppSelect v-model="settings.lineHeight" :options="lineHeightOptions" label="选择正文行高" /></div>
+          <div><span class="field-label">{{ settingsCopy.font }}</span><AppSelect v-model="settings.readingFont" :options="readingFontOptions" :label="settingsCopy.font" /></div>
+          <div><span class="field-label">{{ settingsCopy.size }}</span><AppSelect v-model="settings.fontSize" :options="fontSizeOptions" :label="settingsCopy.size" /></div>
+          <div><span class="field-label">{{ settingsCopy.lineHeight }}</span><AppSelect v-model="settings.lineHeight" :options="lineHeightOptions" :label="settingsCopy.lineHeight" /></div>
         </div>
-        <label class="toggle-row"><span><strong>自动标记生词</strong><small>在精读正文中显示可点击的词汇下划线</small></span><input v-model="settings.highlight" type="checkbox" /><i></i></label>
+        <label class="toggle-row"><span><strong>{{ settingsCopy.autoMark }}</strong><small>{{ settingsCopy.autoMarkDescription }}</small></span><input v-model="settings.highlight" type="checkbox" /><i></i></label>
       </article>
 
       <article class="settings-card language-card surface fade-in wide">
-        <div class="card-title"><span><Languages :size="20" /></span><div><h2 class="serif">语言</h2><p>界面显示语言</p></div></div>
+        <div class="card-title"><span><Languages :size="20" /></span><div><h2 class="serif">{{ settingsCopy.language }}</h2><p>{{ settingsCopy.languageDescription }}</p></div></div>
         <div class="language-field">
-          <div><span class="field-label">界面语言</span><AppSelect v-model="settings.interfaceLanguage" :options="interfaceLanguageOptions" label="选择界面语言" /></div>
+          <div><span class="field-label">{{ settingsCopy.interfaceLanguage }}</span><AppSelect v-model="settings.interfaceLanguage" :options="interfaceLanguageOptions" :label="settingsCopy.interfaceLanguage" /></div>
         </div>
       </article>
 
       <article class="settings-card danger surface fade-in wide">
-        <div class="card-title danger-title"><span><ShieldAlert :size="20" /></span><div><h2 class="serif">账号操作</h2><p>退出当前设备的登录状态</p></div><button class="btn btn-secondary" type="button" @click="logout"><LogOut :size="16" />退出登录</button></div>
+        <div class="card-title danger-title"><span><ShieldAlert :size="20" /></span><div><h2 class="serif">{{ settingsCopy.accountActions }}</h2><p>{{ settingsCopy.accountActionsDescription }}</p></div><button class="btn btn-secondary" type="button" @click="logout"><LogOut :size="16" />{{ settingsCopy.logout }}</button></div>
       </article>
     </section>
 

@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import AppShell from '@/components/AppShell.vue'
+import { translateText } from '@/lib/i18n'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -27,8 +28,24 @@ const router = createRouter({
   ],
 })
 
+router.beforeEach((to) => {
+  const isAuthenticated = Boolean(localStorage.getItem('lexiflow.token'))
+  if (!to.meta.public && !isAuthenticated) return { name: 'login', query: { redirect: to.fullPath } }
+  if (to.meta.public && isAuthenticated) return { name: 'dashboard' }
+  return true
+})
+
 router.afterEach((to) => {
-  document.title = to.meta.title ? `${String(to.meta.title)} · LexiFlow` : 'LexiFlow'
+  const raw = localStorage.getItem('lexiflow.preferences')
+  let language: 'zh-CN' | 'en' | 'ja' = 'zh-CN'
+  try {
+    const parsed = JSON.parse(raw ?? '{}') as { interfaceLanguage?: string }
+    if (parsed.interfaceLanguage === 'en' || parsed.interfaceLanguage === 'ja') language = parsed.interfaceLanguage
+  } catch {
+    // Use Chinese as the default when preferences are unavailable.
+  }
+  const title = typeof to.meta.title === 'string' ? translateText(to.meta.title, language) : ''
+  document.title = title ? `${title} · LexiFlow` : 'LexiFlow'
 })
 
 export default router
