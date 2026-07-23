@@ -51,6 +51,12 @@ function parseTranslations(value: string | null): TranslationItem[] {
   }
 }
 
+function formatPhonetic(value: string | null) {
+  const normalized = value?.trim() ?? ''
+  if (!normalized) return ''
+  return normalized.startsWith('[') && normalized.endsWith(']') ? normalized : `[${normalized}]`
+}
+
 async function loadSession() {
   loading.value = true
   error.value = ''
@@ -110,7 +116,7 @@ onMounted(() => { void loadSession() })
       <div class="session-progress"><span :style="{ width: `${progressPercent}%` }"></span></div>
       <article class="flashcard surface">
         <div class="flash-term"><h2 class="serif">{{ currentWord.word }}</h2></div>
-        <div class="pronunciation"><span v-if="currentWord.kana">{{ currentWord.kana }}</span><span v-if="currentWord.us">US {{ currentWord.us }}</span><span v-if="currentWord.uk">UK {{ currentWord.uk }}</span></div>
+        <div class="pronunciation"><span v-if="currentWord.kana">{{ currentWord.kana }}</span><span v-if="currentWord.us">US {{ formatPhonetic(currentWord.us) }}</span><span v-if="currentWord.uk">UK {{ formatPhonetic(currentWord.uk) }}</span></div>
         <button class="meaning-toggle" type="button" :aria-expanded="showMeaning" @click="showMeaning = !showMeaning"><component :is="showMeaning ? EyeOff : Eye" :size="16" />{{ showMeaning ? '隐藏释义' : '显示释义' }}</button>
         <div v-if="showMeaning" class="flash-meaning">
           <template v-if="parseTranslations(currentWord.translations).length">

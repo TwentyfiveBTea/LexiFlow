@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { CheckCircle2, ChevronLeft, ChevronRight, Coins, History, LockKeyhole, WalletCards, X } from 'lucide-vue-next'
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { creditLedgerRecordsDemo, rechargeRecordsDemo } from '@/data/demo'
-import { getCreditLedger, getRechargeRecords } from '@/lib/api'
+import { createPaymentOrder, getCreditAccount, getCreditLedger, getRechargeRecords } from '@/lib/api'
 import type { CreditLedgerResponse, PageResponse, RechargeRecordResponse } from '@/lib/api'
 import alipayLogo from '@/assets/alipay.svg'
 
@@ -10,10 +10,15 @@ type RecordDialog = 'recharge' | 'credits'
 
 const amounts = [10, 20, 35, 50, 75, 100]
 const CREDITS_PER_CNY = 10_000
-const availableCredits = 1_250
+const availableCredits = ref(0)
+const frozenCredits = ref(0)
+const accountStatus = ref(1)
+const accountUpdatedAt = ref('')
 const selectedAmount = ref(50)
 const customAmount = ref<number | null>(null)
 const paymentNotice = ref('')
+const paymentError = ref('')
+const paymentLoading = ref(false)
 const paymentDialogOpen = ref(false)
 const activeRecordDialog = ref<RecordDialog | null>(null)
 const recordsLoading = ref(false)
@@ -25,7 +30,7 @@ const creditRecords = ref<PageResponse<CreditLedgerResponse>>({ records: [], tot
 const finalAmount = computed(() => customAmount.value === null ? selectedAmount.value : customAmount.value)
 const amountValid = computed(() => Number.isFinite(finalAmount.value) && finalAmount.value >= 1 && finalAmount.value <= 100)
 const payableAmount = computed(() => amountValid.value ? finalAmount.value : 0)
-const approximateBalanceCny = computed(() => (availableCredits / CREDITS_PER_CNY).toFixed(2))
+const approximateBalanceCny = computed(() => (availableCredits.value / CREDITS_PER_CNY).toFixed(2))
 const activePage = computed(() => activeRecordDialog.value === 'recharge' ? rechargeRecords.value : creditRecords.value)
 
 const dateFormatter = new Intl.DateTimeFormat('zh-CN', {
@@ -49,12 +54,46 @@ function formatDate(value: string) {
   return dateFormatter.format(new Date(value))
 }
 
+async function loadCreditAccount() {
+  try {
+    const account = await getCreditAccount()
+    availableCredits.value = account.availableCredits
+    frozenCredits.value = account.frozenCredits
+    accountStatus.value = account.status
+    accountUpdatedAt.value = account.updatedAt
+  } catch {
+    if (import.meta.env.DEV) {
+      availableCredits.value = 1_250
+      frozenCredits.value = 0
+      accountStatus.value = 1
+      accountUpdatedAt.value = '2026-07-18T14:30:00+08:00'
+    }
+  }
+}
+
 function formatCredits(value: number) {
   return value.toLocaleString('en-US')
 }
 
 function formatCny(value: number) {
   return `¥${Number(value).toFixed(2)}`
+}
+
+function submitPaymentOrder(order: { submitUrl: string; method: string; parameters: Record<string, string> }) {
+  const form = document.createElement('form')
+  form.method = order.method?.toUpperCase() === 'GET' ? 'GET' : 'POST'
+  form.action = order.submitUrl
+  form.target = '_blank'
+  Object.entries(order.parameters ?? {}).forEach(([name, value]) => {
+    const input = document.createElement('input')
+    input.type = 'hidden'
+    input.name = name
+    input.value = value
+    form.appendChild(input)
+  })
+  document.body.appendChild(form)
+  form.submit()
+  form.remove()
 }
 
 function paginateDemo<T>(records: T[], page: number): PageResponse<T> {
@@ -122,6 +161,7 @@ function openPaymentDialog() {
     return
   }
   paymentNotice.value = ''
+  paymentError.value = ''
   paymentDialogOpen.value = true
 }
 
@@ -129,10 +169,27 @@ function closePaymentDialog() {
   paymentDialogOpen.value = false
 }
 
-function confirmPayment() {
-  paymentDialogOpen.value = false
-  paymentNotice.value = '支付接口暂未接入，当前仅展示付款确认流程'
+async function confirmPayment() {
+  if (!amountValid.value || paymentLoading.value) return
+  paymentLoading.value = true
+  paymentError.value = ''
+  try {
+    const order = await createPaymentOrder({
+      amountYuan: payableAmount.value,
+      clientRequestNo: `web-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      deviceType: 'web',
+    })
+    paymentDialogOpen.value = false
+    paymentNotice.value = `订单 ${order.orderNo} 已创建，请继续完成支付`
+    submitPaymentOrder(order)
+  } catch (error) {
+    paymentError.value = error instanceof Error ? error.message : '充值订单创建失败，请稍后重试'
+  } finally {
+    paymentLoading.value = false
+  }
 }
+
+onMounted(() => { void loadCreditAccount() })
 </script>
 
 <template>
@@ -141,8 +198,8 @@ function confirmPayment() {
 
     <section class="balance-panel surface fade-in">
       <div><span class="balance-icon"><WalletCards :size="22" /></span><p>可用额度</p><strong class="serif balance-value">{{ availableCredits.toLocaleString('en-US') }} <small>Credits</small><span class="balance-equivalent">≈ ¥{{ approximateBalanceCny }} CNY</span></strong></div>
-      <div><span class="balance-icon muted"><LockKeyhole :size="21" /></span><p>冻结额度</p><strong class="serif">0 <small>Credits</small></strong></div>
-      <div class="account-summary"><span class="status"><i></i>账户正常</span><div class="update-block"><p>最后更新</p><strong class="update-time">2026-07-18 14:30</strong></div></div>
+      <div><span class="balance-icon muted"><LockKeyhole :size="21" /></span><p>冻结额度</p><strong class="serif">{{ frozenCredits.toLocaleString('en-US') }} <small>Credits</small></strong></div>
+      <div class="account-summary"><span class="status"><i :class="{ inactive: accountStatus !== 1 }"></i>{{ accountStatus === 1 ? '账户正常' : '账户冻结' }}</span><div class="update-block"><p>最后更新</p><strong class="update-time">{{ accountUpdatedAt ? formatDate(accountUpdatedAt) : '暂无记录' }}</strong></div></div>
     </section>
 
     <section class="recharge-section fade-in">
@@ -161,7 +218,7 @@ function confirmPayment() {
       </div>
 
       <div class="payment-method"><h3 class="serif">付款方式</h3><button class="method surface" type="button" :disabled="!amountValid" @click="openPaymentDialog"><span class="method-icon"><img :src="alipayLogo" alt="" /></span><strong>支付宝 Alipay</strong><span class="method-amount" v-if="amountValid">¥{{ formatMoney(payableAmount) }}</span><CheckCircle2 :size="19" /></button></div>
-      <p v-if="paymentNotice" class="payment-notice">{{ paymentNotice }}</p>
+      <p v-if="paymentNotice" class="payment-notice">{{ paymentNotice }}</p><p v-if="paymentError" class="payment-error" role="alert">{{ paymentError }}</p>
     </section>
 
     <Transition name="dialog">
@@ -170,7 +227,7 @@ function confirmPayment() {
           <header class="modal-heading"><div><p class="eyebrow">Payment preview</p><h2 id="payment-dialog-title" class="serif">确认付款</h2><p>查看您的付款详情</p></div><button class="icon-btn" type="button" aria-label="关闭付款确认弹窗" title="关闭" @click="closePaymentDialog"><X :size="18" /></button></header>
           <dl class="payment-summary"><div><dt>充值金额</dt><dd>¥{{ formatMoney(finalAmount) }}</dd></div><div><dt>您支付</dt><dd>¥{{ formatMoney(payableAmount) }}</dd></div></dl>
           <div class="payment-choice"><span class="method-icon"><img :src="alipayLogo" alt="" /></span><div><small>付款方式</small><strong>支付宝 Alipay</strong></div></div>
-          <footer class="modal-actions"><button class="btn btn-primary" type="button" @click="confirmPayment">确认付款</button><button class="btn btn-secondary" type="button" @click="closePaymentDialog">取消</button></footer>
+          <footer class="modal-actions"><button class="btn btn-primary" type="button" :disabled="paymentLoading" @click="confirmPayment">{{ paymentLoading ? '创建订单…' : '确认付款' }}</button><button class="btn btn-secondary" type="button" :disabled="paymentLoading" @click="closePaymentDialog">取消</button></footer>
         </section>
       </div>
     </Transition>
@@ -227,13 +284,13 @@ function confirmPayment() {
 .balance-panel p { margin: 0 0 6px; color: var(--ink-muted); font-size: 11px; font-weight: 700; text-transform: uppercase; }
 .balance-panel strong { color: var(--primary); font-size: 31px; }.balance-panel strong small { font-family: 'Inter', sans-serif; color: var(--ink-muted); font-size: 12px; }
 .balance-value { display: flex; flex-wrap: nowrap; align-items: baseline; gap: 0 5px; white-space: nowrap; }.balance-equivalent { margin-left: 5px; color: var(--ink-muted); font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600; }
-.status { width: fit-content; height: 38px; display: flex; flex: 0 0 38px; align-items: center; gap: 8px; margin-bottom: 15px; color: var(--success); font-size: 13px; font-weight: 700; }.status i { width: 8px; height: 8px; border-radius: 50%; background: var(--success); }
+.status { width: fit-content; height: 38px; display: flex; flex: 0 0 38px; align-items: center; gap: 8px; margin-bottom: 15px; color: var(--success); font-size: 13px; font-weight: 700; }.status i { width: 8px; height: 8px; border-radius: 50%; background: var(--success); }.status i.inactive { background: var(--error); }.status:has(.inactive) { color: var(--error); }
 .balance-panel .update-time { min-height: 46px; display: flex; align-items: center; color: var(--ink); font-family: 'Inter', sans-serif; font-size: 14px; }
 .section-heading h2 { margin: 0; color: var(--primary); font-size: 28px; }.section-heading > p:last-child { margin: 6px 0 0; color: var(--ink-muted); }
 .amount-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 22px; }.amount-card { position: relative; min-height: 102px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; color: var(--primary); }.amount-card:hover, .amount-card.selected { border-color: var(--primary); background: var(--primary-soft); }.amount-main { display: flex; align-items: baseline; gap: 5px; }.amount-main strong { font-size: 33px; }.amount-main small { color: var(--ink-muted); font-size: 11px; }.amount-card .credit-amount { color: var(--ink-muted); font-size: 12px; font-weight: 600; }.amount-card svg { position: absolute; right: 10px; top: 10px; }
 .custom-row { display: flex; align-items: end; gap: 24px; padding: 22px; margin-top: 14px; }.custom-row > div:first-child { flex: 1; }.amount-input { height: 44px; display: flex; align-items: center; gap: 8px; padding: 0 13px; border: 1px solid var(--outline); border-radius: 7px; background: var(--surface-low); }.amount-input:focus-within { border-color: var(--primary); }.amount-input span { color: var(--ink-muted); }.amount-input input { width: 100%; border: 0; outline: 0; background: transparent; font-size: 12px; }.payment-due { min-width: 190px; display: grid; gap: 4px; padding: 0 6px 2px; }.payment-due span { color: var(--ink-muted); font-size: 11px; font-weight: 700; }.payment-due strong { color: var(--primary); font-family: 'Literata', Georgia, serif; font-size: 23px; }
 .payment-method { margin-top: 30px; }.payment-method h3 { margin: 0 0 12px; color: var(--primary); font-size: 19px; }.method { width: 100%; min-height: 62px; display: flex; align-items: center; gap: 12px; padding: 0 16px; color: var(--primary); }.method:disabled { opacity: .5; cursor: not-allowed; }.method strong { flex: 1; text-align: left; color: var(--ink); font-size: 14px; }.method-amount { color: var(--primary); font-size: 13px; font-weight: 750; }.method-icon { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 7px; background: var(--primary-soft); }.method-icon img { width: 22px; height: 22px; display: block; }
-.payment-notice { padding: 12px 14px; margin: 14px 0 0; border-radius: 7px; color: var(--success); background: #e5eee8; font-size: 13px; }
+.payment-notice { padding: 12px 14px; margin: 14px 0 0; border-radius: 7px; color: var(--success); background: #e5eee8; font-size: 13px; }.payment-error { padding: 12px 14px; margin: 14px 0 0; border-radius: 7px; color: var(--error); background: #fff0ee; font-size: 13px; }
 .modal-backdrop { position: fixed; z-index: 60; inset: 0; display: grid; place-items: center; padding: 22px; background: rgba(27,28,28,.3); }
 .records-modal { width: min(100%, 860px); max-height: min(720px, calc(100vh - 44px)); display: flex; flex-direction: column; overflow: hidden; padding: 28px 30px 22px; }
 .payment-modal { width: min(100%, 440px); padding: 28px 30px 24px; }.payment-summary { margin: 24px 0 0; border-top: 1px solid var(--outline); }.payment-summary div { min-height: 56px; display: flex; align-items: center; justify-content: space-between; gap: 20px; border-bottom: 1px solid rgba(199,196,192,.65); }.payment-summary dt { color: var(--ink-muted); font-size: 13px; }.payment-summary dd { margin: 0; color: var(--ink); font-size: 16px; font-weight: 750; }.payment-choice { display: flex; align-items: center; gap: 14px; padding: 20px 0 12px; border-bottom: 1px solid var(--outline); }.payment-choice div { display: grid; gap: 5px; }.payment-choice small { color: var(--ink-muted); font-size: 11px; }.payment-choice strong { color: var(--ink); font-size: 13px; }.payment-modal .modal-actions { display: flex; justify-content: flex-start; column-gap: 12px; margin-top: 18px; }

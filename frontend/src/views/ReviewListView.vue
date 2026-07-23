@@ -46,6 +46,12 @@ function parseTranslations(value: string | null): TranslationItem[] {
   }
 }
 
+function formatPhonetic(value: string | null) {
+  const normalized = value?.trim() ?? ''
+  if (!normalized) return ''
+  return normalized.startsWith('[') && normalized.endsWith(']') ? normalized : `[${normalized}]`
+}
+
 async function loadDueWords() {
   loading.value = true
   error.value = ''
@@ -101,7 +107,7 @@ onMounted(() => { void loadDueWords() })
           </template>
           <span v-else class="empty-value">暂无释义</span>
         </div>
-        <div class="pronunciation"><span v-if="word.kana">{{ word.kana }}</span><span v-if="word.us">US {{ word.us }}</span><span v-if="word.uk">UK {{ word.uk }}</span><span v-if="!word.kana && !word.us && !word.uk">-</span></div>
+        <div class="pronunciation"><span v-if="word.kana">{{ word.kana }}</span><span v-if="word.us">US {{ formatPhonetic(word.us) }}</span><span v-if="word.uk">UK {{ formatPhonetic(word.uk) }}</span><span v-if="!word.kana && !word.us && !word.uk">-</span></div>
         <span class="badge level-badge">{{ word.level || '-' }}</span>
         <span class="badge">{{ word.languageCode }}</span>
       </article>
