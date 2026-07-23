@@ -3,7 +3,7 @@ import { ArrowRight, BookOpen, FileText, Upload } from 'lucide-vue-next'
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { articles } from '@/data/demo'
-import { getRecentArticles, getTodayDueWordCount } from '@/lib/api'
+import { getRecentArticles, getTodayDueWordCount, uploadArticle } from '@/lib/api'
 import type { ArticleListResponse } from '@/lib/api'
 import { useSessionStore } from '@/stores/session'
 
@@ -11,6 +11,8 @@ const router = useRouter()
 const session = useSessionStore()
 const fileInput = ref<HTMLInputElement | null>(null)
 const notice = ref('')
+const uploadError = ref('')
+const uploading = ref(false)
 const dueWordCount = ref(24)
 const recentArticles = ref<Array<Pick<ArticleListResponse, 'articleId' | 'title' | 'languageCode' | 'createdAt'>>>(
   articles.slice(0, 2).map((article) => ({
@@ -54,9 +56,29 @@ function formatCreatedAt(value: string) {
   return dateFormatter.format(new Date(value))
 }
 
-function upload(event: Event) {
+async function upload(event: Event) {
   const target = event.target as HTMLInputElement
-  if (target.files?.[0]) notice.value = `已选择 ${target.files[0].name}`
+  const file = target.files?.[0]
+  if (!file || uploading.value) return
+
+  uploading.value = true
+  notice.value = ''
+  uploadError.value = ''
+  try {
+    const result = await uploadArticle(file)
+    notice.value = `${result.title} 已上传，文章正在后台处理`
+    recentArticles.value = [{
+      articleId: result.articleId,
+      title: result.title,
+      languageCode: result.languageCode === 'ja' ? 'ja' as const : 'en' as const,
+      createdAt: new Date().toISOString(),
+    }, ...recentArticles.value].slice(0, 2)
+  } catch (error) {
+    uploadError.value = error instanceof Error ? error.message : '文章上传失败，请稍后重试'
+  } finally {
+    uploading.value = false
+    target.value = ''
+  }
 }
 </script>
 
@@ -75,9 +97,10 @@ function upload(event: Event) {
             <span class="section-icon"><BookOpen :size="21" /></span>
             <div><h2 class="serif">开始阅读</h2><p>上传外语文章，开启深度精读</p></div>
           </div>
-          <button class="file-drop" @click="fileInput?.click()"><Upload :size="19" /><span>上传 PDF、DOCX、TXT 或 Markdown 文件</span></button>
+          <button class="file-drop" :disabled="uploading" @click="fileInput?.click()"><Upload :size="19" /><span>{{ uploading ? '正在上传文章…' : '上传 PDF、DOCX、TXT 或 Markdown 文件' }}</span></button>
           <input ref="fileInput" class="hidden" type="file" accept=".pdf,.doc,.docx,.txt,.md" @change="upload" />
           <p v-if="notice" class="notice">{{ notice }}</p>
+          <p v-if="uploadError" class="upload-error" role="alert">{{ uploadError }}</p>
         </article>
 
         <section class="recent-section fade-in">
@@ -87,7 +110,7 @@ function upload(event: Event) {
               <div class="book-cover"><FileText :size="26" :stroke-width="1.35" /><span>{{ article.languageCode }}</span></div>
               <div class="article-main">
                 <div class="article-meta"><span class="language-badge">{{ article.languageCode }}</span><span>创建时间 · {{ formatCreatedAt(article.createdAt) }}</span></div>
-                <h3 class="serif">{{ article.title }}</h3>
+                <h3 class="serif" :title="article.title">{{ article.title }}</h3>
               </div>
             </button>
           </div>
@@ -118,6 +141,7 @@ function upload(event: Event) {
 .file-drop:hover { color: var(--primary); border-color: var(--primary); background: var(--surface-low); }
 .hidden { display: none; }
 .notice { margin: 12px 0 0; color: var(--success); font-size: 13px; }
+.upload-error { margin: 12px 0 0; color: var(--error); font-size: 13px; }
 .section-title { display: flex; align-items: end; justify-content: space-between; margin-bottom: 16px; }
 .section-title .eyebrow { margin-bottom: 4px; }
 .section-title a { display: flex; align-items: center; gap: 5px; color: var(--secondary); font-size: 13px; font-weight: 650; }
@@ -129,7 +153,7 @@ function upload(event: Event) {
 .book-cover.clay { background: var(--secondary); }.book-cover.charcoal { background: #454848; }.book-cover.sage { background: #597166; }
 .article-main { min-width: 0; flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 8px; }
 .article-meta { display: flex; align-items: center; gap: 8px; color: var(--ink-muted); font-size: 11px; }
-.article-main h3 { margin: 0; color: var(--ink); font-size: 19px; line-height: 1.35; }
+.article-main h3 { min-width: 0; max-width: 100%; display: -webkit-box; overflow: hidden; margin: 0; color: var(--ink); font-size: 19px; line-height: 1.35; overflow-wrap: anywhere; word-break: break-word; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .language-badge { width: fit-content; min-height: 22px; display: inline-flex; align-items: center; padding: 0 7px; border-radius: 4px; color: var(--secondary); background: var(--secondary-soft); font-size: 10px; font-weight: 750; text-transform: lowercase; }
 .insights-column { position: sticky; top: 24px; display: grid; gap: 14px; }
 .review-card { padding: 24px; border-radius: 8px; color: white; background: var(--primary); }
