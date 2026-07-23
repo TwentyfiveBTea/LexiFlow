@@ -1,12 +1,13 @@
 <script setup lang="ts">
-import { BookOpen, GraduationCap, MoreVertical, Plus, Search, Trash2, TrendingUp, X } from 'lucide-vue-next'
-import { computed, ref } from 'vue'
+import { BookOpen, GraduationCap, MoreVertical, Plus, RefreshCw, Search, Trash2, TrendingUp, X } from 'lucide-vue-next'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { collections } from '@/data/demo'
 import type { VocabularyCollection } from '@/data/demo'
 import AppSelect from '@/components/AppSelect.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
-import { deleteVocabLibrary } from '@/lib/api'
+import { createVocabLibrary, deleteVocabLibrary, getVocabLibraries, getVocabLibraryStatistics } from '@/lib/api'
+import type { VocabLibraryResponse, VocabLibraryStatisticsResponse } from '@/lib/api'
 
 const router = useRouter()
 const query = ref('')
@@ -21,12 +22,15 @@ const newName = ref('')
 const newLanguage = ref<'en' | 'ja'>('en')
 const newDescription = ref('')
 const selectedCollection = ref<VocabularyCollection | null>(null)
-const createdCollections = ref<VocabularyCollection[]>([])
+const collectionItems = ref<VocabularyCollection[]>([...collections])
 const deletedCollectionIds = ref<string[]>([])
 const deleteError = ref('')
 const deleteDialogOpen = ref(false)
-const allCollections = computed(() => [...collections, ...createdCollections.value]
-  .filter((item) => !deletedCollectionIds.value.includes(item.libraryId)))
+const loading = ref(true)
+const loadError = ref('')
+const usingDemoData = ref(false)
+const createError = ref('')
+const allCollections = computed(() => collectionItems.value.filter((item) => !deletedCollectionIds.value.includes(item.libraryId)))
 const filtered = computed(() => {
   const keyword = query.value.trim().toLowerCase()
   return allCollections.value.filter((item) => {
@@ -67,6 +71,55 @@ function formatDate(value: string) {
   return dateFormatter.format(new Date(value))
 }
 
+function mapStatistics(value: VocabLibraryStatisticsResponse | null, wordCount: number): VocabularyCollection['statistics'] {
+  return value ? {
+    totalCount: value.totalCount,
+    newCount: value.newCount,
+    learningCount: value.learningCount,
+    masteredCount: value.masteredCount,
+    dueCount: value.dueCount,
+  } : { totalCount: wordCount, newCount: 0, learningCount: 0, masteredCount: 0, dueCount: 0 }
+}
+
+async function mapLibrary(library: VocabLibraryResponse, index: number): Promise<VocabularyCollection> {
+  let statistics: VocabLibraryStatisticsResponse | null = null
+  try {
+    statistics = await getVocabLibraryStatistics(library.libraryId)
+  } catch {
+    // Keep the collection visible even if statistics are temporarily unavailable.
+  }
+  return {
+    libraryId: library.libraryId,
+    name: library.name,
+    languageCode: library.languageCode === 'ja' ? 'ja' : 'en',
+    description: library.description ?? '',
+    wordCount: statistics?.totalCount ?? library.wordCount,
+    createdAt: library.createdAt,
+    updatedAt: library.updatedAt,
+    tone: (['blue', 'clay', 'charcoal', 'sage'] as const)[index % 4],
+    statistics: mapStatistics(statistics, library.wordCount),
+  }
+}
+
+async function loadCollections() {
+  loading.value = true
+  loadError.value = ''
+  usingDemoData.value = false
+  try {
+    const result = await getVocabLibraries()
+    collectionItems.value = await Promise.all(result.map(mapLibrary))
+  } catch {
+    if (import.meta.env.DEV) {
+      usingDemoData.value = true
+    } else {
+      collectionItems.value = []
+      loadError.value = '词汇库加载失败，请稍后重试'
+    }
+  } finally {
+    loading.value = false
+  }
+}
+
 function openCreate() {
   showCreate.value = true
 }
@@ -75,26 +128,36 @@ function closeCreate() {
   showCreate.value = false
 }
 
-function createCollection() {
+async function createCollection() {
   const name = newName.value.trim()
   if (!name) return
 
-  const now = new Date().toISOString()
-  createdCollections.value.push({
-    libraryId: `custom-${Date.now()}`,
-    name,
-    languageCode: newLanguage.value,
-    description: newDescription.value.trim(),
-    wordCount: 0,
-    createdAt: now,
-    updatedAt: now,
-    tone: newLanguage.value === 'ja' ? 'sage' : 'blue',
-    statistics: { totalCount: 0, newCount: 0, learningCount: 0, masteredCount: 0, dueCount: 0 },
-  })
-  newName.value = ''
-  newLanguage.value = 'en'
-  newDescription.value = ''
-  closeCreate()
+  createError.value = ''
+  try {
+    if (usingDemoData.value) {
+      const now = new Date().toISOString()
+      collectionItems.value.push({
+        libraryId: `custom-${Date.now()}`,
+        name,
+        languageCode: newLanguage.value,
+        description: newDescription.value.trim(),
+        wordCount: 0,
+        createdAt: now,
+        updatedAt: now,
+        tone: newLanguage.value === 'ja' ? 'sage' : 'blue',
+        statistics: { totalCount: 0, newCount: 0, learningCount: 0, masteredCount: 0, dueCount: 0 },
+      })
+    } else {
+      const created = await createVocabLibrary({ name, languageCode: newLanguage.value, description: newDescription.value.trim() })
+      collectionItems.value.push(await mapLibrary(created, collectionItems.value.length))
+    }
+    newName.value = ''
+    newLanguage.value = 'en'
+    newDescription.value = ''
+    closeCreate()
+  } catch (error) {
+    createError.value = error instanceof Error ? error.message : '创建词汇库失败'
+  }
 }
 
 function openStatistics(collection: VocabularyCollection) {
@@ -115,7 +178,7 @@ async function confirmDeleteCollection() {
   deleteDialogOpen.value = false
   deleteError.value = ''
   try {
-    if (!import.meta.env.DEV && !collection.libraryId.startsWith('custom-')) {
+    if (!usingDemoData.value && !collection.libraryId.startsWith('custom-')) {
       await deleteVocabLibrary(collection.libraryId)
     }
     deletedCollectionIds.value = [...deletedCollectionIds.value, collection.libraryId]
@@ -124,12 +187,14 @@ async function confirmDeleteCollection() {
     deleteError.value = error instanceof Error ? error.message : '删除词库失败'
   }
 }
+
+onMounted(() => { void loadCollections() })
 </script>
 
 <template>
   <main class="page">
     <header class="page-header fade-in">
-      <div><p class="eyebrow">Repository · Collections</p><h1 class="page-title">词汇库</h1><p class="page-description">分类管理词汇资源，建立深度阅读与学术研究的知识枢纽</p></div>
+      <div><p class="eyebrow">Repository · Collections<span v-if="usingDemoData"> · Demo</span></p><h1 class="page-title">词汇库</h1><p class="page-description">分类管理词汇资源，建立深度阅读与学术研究的知识枢纽</p></div>
       <div class="header-actions">
         <label class="compact-search"><Search :size="17" /><input v-model="query" placeholder="搜索词库" /></label>
         <AppSelect v-model="languageFilter" class="language-select" :options="languageOptions" label="按语言筛选词汇库" menu-width="132px" align="right" />
@@ -137,7 +202,9 @@ async function confirmDeleteCollection() {
       </div>
     </header>
 
-    <section class="collection-grid">
+    <section v-if="loading" class="library-state surface"><RefreshCw :size="20" class="spin" /><p>正在加载词汇库...</p></section>
+    <section v-else-if="loadError" class="library-state surface"><p>{{ loadError }}</p><button class="btn btn-secondary" type="button" @click="loadCollections">重新加载</button></section>
+    <section v-else class="collection-grid">
       <article
         v-for="(collection, index) in filtered"
         :key="collection.libraryId"
@@ -149,7 +216,7 @@ async function confirmDeleteCollection() {
           <span class="collection-cover" :class="collection.tone"><GraduationCap v-if="collection.tone === 'blue'" :size="28" /><TrendingUp v-else-if="collection.tone === 'clay'" :size="28" /><BookOpen v-else :size="28" /></span>
           <div class="collection-actions"><span class="language-badge">{{ collection.languageCode }}</span><button class="icon-btn" :aria-label="`查看 ${collection.name} 统计`" title="查看学习统计" @click.stop="openStatistics(collection)"><MoreVertical :size="19" /></button></div>
         </div>
-        <div class="collection-heading"><h2 class="serif">{{ collection.name }}</h2></div>
+          <div class="collection-heading"><h2 class="serif" :title="collection.name">{{ collection.name }}</h2></div>
         <p class="collection-description">{{ collection.description || '暂无词汇库描述' }}</p>
         <dl class="collection-meta">
           <div><dt>正常词条</dt><dd>{{ collection.wordCount.toLocaleString() }}</dd></div>
@@ -160,6 +227,8 @@ async function confirmDeleteCollection() {
 
       <button class="create-card fade-in" @click="openCreate"><span><Plus :size="25" /></span><strong class="serif">创建新词库</strong><small>建立英语或日语词汇库，整理专属学习资料</small></button>
     </section>
+
+    <p v-if="createError" class="form-message" role="alert">{{ createError }}</p>
 
     <Transition name="dialog">
       <div v-if="showCreate" class="modal-backdrop" @click.self="closeCreate">
@@ -226,7 +295,7 @@ async function confirmDeleteCollection() {
 .collection-cover { width: 60px; height: 68px; display: grid; place-items: center; border-radius: 4px; color: white; background: var(--primary); box-shadow: inset -7px 0 rgba(255,255,255,.09); }
 .collection-cover.clay { background: var(--secondary); }.collection-cover.charcoal { background: #454848; }.collection-cover.sage { background: #597166; }
 .collection-heading { display: flex; align-items: center; gap: 9px; margin-top: 18px; }
-.collection-heading h2 { min-width: 0; margin: 0; overflow: hidden; color: var(--ink); font-size: 21px; text-overflow: ellipsis; white-space: nowrap; }
+.collection-heading h2 { min-width: 0; max-width: 100%; display: -webkit-box; overflow: hidden; min-height: 2.7em; margin: 0; color: var(--ink); font-size: 21px; line-height: 1.35; overflow-wrap: anywhere; word-break: break-word; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .language-badge { flex: 0 0 auto; padding: 3px 6px; border-radius: 4px; color: var(--secondary); background: var(--secondary-soft); font-size: 10px; font-weight: 750; text-transform: lowercase; }
 .collection-description { min-height: 40px; margin: 9px 0 0; display: -webkit-box; overflow: hidden; color: var(--ink-muted); font-size: 12px; line-height: 1.65; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .collection-meta { display: grid; gap: 8px; margin: auto 0 0; padding-top: 16px; border-top: 1px solid rgba(199,196,192,.65); }
@@ -258,6 +327,7 @@ async function confirmDeleteCollection() {
 .distribution-legend { display: grid; grid-template-columns: 1fr 1fr; gap: 7px 18px; margin-top: 12px; }
 .distribution-legend div { min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--ink-muted); font-size: 10px; }.distribution-legend div > span { display: flex; align-items: center; gap: 6px; white-space: nowrap; }.distribution-legend i { width: 7px; height: 7px; flex: 0 0 auto; border-radius: 50%; }.distribution-legend strong { color: var(--ink); font-size: 10px; white-space: nowrap; }
 .delete-error { margin: 14px 0 0; color: var(--error); font-size: 12px; }.modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }.danger-action { margin-right: auto; color: var(--error); border-color: #d7b8b8; }.danger-action:hover { color: #8f3028; border-color: var(--error); background: #f8eaea; }
+.form-message { margin: 14px 0; color: var(--error); font-size: 12px; }.library-state { min-height: 280px; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 10px; color: var(--ink-muted); text-align: center; }.library-state p { margin: 0; font-size: 13px; }.library-state .btn { margin-top: 8px; }.spin { animation: spin 1s linear infinite; }@keyframes spin { to { transform: rotate(360deg); } }
 @media (max-width: 1100px) { .collection-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 800px) { .header-actions { flex-wrap: wrap; justify-content: flex-start; } }
 @media (max-width: 700px) { .header-actions { align-items: stretch; flex-direction: column; }.compact-search, .language-select { width: 100%; }.collection-grid { grid-template-columns: 1fr; } }
