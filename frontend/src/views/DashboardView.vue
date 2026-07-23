@@ -1,15 +1,25 @@
 <script setup lang="ts">
 import { ArrowRight, BookOpen, FileText, Upload } from 'lucide-vue-next'
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { articles } from '@/data/demo'
+import { getTodayDueWordCount } from '@/lib/api'
 import { useSessionStore } from '@/stores/session'
 
 const router = useRouter()
 const session = useSessionStore()
 const fileInput = ref<HTMLInputElement | null>(null)
 const notice = ref('')
+const dueWordCount = ref(24)
 const weekday = computed(() => new Intl.DateTimeFormat('en-US', { weekday: 'long' }).format(new Date()).toUpperCase())
+
+onMounted(async () => {
+  try {
+    dueWordCount.value = await getTodayDueWordCount()
+  } catch {
+    if (!import.meta.env.DEV) dueWordCount.value = 0
+  }
+})
 
 function upload(event: Event) {
   const target = event.target as HTMLInputElement
@@ -55,7 +65,7 @@ function upload(event: Event) {
 
       <aside class="insights-column">
         <article class="review-card fade-in">
-          <p class="eyebrow">Memory deck</p><h2 class="serif">24 个词待复习</h2>
+          <p class="eyebrow">Memory deck</p><h2 class="serif">{{ dueWordCount }} 个词待复习</h2>
           <RouterLink class="btn btn-primary" to="/review">开始复习<ArrowRight :size="16" /></RouterLink>
         </article>
       </aside>

@@ -141,6 +141,11 @@ export async function getDueWords(libraryId?: string) {
   return response.data.data
 }
 
+export async function getTodayDueWordCount() {
+  const response = await api.get<ApiResult<number>>('/vocab/due')
+  return response.data.data
+}
+
 export async function reviewWord(wordId: number, languageCode: 'en' | 'ja', rating: 'UNKNOWN' | 'VAGUE' | 'KNOWN') {
   await api.post<ApiResult<void>>(`/learning/words/${wordId}/review`, { languageCode, rating })
 }
@@ -169,8 +174,16 @@ export async function getVocabLibraries(languageCode: 'en' | 'ja') {
   return response.data.data
 }
 
+export async function deleteVocabLibrary(libraryId: string) {
+  await api.delete<ApiResult<void>>(`/vocab/libraries/${libraryId}`)
+}
+
 export async function addArticleVocabToLibrary(libraryId: string, articleId: string, articleVocabId: string) {
   await api.post<ApiResult<void>>(`/vocab/libraries/${libraryId}/words`, { articleId, articleVocabId })
+}
+
+export async function deleteArticle(articleId: string) {
+  await api.delete<ApiResult<void>>(`/article/${articleId}`)
 }
 
 export async function getRechargeRecords(page: number, pageSize: number) {
