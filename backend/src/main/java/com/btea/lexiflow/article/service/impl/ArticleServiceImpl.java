@@ -28,11 +28,16 @@ import com.btea.lexiflow.vocab.dao.mapper.BizVocabJpMapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.security.MessageDigest;
 import java.util.*;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 import static com.btea.lexiflow.article.constant.ArticleConstant.*;
@@ -58,6 +63,11 @@ public class ArticleServiceImpl implements ArticleService {
     private final CreditReservationService creditReservationService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private final Map<String, Boolean> activeAnalyses = new ConcurrentHashMap<>();
+
+    @Autowired
+    @Qualifier("articleTaskExecutor")
+    private Executor articleTaskExecutor;
 
     /**
      * 上传文章
@@ -159,14 +169,60 @@ public class ArticleServiceImpl implements ArticleService {
             return ArticleAnalyzeRespDTO.builder()
                     .articleId(articleId)
                     .analysisLevel(analysisLevel)
+                    .analysisStatus(ANALYSIS_STATUS_SUCCESS)
                     .reused(true)
                     .matchedWordCount(existingVocabs.size())
                     .vocabs(existingVocabs)
                     .build();
         }
 
+        String analysisKey = articleId + ":" + analysisLevel;
+        if (Integer.valueOf(ANALYSIS_STATUS_PROCESSING).equals(article.getAnalysisStatus())
+                || activeAnalyses.putIfAbsent(analysisKey, Boolean.TRUE) != null) {
+            return acceptedAnalysis(articleId, analysisLevel);
+        }
+
         article.setAnalysisStatus(ANALYSIS_STATUS_PROCESSING);
         bizArticlesMapper.updateById(article);
+        submitAnalysisTask(article, userId, analysisLevel, analysisKey);
+        return acceptedAnalysis(articleId, analysisLevel);
+    }
+
+    private ArticleAnalyzeRespDTO acceptedAnalysis(String articleId, String analysisLevel) {
+        return ArticleAnalyzeRespDTO.builder()
+                .articleId(articleId)
+                .analysisLevel(analysisLevel)
+                .analysisStatus(ANALYSIS_STATUS_PROCESSING)
+                .reused(false)
+                .matchedWordCount(0)
+                .vocabs(List.of())
+                .build();
+    }
+
+    private void submitAnalysisTask(BizArticlesDO article,
+                                    String userId,
+                                    String analysisLevel,
+                                    String analysisKey) {
+        Runnable task = () -> {
+            try {
+                performArticleAnalysis(article, userId, analysisLevel);
+            } finally {
+                activeAnalyses.remove(analysisKey);
+            }
+        };
+        Executor executor = articleTaskExecutor == null ? ForkJoinPool.commonPool() : articleTaskExecutor;
+        try {
+            executor.execute(task);
+        } catch (RuntimeException e) {
+            activeAnalyses.remove(analysisKey);
+            article.setAnalysisStatus(ANALYSIS_STATUS_FAILED);
+            bizArticlesMapper.updateById(article);
+            throw new ClientException(BaseErrorCode.ARTICLE_ANALYSIS_FAILED);
+        }
+    }
+
+    private void performArticleAnalysis(BizArticlesDO article, String userId, String analysisLevel) {
+        String articleId = article.getId();
         try {
             String text = article.getParsedContent();
             if (text == null || text.isBlank()) {
@@ -185,22 +241,14 @@ public class ArticleServiceImpl implements ArticleService {
             List<ArticleVocabRespDTO> vocabs = listArticleVocabs(articleId, userId, analysisLevel, article.getLanguageCode());
             log.info("文章词汇分析成功: userId={}, articleId={}, analysisLevel={}, matchedWordCount={}",
                     userId, articleId, analysisLevel, vocabs.size());
-            return ArticleAnalyzeRespDTO.builder()
-                    .articleId(articleId)
-                    .analysisLevel(analysisLevel)
-                    .reused(false)
-                    .matchedWordCount(vocabs.size())
-                    .vocabs(vocabs)
-                    .build();
         } catch (ClientException e) {
             article.setAnalysisStatus(ANALYSIS_STATUS_FAILED);
             bizArticlesMapper.updateById(article);
-            throw e;
+            log.error("文章词汇分析失败: userId={}, articleId={}, analysisLevel={}", userId, articleId, analysisLevel, e);
         } catch (Exception e) {
             article.setAnalysisStatus(ANALYSIS_STATUS_FAILED);
             bizArticlesMapper.updateById(article);
             log.error("文章词汇分析失败: userId={}, articleId={}, analysisLevel={}", userId, articleId, analysisLevel, e);
-            throw new ClientException(BaseErrorCode.ARTICLE_ANALYSIS_FAILED);
         }
     }
 

@@ -29,6 +29,11 @@ public class ArticleAnalyzeRespDTO {
     private String analysisLevel;
 
     /**
+     * 词汇分析状态：0=待分析, 1=分析中, 2=分析成功, 3=分析失败
+     */
+    private Integer analysisStatus;
+
+    /**
      * 是否复用已有分析结果
      */
     private Boolean reused;
