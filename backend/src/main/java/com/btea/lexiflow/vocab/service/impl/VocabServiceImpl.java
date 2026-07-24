@@ -1,6 +1,7 @@
 package com.btea.lexiflow.vocab.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.btea.lexiflow.article.constant.ArticleConstant;
 import com.btea.lexiflow.article.dao.entity.BizArticlesDO;
 import com.btea.lexiflow.article.dao.entity.RelArticleVocabDO;
@@ -8,17 +9,18 @@ import com.btea.lexiflow.article.dao.mapper.BizArticlesMapper;
 import com.btea.lexiflow.article.dao.mapper.RelArticleVocabMapper;
 import com.btea.lexiflow.article.nlp.ArticleVocabAnalyzer;
 import com.btea.lexiflow.common.context.UserContext;
+import com.btea.lexiflow.common.cache.AfterCommitExecutor;
 import com.btea.lexiflow.common.convention.errorcode.BaseErrorCode;
 import com.btea.lexiflow.common.convention.exception.ClientException;
 import com.btea.lexiflow.learning.dao.entity.RelUserWordProgressDO;
 import com.btea.lexiflow.learning.dao.mapper.RelUserWordProgressMapper;
 import com.btea.lexiflow.vocab.constant.VocabConstant;
-import com.btea.lexiflow.vocab.dao.entity.BizVocabEnDO;
-import com.btea.lexiflow.vocab.dao.entity.BizVocabJpDO;
+import com.btea.lexiflow.vocab.cache.VocabQueryCache;
+import com.btea.lexiflow.vocab.cache.VocabWordCacheEntry;
+import com.btea.lexiflow.vocab.cache.VocabWordCacheLoader;
+import com.btea.lexiflow.vocab.cache.VocabWordLevelCacheEntry;
 import com.btea.lexiflow.vocab.dao.entity.BizVocabLibraryDO;
 import com.btea.lexiflow.vocab.dao.entity.RelVocabLibraryWordDO;
-import com.btea.lexiflow.vocab.dao.mapper.BizVocabEnMapper;
-import com.btea.lexiflow.vocab.dao.mapper.BizVocabJpMapper;
 import com.btea.lexiflow.vocab.dao.mapper.BizVocabLibraryMapper;
 import com.btea.lexiflow.vocab.dao.mapper.RelVocabLibraryWordMapper;
 import com.btea.lexiflow.vocab.dto.req.VocabLibraryCreateReqDTO;
@@ -32,9 +34,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * @Author: TwentyfiveBTea
@@ -50,9 +55,10 @@ public class VocabServiceImpl implements VocabService {
     private final RelUserWordProgressMapper relUserWordProgressMapper;
     private final BizArticlesMapper bizArticlesMapper;
     private final RelArticleVocabMapper relArticleVocabMapper;
-    private final BizVocabEnMapper bizVocabEnMapper;
-    private final BizVocabJpMapper bizVocabJpMapper;
     private final ArticleVocabAnalyzer articleVocabAnalyzer;
+    private final VocabQueryCache vocabQueryCache;
+    private final VocabWordCacheLoader vocabWordCacheLoader;
+    private final AfterCommitExecutor afterCommitExecutor;
 
     /**
      * 创建词汇库
@@ -79,6 +85,7 @@ public class VocabServiceImpl implements VocabService {
             existing.setDescription(reqDTO.getDescription());
             existing.setDeletedAt(null);
             bizVocabLibraryMapper.updateById(existing);
+            invalidateAfterCommit(userId);
             return toLibraryResp(existing, 0L);
         }
         BizVocabLibraryDO library = BizVocabLibraryDO.builder()
@@ -89,6 +96,7 @@ public class VocabServiceImpl implements VocabService {
                 .status(VocabConstant.STATUS_NORMAL)
                 .build();
         bizVocabLibraryMapper.insert(library);
+        invalidateAfterCommit(userId);
         return toLibraryResp(library, 0L);
     }
 
@@ -106,17 +114,24 @@ public class VocabServiceImpl implements VocabService {
         String normalizedLanguage = languageCode == null || languageCode.isBlank()
                 ? null
                 : normalizeLanguage(languageCode);
-        return bizVocabLibraryMapper.selectList(new LambdaQueryWrapper<BizVocabLibraryDO>()
+        long cacheVersion = vocabQueryCache.getUserVersion(userId);
+        List<VocabLibraryRespDTO> libraries = vocabQueryCache.getLibraries(userId, cacheVersion);
+        if (libraries == null) {
+            List<BizVocabLibraryDO> libraryRows = bizVocabLibraryMapper.selectList(new LambdaQueryWrapper<BizVocabLibraryDO>()
                         .eq(BizVocabLibraryDO::getUserId, userId)
                         .eq(BizVocabLibraryDO::getStatus, VocabConstant.STATUS_NORMAL)
-                        .like(!normalizedKeyword.isEmpty(), BizVocabLibraryDO::getName, normalizedKeyword)
-                        .eq(normalizedLanguage != null, BizVocabLibraryDO::getLanguageCode, normalizedLanguage)
-                        .orderByDesc(BizVocabLibraryDO::getCreatedAt))
-                .stream()
-                .map(library -> toLibraryResp(library, relVocabLibraryWordMapper.selectCount(new LambdaQueryWrapper<RelVocabLibraryWordDO>()
-                        .eq(RelVocabLibraryWordDO::getLibraryId, library.getId())
-                        .eq(RelVocabLibraryWordDO::getUserId, userId)
-                        .eq(RelVocabLibraryWordDO::getStatus, VocabConstant.STATUS_NORMAL))))
+                        .orderByDesc(BizVocabLibraryDO::getCreatedAt));
+            Map<String, Long> wordCounts = loadLibraryWordCounts(userId);
+            libraries = libraryRows.stream()
+                    .map(library -> toLibraryResp(library, wordCounts.getOrDefault(library.getId(), 0L)))
+                    .toList();
+            vocabQueryCache.putLibraries(userId, cacheVersion, libraries);
+        }
+        String normalizedKeywordLower = normalizedKeyword.toLowerCase(Locale.ROOT);
+        return libraries.stream()
+                .filter(library -> normalizedLanguage == null || normalizedLanguage.equals(library.getLanguageCode()))
+                .filter(library -> normalizedKeywordLower.isEmpty()
+                        || library.getName().toLowerCase(Locale.ROOT).contains(normalizedKeywordLower))
                 .toList();
     }
 
@@ -139,6 +154,7 @@ public class VocabServiceImpl implements VocabService {
                 .eq(RelVocabLibraryWordDO::getStatus, VocabConstant.STATUS_NORMAL)
                 .set(RelVocabLibraryWordDO::getStatus, VocabConstant.STATUS_DELETED)
                 .set(RelVocabLibraryWordDO::getDeletedAt, new Date()));
+        invalidateAfterCommit(userId);
     }
 
     /**
@@ -197,6 +213,7 @@ public class VocabServiceImpl implements VocabService {
             throw new ClientException(BaseErrorCode.VOCAB_LIBRARY_WORD_EXIST);
         }
         restoreProgress(userId, articleVocab.getWordId(), articleVocab.getLanguageCode());
+        invalidateAfterCommit(userId);
     }
 
     /**
@@ -210,22 +227,34 @@ public class VocabServiceImpl implements VocabService {
     @Override
     public List<VocabLibraryWordRespDTO> listLibraryWords(String libraryId, String keyword, String level) {
         String userId = getCurrentUserId();
-        BizVocabLibraryDO library = getLibrary(libraryId, userId);
+        BizVocabLibraryDO library = getReadableLibrary(libraryId, userId);
         String normalizedKeyword = keyword == null ? "" : keyword.trim().toLowerCase(Locale.ROOT);
         String normalizedLevel = normalizeLevel(library.getLanguageCode(), level);
+        long cacheVersion = vocabQueryCache.getUserVersion(userId);
+        List<VocabLibraryWordRespDTO> cached = vocabQueryCache.getLibraryWords(userId, cacheVersion, libraryId);
+        if (cached != null) {
+            return filterLibraryWords(cached, normalizedKeyword, library.getLanguageCode(), normalizedLevel);
+        }
         List<RelVocabLibraryWordDO> relations = relVocabLibraryWordMapper.selectList(new LambdaQueryWrapper<RelVocabLibraryWordDO>()
                 .eq(RelVocabLibraryWordDO::getLibraryId, libraryId)
                 .eq(RelVocabLibraryWordDO::getUserId, userId)
                 .eq(RelVocabLibraryWordDO::getStatus, VocabConstant.STATUS_NORMAL)
                 .orderByAsc(RelVocabLibraryWordDO::getCreatedAt));
         if (relations.isEmpty()) {
+            vocabQueryCache.putLibraryWords(userId, cacheVersion, libraryId, List.of());
             return List.of();
         }
+        Set<Long> wordIds = relations.stream().map(RelVocabLibraryWordDO::getWordId).collect(Collectors.toSet());
         Set<String> levelWords = loadLevelWords(library.getLanguageCode(), normalizedLevel);
-        return relations.stream()
-                .map(relation -> toWordResp(relation, library.getLanguageCode(), userId))
-                .filter(word -> matchesWord(word, normalizedKeyword, levelWords))
+        Map<Long, VocabWordCacheEntry> wordDetails = vocabWordCacheLoader.loadWords(library.getLanguageCode(), wordIds);
+        Map<Long, VocabWordLevelCacheEntry> wordLevels = vocabWordCacheLoader.loadLevels(
+                userId, library.getLanguageCode(), wordIds, wordDetails);
+        List<VocabLibraryWordRespDTO> words = relations.stream()
+                .map(relation -> toWordResp(relation, library.getLanguageCode(), wordDetails.get(relation.getWordId()),
+                        wordLevels.get(relation.getWordId())))
                 .toList();
+        vocabQueryCache.putLibraryWords(userId, cacheVersion, libraryId, words);
+        return filterLibraryWords(words, normalizedKeyword, levelWords);
     }
 
     /**
@@ -237,7 +266,12 @@ public class VocabServiceImpl implements VocabService {
     @Override
     public VocabLibraryStatisticsRespDTO getLibraryStatistics(String libraryId) {
         String userId = getCurrentUserId();
-        BizVocabLibraryDO library = getLibrary(libraryId, userId);
+        BizVocabLibraryDO library = getReadableLibrary(libraryId, userId);
+        long cacheVersion = vocabQueryCache.getUserVersion(userId);
+        VocabLibraryStatisticsRespDTO cached = vocabQueryCache.getStatistics(userId, cacheVersion, libraryId);
+        if (cached != null) {
+            return cached;
+        }
         List<RelVocabLibraryWordDO> relations = relVocabLibraryWordMapper.selectList(
                 new LambdaQueryWrapper<RelVocabLibraryWordDO>()
                         .eq(RelVocabLibraryWordDO::getLibraryId, libraryId)
@@ -245,7 +279,9 @@ public class VocabServiceImpl implements VocabService {
                         .eq(RelVocabLibraryWordDO::getLanguageCode, library.getLanguageCode())
                         .eq(RelVocabLibraryWordDO::getStatus, VocabConstant.STATUS_NORMAL));
         if (relations.isEmpty()) {
-            return statistics(libraryId, 0, 0, 0, 0, 0);
+            VocabLibraryStatisticsRespDTO result = statistics(libraryId, 0, 0, 0, 0, 0);
+            vocabQueryCache.putStatistics(userId, cacheVersion, libraryId, result);
+            return result;
         }
         List<RelUserWordProgressDO> progresses = relUserWordProgressMapper.selectList(
                 new LambdaQueryWrapper<RelUserWordProgressDO>()
@@ -255,13 +291,15 @@ public class VocabServiceImpl implements VocabService {
                         .in(RelUserWordProgressDO::getWordId,
                                 relations.stream().map(RelVocabLibraryWordDO::getWordId).distinct().toList()));
         Date now = new Date();
-        return statistics(libraryId,
+        VocabLibraryStatisticsRespDTO result = statistics(libraryId,
                 progresses.size(),
                 progresses.stream().filter(progress -> progress.getStatus() == VocabConstant.WORD_STATUS_NEW).count(),
                 progresses.stream().filter(progress -> progress.getStatus() == VocabConstant.WORD_STATUS_LEARNING).count(),
                 progresses.stream().filter(progress -> progress.getStatus() == VocabConstant.WORD_STATUS_MASTERED).count(),
                 progresses.stream().filter(progress -> progress.getNextReviewAt() == null
                         || !progress.getNextReviewAt().after(now)).count());
+        vocabQueryCache.putStatistics(userId, cacheVersion, libraryId, result);
+        return result;
     }
 
     /**
@@ -292,6 +330,7 @@ public class VocabServiceImpl implements VocabService {
         relation.setStatus(VocabConstant.STATUS_DELETED);
         relation.setDeletedAt(new Date());
         relVocabLibraryWordMapper.updateById(relation);
+        invalidateAfterCommit(userId);
     }
 
     /**
@@ -353,6 +392,41 @@ public class VocabServiceImpl implements VocabService {
         return library;
     }
 
+    private BizVocabLibraryDO getReadableLibrary(String libraryId, String userId) {
+        long cacheVersion = vocabQueryCache.getUserVersion(userId);
+        VocabLibraryRespDTO cachedLibrary = vocabQueryCache.getLibrary(userId, cacheVersion, libraryId);
+        if (cachedLibrary != null) {
+            return toLibraryDO(cachedLibrary, userId);
+        }
+        List<VocabLibraryRespDTO> cachedLibraries = vocabQueryCache.getLibraries(userId, cacheVersion);
+        if (cachedLibraries != null) {
+            return cachedLibraries.stream()
+                    .filter(library -> libraryId.equals(library.getLibraryId()))
+                    .findFirst()
+                    .map(library -> {
+                        vocabQueryCache.putLibrary(userId, cacheVersion, library);
+                        return toLibraryDO(library, userId);
+                    })
+                    .orElseThrow(() -> new ClientException(BaseErrorCode.VOCAB_LIBRARY_NOT_FOUND));
+        }
+        BizVocabLibraryDO library = getLibrary(libraryId, userId);
+        vocabQueryCache.putLibrary(userId, cacheVersion, toLibraryResp(library, 0L));
+        return library;
+    }
+
+    private BizVocabLibraryDO toLibraryDO(VocabLibraryRespDTO library, String userId) {
+        return BizVocabLibraryDO.builder()
+                .id(library.getLibraryId())
+                .userId(userId)
+                .name(library.getName())
+                .languageCode(library.getLanguageCode())
+                .description(library.getDescription())
+                .status(VocabConstant.STATUS_NORMAL)
+                .createdAt(library.getCreatedAt())
+                .updatedAt(library.getUpdatedAt())
+                .build();
+    }
+
     private VocabLibraryRespDTO toLibraryResp(BizVocabLibraryDO library, long wordCount) {
         return VocabLibraryRespDTO.builder()
                 .libraryId(library.getId())
@@ -365,48 +439,56 @@ public class VocabServiceImpl implements VocabService {
                 .build();
     }
 
-    private VocabLibraryWordRespDTO toWordResp(RelVocabLibraryWordDO relation, String languageCode, String userId) {
+    private VocabLibraryWordRespDTO toWordResp(RelVocabLibraryWordDO relation, String languageCode,
+                                               VocabWordCacheEntry word, VocabWordLevelCacheEntry level) {
         VocabLibraryWordRespDTO.VocabLibraryWordRespDTOBuilder builder = VocabLibraryWordRespDTO.builder()
                 .libraryWordId(relation.getId())
                 .wordId(relation.getWordId())
                 .languageCode(languageCode)
-                .level(resolveWordLevel(relation, languageCode, userId))
+                .level(level == null ? null : level.level())
                 .addedAt(relation.getCreatedAt());
-        if ("ja".equals(languageCode)) {
-            BizVocabJpDO word = bizVocabJpMapper.selectById(relation.getWordId());
-            if (word != null) {
-                builder.word(word.getWord())
-                        .kana(word.getKana())
-                        .translations(word.getTranslations());
-            }
-        } else {
-            BizVocabEnDO word = bizVocabEnMapper.selectById(relation.getWordId());
-            if (word != null) {
-                builder.word(word.getWord())
-                        .us(word.getUs())
-                        .uk(word.getUk())
-                        .translations(word.getTranslations());
-            }
+        if (word != null) {
+            builder.word(word.word())
+                    .kana(word.kana())
+                    .us(word.us())
+                    .uk(word.uk())
+                    .translations(word.translations());
         }
         return builder.build();
     }
 
-    private String resolveWordLevel(RelVocabLibraryWordDO relation, String languageCode, String userId) {
-        RelArticleVocabDO source = relArticleVocabMapper.selectOne(new LambdaQueryWrapper<RelArticleVocabDO>()
-                .eq(RelArticleVocabDO::getUserId, userId)
-                .eq(RelArticleVocabDO::getWordId, relation.getWordId())
-                .eq(RelArticleVocabDO::getLanguageCode, languageCode)
-                .orderByDesc(RelArticleVocabDO::getCreatedAt)
-                .last("LIMIT 1"));
-        if (source != null && source.getAnalysisLevel() != null && !source.getAnalysisLevel().isBlank()) {
-            return source.getAnalysisLevel();
+    private List<VocabLibraryWordRespDTO> filterLibraryWords(List<VocabLibraryWordRespDTO> words,
+                                                              String keyword, String languageCode, String level) {
+        Set<String> levelWords = loadLevelWords(languageCode, level);
+        return filterLibraryWords(words, keyword, levelWords);
+    }
+
+    private List<VocabLibraryWordRespDTO> filterLibraryWords(List<VocabLibraryWordRespDTO> words,
+                                                              String keyword, Set<String> levelWords) {
+        return words.stream()
+                .filter(word -> matchesWord(word, keyword, levelWords))
+                .toList();
+    }
+
+    private Map<String, Long> loadLibraryWordCounts(String userId) {
+        Map<String, Long> result = new HashMap<>();
+        List<Map<String, Object>> rows = relVocabLibraryWordMapper.selectMaps(new QueryWrapper<RelVocabLibraryWordDO>()
+                .select("library_id", "COUNT(*) AS word_count")
+                .eq("user_id", userId)
+                .eq("status", VocabConstant.STATUS_NORMAL)
+                .groupBy("library_id"));
+        for (Map<String, Object> row : rows) {
+            Object libraryId = row.getOrDefault("library_id", row.get("libraryId"));
+            Object count = row.getOrDefault("word_count", row.get("wordCount"));
+            if (libraryId != null && count instanceof Number number) {
+                result.put(String.valueOf(libraryId), number.longValue());
+            }
         }
-        if ("ja".equals(languageCode)) {
-            BizVocabJpDO word = bizVocabJpMapper.selectById(relation.getWordId());
-            return word == null ? null : articleVocabAnalyzer.findLevel(languageCode, word.getWord());
-        }
-        BizVocabEnDO word = bizVocabEnMapper.selectById(relation.getWordId());
-        return word == null ? null : articleVocabAnalyzer.findLevel(languageCode, word.getWord());
+        return result;
+    }
+
+    private void invalidateAfterCommit(String userId) {
+        afterCommitExecutor.execute(() -> vocabQueryCache.invalidateUser(userId));
     }
 
     private String normalizeLevel(String languageCode, String level) {
