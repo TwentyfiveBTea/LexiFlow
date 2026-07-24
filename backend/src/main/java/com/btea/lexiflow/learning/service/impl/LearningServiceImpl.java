@@ -4,19 +4,19 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.btea.lexiflow.common.context.UserContext;
 import com.btea.lexiflow.common.convention.errorcode.BaseErrorCode;
 import com.btea.lexiflow.common.convention.exception.ClientException;
-import com.btea.lexiflow.article.nlp.ArticleVocabAnalyzer;
+import com.btea.lexiflow.common.cache.AfterCommitExecutor;
 import com.btea.lexiflow.learning.dao.entity.RelUserWordProgressDO;
 import com.btea.lexiflow.learning.dao.mapper.RelUserWordProgressMapper;
 import com.btea.lexiflow.learning.dto.req.WordReviewReqDTO;
 import com.btea.lexiflow.learning.dto.resp.DueWordRespDTO;
 import com.btea.lexiflow.learning.service.LearningService;
 import com.btea.lexiflow.vocab.constant.VocabConstant;
-import com.btea.lexiflow.vocab.dao.entity.BizVocabEnDO;
-import com.btea.lexiflow.vocab.dao.entity.BizVocabJpDO;
+import com.btea.lexiflow.vocab.cache.VocabQueryCache;
+import com.btea.lexiflow.vocab.cache.VocabWordCacheEntry;
+import com.btea.lexiflow.vocab.cache.VocabWordCacheLoader;
+import com.btea.lexiflow.vocab.cache.VocabWordLevelCacheEntry;
 import com.btea.lexiflow.vocab.dao.entity.BizVocabLibraryDO;
 import com.btea.lexiflow.vocab.dao.entity.RelVocabLibraryWordDO;
-import com.btea.lexiflow.vocab.dao.mapper.BizVocabEnMapper;
-import com.btea.lexiflow.vocab.dao.mapper.BizVocabJpMapper;
 import com.btea.lexiflow.vocab.dao.mapper.BizVocabLibraryMapper;
 import com.btea.lexiflow.vocab.dao.mapper.RelVocabLibraryWordMapper;
 import lombok.RequiredArgsConstructor;
@@ -25,11 +25,14 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.util.LinkedHashMap;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * @Author: TwentyfiveBTea
@@ -43,9 +46,9 @@ public class LearningServiceImpl implements LearningService {
     private final RelUserWordProgressMapper progressMapper;
     private final RelVocabLibraryWordMapper libraryWordMapper;
     private final BizVocabLibraryMapper libraryMapper;
-    private final BizVocabEnMapper vocabEnMapper;
-    private final BizVocabJpMapper vocabJpMapper;
-    private final ArticleVocabAnalyzer articleVocabAnalyzer;
+    private final VocabQueryCache vocabQueryCache;
+    private final VocabWordCacheLoader vocabWordCacheLoader;
+    private final AfterCommitExecutor afterCommitExecutor;
 
     /**
      * 获取当前用户指定词汇库的待复习单词列表
@@ -73,7 +76,7 @@ public class LearningServiceImpl implements LearningService {
                         relation -> relation,
                         (first, ignored) -> first,
                         LinkedHashMap::new));
-        return progressMapper.selectList(new LambdaQueryWrapper<RelUserWordProgressDO>()
+        List<RelUserWordProgressDO> progresses = progressMapper.selectList(new LambdaQueryWrapper<RelUserWordProgressDO>()
                         .eq(RelUserWordProgressDO::getUserId, userId)
                         .eq(RelUserWordProgressDO::getLanguageCode, library.getLanguageCode())
                         .eq(RelUserWordProgressDO::getLibraryStatus, VocabConstant.STATUS_NORMAL)
@@ -82,11 +85,8 @@ public class LearningServiceImpl implements LearningService {
                         .and(q -> q.isNull(RelUserWordProgressDO::getNextReviewAt)
                                 .or()
                                 .le(RelUserWordProgressDO::getNextReviewAt, new Date()))
-                        .orderByAsc(RelUserWordProgressDO::getNextReviewAt))
-                .stream()
-                .filter(progress -> relationsByWord.containsKey(progress.getLanguageCode() + ":" + progress.getWordId()))
-                .map(progress -> toDueResp(progress, relationsByWord.get(progress.getLanguageCode() + ":" + progress.getWordId())))
-                .toList();
+                        .orderByAsc(RelUserWordProgressDO::getNextReviewAt));
+        return toDueResponses(userId, progresses, relationsByWord);
     }
 
     @Override
@@ -105,7 +105,7 @@ public class LearningServiceImpl implements LearningService {
                         relation -> relation,
                         (first, ignored) -> first,
                         LinkedHashMap::new));
-        return progressMapper.selectList(new LambdaQueryWrapper<RelUserWordProgressDO>()
+        List<RelUserWordProgressDO> progresses = progressMapper.selectList(new LambdaQueryWrapper<RelUserWordProgressDO>()
                         .eq(RelUserWordProgressDO::getUserId, userId)
                         .eq(RelUserWordProgressDO::getLibraryStatus, VocabConstant.STATUS_NORMAL)
                         .in(RelUserWordProgressDO::getWordId,
@@ -113,11 +113,8 @@ public class LearningServiceImpl implements LearningService {
                         .and(q -> q.isNull(RelUserWordProgressDO::getNextReviewAt)
                                 .or()
                                 .le(RelUserWordProgressDO::getNextReviewAt, new Date()))
-                        .orderByAsc(RelUserWordProgressDO::getNextReviewAt))
-                .stream()
-                .filter(progress -> relationsByWord.containsKey(progress.getLanguageCode() + ":" + progress.getWordId()))
-                .map(progress -> toDueResp(progress, relationsByWord.get(progress.getLanguageCode() + ":" + progress.getWordId())))
-                .toList();
+                        .orderByAsc(RelUserWordProgressDO::getNextReviewAt));
+        return toDueResponses(userId, progresses, relationsByWord);
     }
 
     /**
@@ -162,6 +159,7 @@ public class LearningServiceImpl implements LearningService {
         progress.setStatus(quality == 5 && reviewCount >= VocabConstant.MASTERED_REVIEW_COUNT
                 ? VocabConstant.WORD_STATUS_MASTERED : VocabConstant.WORD_STATUS_LEARNING);
         progressMapper.updateById(progress);
+        afterCommitExecutor.execute(() -> vocabQueryCache.invalidateUser(userId));
     }
 
     /**
@@ -200,28 +198,42 @@ public class LearningServiceImpl implements LearningService {
      * @param progress 用户单词学习进度
      * @return 待复习单词响应参数
      */
-    private DueWordRespDTO toDueResp(RelUserWordProgressDO progress, RelVocabLibraryWordDO relation) {
+    private List<DueWordRespDTO> toDueResponses(String userId, List<RelUserWordProgressDO> progresses,
+                                                 Map<String, RelVocabLibraryWordDO> relationsByWord) {
+        Map<String, Set<Long>> wordIdsByLanguage = progresses.stream()
+                .collect(Collectors.groupingBy(RelUserWordProgressDO::getLanguageCode,
+                        Collectors.mapping(RelUserWordProgressDO::getWordId, Collectors.toSet())));
+        Map<String, Map<Long, VocabWordCacheEntry>> wordsByLanguage = new HashMap<>();
+        Map<String, Map<Long, VocabWordLevelCacheEntry>> levelsByLanguage = new HashMap<>();
+        wordIdsByLanguage.forEach((languageCode, wordIds) -> {
+            Map<Long, VocabWordCacheEntry> words = vocabWordCacheLoader.loadWords(languageCode, wordIds);
+            wordsByLanguage.put(languageCode, words);
+            levelsByLanguage.put(languageCode,
+                    vocabWordCacheLoader.loadLevels(userId, languageCode, wordIds, words));
+        });
+        return progresses.stream()
+                .filter(progress -> relationsByWord.containsKey(progress.getLanguageCode() + ":" + progress.getWordId()))
+                .map(progress -> toDueResp(
+                        progress,
+                        relationsByWord.get(progress.getLanguageCode() + ":" + progress.getWordId()),
+                        wordsByLanguage.getOrDefault(progress.getLanguageCode(), Map.of()).get(progress.getWordId()),
+                        levelsByLanguage.getOrDefault(progress.getLanguageCode(), Map.of()).get(progress.getWordId())))
+                .toList();
+    }
+
+    private DueWordRespDTO toDueResp(RelUserWordProgressDO progress, RelVocabLibraryWordDO relation,
+                                     VocabWordCacheEntry word, VocabWordLevelCacheEntry level) {
         DueWordRespDTO.DueWordRespDTOBuilder builder = DueWordRespDTO.builder()
                 .libraryWordId(relation == null ? null : relation.getId())
                 .wordId(progress.getWordId())
-                .languageCode(progress.getLanguageCode());
-        if ("ja".equals(progress.getLanguageCode())) {
-            BizVocabJpDO word = vocabJpMapper.selectById(progress.getWordId());
-            if (word != null) {
-                builder.word(word.getWord())
-                        .level(articleVocabAnalyzer.findLevel(progress.getLanguageCode(), word.getWord()))
-                        .kana(word.getKana())
-                        .translations(word.getTranslations());
-            }
-        } else {
-            BizVocabEnDO word = vocabEnMapper.selectById(progress.getWordId());
-            if (word != null) {
-                builder.word(word.getWord())
-                        .level(articleVocabAnalyzer.findLevel(progress.getLanguageCode(), word.getWord()))
-                        .us(word.getUs())
-                        .uk(word.getUk())
-                        .translations(word.getTranslations());
-            }
+                .languageCode(progress.getLanguageCode())
+                .level(level == null ? null : level.level());
+        if (word != null) {
+            builder.word(word.word())
+                    .kana(word.kana())
+                    .us(word.us())
+                    .uk(word.uk())
+                    .translations(word.translations());
         }
         return builder.build();
     }
