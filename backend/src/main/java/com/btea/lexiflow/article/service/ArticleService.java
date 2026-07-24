@@ -54,6 +54,13 @@ public interface ArticleService {
     List<ArticleListRespDTO> listArticles(String keyword, String languageCode);
 
     /**
+     * 获取当前用户最近创建的文章
+     *
+     * @return 最近文章列表
+     */
+    List<ArticleListRespDTO> listRecentArticles();
+
+    /**
      * 获取文章处理详情
      *
      * @param articleId 文章ID

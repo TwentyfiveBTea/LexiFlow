@@ -1,5 +1,6 @@
 package com.btea.lexiflow.article.service.impl;
 
+import com.btea.lexiflow.article.cache.ArticleQueryCache;
 import com.btea.lexiflow.article.dao.entity.BizArticlesDO;
 import com.btea.lexiflow.article.dao.mapper.BizArticlesMapper;
 import com.btea.lexiflow.article.document.ArticleLanguageDetector;
@@ -44,6 +45,7 @@ public class ArticleProcessingServiceImpl implements ArticleProcessingService {
     private final ArticleTranslationService articleTranslationService;
     private final S3Util s3Util;
     private final CreditReservationService creditReservationService;
+    private final ArticleQueryCache articleQueryCache;
 
     /**
      * 异步处理已上传文章
@@ -92,7 +94,7 @@ public class ArticleProcessingServiceImpl implements ArticleProcessingService {
                 article.setTranslatedAt(new Date());
             }
             bizArticlesMapper.updateById(article);
-            registerCreditSettlementAfterCommit(context.processingNo());
+            registerAfterCommit(context.processingNo(), article.getUserId(), article.getId());
             log.info("文章异步处理完成: userId={}, articleId={}, languageCode={}, wordCount={}, charCount={}, translationStatus={}",
                     article.getUserId(), article.getId(), languageCode, article.getWordCount(), article.getCharCount(), article.getTranslationStatus());
         } catch (ClientException e) {
@@ -121,15 +123,19 @@ public class ArticleProcessingServiceImpl implements ArticleProcessingService {
         return translationResult;
     }
 
-    private void registerCreditSettlementAfterCommit(String processingNo) {
+    private void registerAfterCommit(String processingNo, String userId, String articleId) {
         if (!TransactionSynchronizationManager.isSynchronizationActive()) {
             creditReservationService.settle(processingNo);
+            articleQueryCache.invalidateUser(userId);
+            articleQueryCache.invalidateArticle(userId, articleId);
             return;
         }
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {
                 creditReservationService.settle(processingNo);
+                articleQueryCache.invalidateUser(userId);
+                articleQueryCache.invalidateArticle(userId, articleId);
             }
         });
     }

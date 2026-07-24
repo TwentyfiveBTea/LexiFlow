@@ -8,6 +8,7 @@ import com.btea.lexiflow.article.dao.entity.RelArticleVocabOccurrenceDO;
 import com.btea.lexiflow.article.dao.mapper.BizArticlesMapper;
 import com.btea.lexiflow.article.dao.mapper.RelArticleVocabMapper;
 import com.btea.lexiflow.article.dao.mapper.RelArticleVocabOccurrenceMapper;
+import com.btea.lexiflow.article.cache.ArticleQueryCache;
 import com.btea.lexiflow.article.dto.req.ArticleAnalyzeReqDTO;
 import com.btea.lexiflow.article.dto.resp.*;
 import com.btea.lexiflow.article.nlp.ArticleVocabAnalyzer;
@@ -21,10 +22,9 @@ import com.btea.lexiflow.common.convention.exception.ClientException;
 import com.btea.lexiflow.infrastructure.s3.S3Util;
 import com.btea.lexiflow.pay.model.AiProcessingContext;
 import com.btea.lexiflow.pay.service.CreditReservationService;
-import com.btea.lexiflow.vocab.dao.entity.BizVocabEnDO;
-import com.btea.lexiflow.vocab.dao.entity.BizVocabJpDO;
-import com.btea.lexiflow.vocab.dao.mapper.BizVocabEnMapper;
-import com.btea.lexiflow.vocab.dao.mapper.BizVocabJpMapper;
+import com.btea.lexiflow.vocab.cache.VocabQueryCache;
+import com.btea.lexiflow.vocab.cache.VocabWordCacheEntry;
+import com.btea.lexiflow.vocab.cache.VocabWordCacheLoader;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -55,12 +55,13 @@ public class ArticleServiceImpl implements ArticleService {
     private final BizArticlesMapper bizArticlesMapper;
     private final RelArticleVocabMapper relArticleVocabMapper;
     private final RelArticleVocabOccurrenceMapper relArticleVocabOccurrenceMapper;
-    private final BizVocabEnMapper bizVocabEnMapper;
-    private final BizVocabJpMapper bizVocabJpMapper;
     private final S3Util s3Util;
     private final ArticleVocabAnalyzer articleVocabAnalyzer;
     private final ArticleProcessingService articleProcessingService;
     private final CreditReservationService creditReservationService;
+    private final ArticleQueryCache articleQueryCache;
+    private final VocabQueryCache vocabQueryCache;
+    private final VocabWordCacheLoader vocabWordCacheLoader;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final Map<String, Boolean> activeAnalyses = new ConcurrentHashMap<>();
@@ -162,7 +163,7 @@ public class ArticleServiceImpl implements ArticleService {
             throw new ClientException(BaseErrorCode.ARTICLE_PARSE_FAILED);
         }
 
-        List<ArticleVocabRespDTO> existingVocabs = listArticleVocabs(articleId, userId, analysisLevel, article.getLanguageCode());
+        List<ArticleVocabRespDTO> existingVocabs = listArticleVocabs(articleId, analysisLevel);
         if (!existingVocabs.isEmpty()) {
             log.info("复用文章词汇分析结果: userId={}, articleId={}, analysisLevel={}, matchedWordCount={}",
                     userId, articleId, analysisLevel, existingVocabs.size());
@@ -184,6 +185,7 @@ public class ArticleServiceImpl implements ArticleService {
 
         article.setAnalysisStatus(ANALYSIS_STATUS_PROCESSING);
         bizArticlesMapper.updateById(article);
+        articleQueryCache.invalidateArticle(userId, articleId);
         submitAnalysisTask(article, userId, analysisLevel, analysisKey);
         return acceptedAnalysis(articleId, analysisLevel);
     }
@@ -217,6 +219,7 @@ public class ArticleServiceImpl implements ArticleService {
             activeAnalyses.remove(analysisKey);
             article.setAnalysisStatus(ANALYSIS_STATUS_FAILED);
             bizArticlesMapper.updateById(article);
+            articleQueryCache.invalidateArticle(userId, article.getId());
             throw new ClientException(BaseErrorCode.ARTICLE_ANALYSIS_FAILED);
         }
     }
@@ -237,6 +240,10 @@ public class ArticleServiceImpl implements ArticleService {
             article.setAnalysisStatus(ANALYSIS_STATUS_SUCCESS);
             article.setAnalyzedAt(new Date());
             bizArticlesMapper.updateById(article);
+            articleQueryCache.invalidateArticle(userId, articleId);
+            vocabQueryCache.invalidateWordLevels(userId, article.getLanguageCode(), matches.stream()
+                    .map(ArticleVocabMatch::getWordId)
+                    .collect(Collectors.toSet()));
 
             List<ArticleVocabRespDTO> vocabs = listArticleVocabs(articleId, userId, analysisLevel, article.getLanguageCode());
             log.info("文章词汇分析成功: userId={}, articleId={}, analysisLevel={}, matchedWordCount={}",
@@ -244,10 +251,12 @@ public class ArticleServiceImpl implements ArticleService {
         } catch (ClientException e) {
             article.setAnalysisStatus(ANALYSIS_STATUS_FAILED);
             bizArticlesMapper.updateById(article);
+            articleQueryCache.invalidateArticle(userId, articleId);
             log.error("文章词汇分析失败: userId={}, articleId={}, analysisLevel={}", userId, articleId, analysisLevel, e);
         } catch (Exception e) {
             article.setAnalysisStatus(ANALYSIS_STATUS_FAILED);
             bizArticlesMapper.updateById(article);
+            articleQueryCache.invalidateArticle(userId, articleId);
             log.error("文章词汇分析失败: userId={}, articleId={}, analysisLevel={}", userId, articleId, analysisLevel, e);
         }
     }
@@ -261,9 +270,13 @@ public class ArticleServiceImpl implements ArticleService {
     @Override
     public ArticleDetailRespDTO getArticleDetail(String articleId) {
         String userId = getCurrentUserId();
+        long cacheVersion = articleQueryCache.getArticleVersion(userId, articleId);
+        ArticleDetailRespDTO cached = articleQueryCache.getArticleDetail(userId, articleId, cacheVersion);
+        if (cached != null) {
+            return cached;
+        }
         BizArticlesDO article = getUserArticle(articleId, userId);
-        log.info("获取文章详情成功: userId={}, articleId={}", userId, articleId);
-        return ArticleDetailRespDTO.builder()
+        ArticleDetailRespDTO result = ArticleDetailRespDTO.builder()
                 .articleId(article.getId())
                 .title(article.getTitle())
                 .parsedContent(article.getParsedContent())
@@ -272,6 +285,9 @@ public class ArticleServiceImpl implements ArticleService {
                 .charCount(article.getCharCount())
                 .createdAt(article.getCreatedAt())
                 .build();
+        articleQueryCache.putArticleDetail(userId, articleId, cacheVersion, result);
+        log.info("获取文章详情成功: userId={}, articleId={}", userId, articleId);
+        return result;
     }
 
     /**
@@ -286,14 +302,46 @@ public class ArticleServiceImpl implements ArticleService {
         String userId = getCurrentUserId();
         String normalizedKeyword = keyword == null ? "" : keyword.trim();
         String normalizedLanguage = normalizeOptionalLanguage(languageCode);
-        List<BizArticlesDO> articles = bizArticlesMapper.selectList(new LambdaQueryWrapper<BizArticlesDO>()
+        long cacheVersion = articleQueryCache.getUserVersion(userId);
+        List<ArticleListRespDTO> articles = articleQueryCache.getArticleList(userId, cacheVersion);
+        if (articles == null) {
+            articles = queryArticleList(userId);
+            articleQueryCache.putArticleList(userId, cacheVersion, articles);
+        }
+        String normalizedKeywordLower = normalizedKeyword.toLowerCase(Locale.ROOT);
+        return articles.stream()
+                .filter(each -> normalizedLanguage == null || normalizedLanguage.equals(each.getLanguageCode()))
+                .filter(each -> normalizedKeywordLower.isEmpty()
+                        || Optional.ofNullable(each.getTitle()).orElse("").toLowerCase(Locale.ROOT).contains(normalizedKeywordLower))
+                .toList();
+    }
+
+    @Override
+    public List<ArticleListRespDTO> listRecentArticles() {
+        String userId = getCurrentUserId();
+        long cacheVersion = articleQueryCache.getUserVersion(userId);
+        List<ArticleListRespDTO> cached = articleQueryCache.getRecentArticles(userId, cacheVersion);
+        if (cached != null) {
+            return cached;
+        }
+        List<ArticleListRespDTO> recent = queryArticleList(userId, 2);
+        articleQueryCache.putRecentArticles(userId, cacheVersion, recent);
+        return recent;
+    }
+
+    private List<ArticleListRespDTO> queryArticleList(String userId) {
+        return queryArticleList(userId, null);
+    }
+
+    private List<ArticleListRespDTO> queryArticleList(String userId, Integer limit) {
+        LambdaQueryWrapper<BizArticlesDO> query = new LambdaQueryWrapper<BizArticlesDO>()
                 .eq(BizArticlesDO::getUserId, userId)
                 .eq(BizArticlesDO::getStatus, STATUS_NORMAL)
-                .like(!normalizedKeyword.isEmpty(), BizArticlesDO::getTitle, normalizedKeyword)
-                .eq(normalizedLanguage != null, BizArticlesDO::getLanguageCode, normalizedLanguage)
-                .orderByDesc(BizArticlesDO::getCreatedAt));
-        log.info("获取文章列表成功: userId={}, articleCount={}", userId, articles.size());
-        return articles.stream()
+                .orderByDesc(BizArticlesDO::getCreatedAt);
+        if (limit != null) {
+            query.last("LIMIT " + limit);
+        }
+        return bizArticlesMapper.selectList(query).stream()
                 .map(each -> ArticleListRespDTO.builder()
                         .articleId(each.getId())
                         .title(each.getTitle())
@@ -301,7 +349,7 @@ public class ArticleServiceImpl implements ArticleService {
                         .wordCount(each.getWordCount())
                         .createdAt(each.getCreatedAt())
                         .build())
-                .collect(Collectors.toList());
+                .toList();
     }
 
     /**
@@ -313,8 +361,13 @@ public class ArticleServiceImpl implements ArticleService {
     @Override
     public ArticleProcessingDetailRespDTO getArticleProcessingDetail(String articleId) {
         String userId = getCurrentUserId();
+        long cacheVersion = articleQueryCache.getArticleVersion(userId, articleId);
+        ArticleProcessingDetailRespDTO cached = articleQueryCache.getProcessingDetail(userId, articleId, cacheVersion);
+        if (cached != null) {
+            return cached;
+        }
         BizArticlesDO article = getUserArticle(articleId, userId);
-        return ArticleProcessingDetailRespDTO.builder()
+        ArticleProcessingDetailRespDTO result = ArticleProcessingDetailRespDTO.builder()
                 .wordCount(article.getWordCount())
                 .parseStatus(article.getParseStatus())
                 .translationStatus(article.getTranslationStatus())
@@ -323,6 +376,8 @@ public class ArticleServiceImpl implements ArticleService {
                 .translatedAt(article.getTranslatedAt())
                 .analyzedAt(article.getAnalyzedAt())
                 .build();
+        articleQueryCache.putProcessingDetail(userId, articleId, cacheVersion, result);
+        return result;
     }
 
     /**
@@ -335,8 +390,16 @@ public class ArticleServiceImpl implements ArticleService {
     @Override
     public List<ArticleVocabRespDTO> listArticleVocabs(String articleId, String analysisLevel) {
         String userId = getCurrentUserId();
-        BizArticlesDO article = getUserArticle(articleId, userId);
-        List<ArticleVocabRespDTO> vocabs = listArticleVocabs(articleId, userId, analysisLevel.trim().toUpperCase(Locale.ROOT), article.getLanguageCode());
+        ArticleDetailRespDTO article = getArticleDetail(articleId);
+        String normalizedLevel = analysisLevel.trim().toUpperCase(Locale.ROOT);
+        long cacheVersion = articleQueryCache.getArticleVersion(userId, articleId);
+        List<ArticleVocabRespDTO> cached = articleQueryCache.getArticleVocabs(
+                userId, articleId, cacheVersion, normalizedLevel);
+        if (cached != null) {
+            return cached;
+        }
+        List<ArticleVocabRespDTO> vocabs = listArticleVocabs(articleId, userId, normalizedLevel, article.getLanguageCode());
+        articleQueryCache.putArticleVocabs(userId, articleId, cacheVersion, normalizedLevel, vocabs);
         log.info("获取文章命中词汇列表成功: userId={}, articleId={}, analysisLevel={}, vocabCount={}",
                 userId, articleId, analysisLevel, vocabs.size());
         return vocabs;
@@ -351,7 +414,12 @@ public class ArticleServiceImpl implements ArticleService {
     @Override
     public List<String> listArticleVocabLevels(String articleId) {
         String userId = getCurrentUserId();
-        getUserArticle(articleId, userId);
+        getArticleDetail(articleId);
+        long cacheVersion = articleQueryCache.getArticleVersion(userId, articleId);
+        List<String> cached = articleQueryCache.getVocabLevels(userId, articleId, cacheVersion);
+        if (cached != null) {
+            return cached;
+        }
         List<RelArticleVocabDO> articleVocabs = relArticleVocabMapper.selectList(
                 new LambdaQueryWrapper<RelArticleVocabDO>()
                         .select(RelArticleVocabDO::getAnalysisLevel)
@@ -369,6 +437,7 @@ public class ArticleServiceImpl implements ArticleService {
                 .sorted()
                 .toList();
         log.info("获取文章词汇等级成功: userId={}, articleId={}, levels={}", userId, articleId, levels);
+        articleQueryCache.putVocabLevels(userId, articleId, cacheVersion, levels);
         return levels;
     }
 
@@ -382,6 +451,12 @@ public class ArticleServiceImpl implements ArticleService {
     @Override
     public List<ArticleVocabOccurrenceRespDTO> listArticleVocabOccurrences(String articleId, String articleVocabId) {
         String userId = getCurrentUserId();
+        long cacheVersion = articleQueryCache.getArticleVersion(userId, articleId);
+        List<ArticleVocabOccurrenceRespDTO> cached = articleQueryCache.getOccurrences(
+                userId, articleId, cacheVersion, articleVocabId);
+        if (cached != null) {
+            return cached;
+        }
         // 校验文章是否存在且属于当前用户，防止越权查询词汇出现位置
         getUserArticle(articleId, userId);
         RelArticleVocabDO articleVocab = relArticleVocabMapper.selectOne(new LambdaQueryWrapper<RelArticleVocabDO>()
@@ -400,7 +475,7 @@ public class ArticleServiceImpl implements ArticleService {
                         .orderByAsc(RelArticleVocabOccurrenceDO::getStartOffset));
         log.info("获取词汇出现位置列表成功: userId={}, articleId={}, articleVocabId={}, occurrenceCount={}",
                 userId, articleId, articleVocabId, occurrences.size());
-        return occurrences.stream()
+        List<ArticleVocabOccurrenceRespDTO> result = occurrences.stream()
                 .map(each -> ArticleVocabOccurrenceRespDTO.builder()
                         .occurrenceId(each.getId())
                         .articleVocabId(each.getArticleVocabId())
@@ -413,6 +488,8 @@ public class ArticleServiceImpl implements ArticleService {
                         .endOffset(each.getEndOffset())
                         .build())
                 .collect(Collectors.toList());
+        articleQueryCache.putOccurrences(userId, articleId, cacheVersion, articleVocabId, result);
+        return result;
     }
 
     /**
@@ -427,6 +504,8 @@ public class ArticleServiceImpl implements ArticleService {
         article.setStatus(STATUS_DELETED);
         article.setDeletedAt(new Date());
         bizArticlesMapper.updateById(article);
+        articleQueryCache.invalidateUser(userId);
+        articleQueryCache.invalidateArticle(userId, articleId);
         log.info("文章软删除成功: userId={}, articleId={}", userId, articleId);
     }
 
@@ -535,21 +614,9 @@ public class ArticleServiceImpl implements ArticleService {
         if (wordIds.isEmpty()) {
             return result;
         }
-        for (List<Long> batch : partition(new ArrayList<>(wordIds))) {
-            if ("ja".equals(languageCode)) {
-                List<BizVocabJpDO> vocabList = bizVocabJpMapper.selectBatchIds(batch);
-                for (BizVocabJpDO vocab : vocabList) {
-                    result.put(vocab.getId(), new ArticleVocabDetail(
-                            vocab.getTranslations(), null, null, vocab.getKana()));
-                }
-            } else {
-                List<BizVocabEnDO> vocabList = bizVocabEnMapper.selectBatchIds(batch);
-                for (BizVocabEnDO vocab : vocabList) {
-                    result.put(vocab.getId(), new ArticleVocabDetail(
-                            vocab.getTranslations(), vocab.getUs(), vocab.getUk(), null));
-                }
-            }
-        }
+        Map<Long, VocabWordCacheEntry> words = vocabWordCacheLoader.loadWords(languageCode, wordIds);
+        words.values().forEach(word -> result.put(word.wordId(), new ArticleVocabDetail(
+                word.translations(), word.us(), word.uk(), word.kana())));
         return result;
     }
 
@@ -607,11 +674,4 @@ public class ArticleServiceImpl implements ArticleService {
         }
     }
 
-    private <T> List<List<T>> partition(List<T> values) {
-        List<List<T>> result = new ArrayList<>();
-        for (int i = 0; i < values.size(); i += VOCAB_QUERY_BATCH_SIZE) {
-            result.add(values.subList(i, Math.min(i + VOCAB_QUERY_BATCH_SIZE, values.size())));
-        }
-        return result;
-    }
 }

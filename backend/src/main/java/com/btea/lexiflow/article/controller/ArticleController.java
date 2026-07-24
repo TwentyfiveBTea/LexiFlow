@@ -82,7 +82,7 @@ public class ArticleController {
      */
     @GetMapping("/recent")
     public Result<List<ArticleListRespDTO>> listRecentArticles() {
-        return Results.success(articleService.listArticles(null, null).stream().limit(2).toList());
+        return Results.success(articleService.listRecentArticles());
     }
 
     /**

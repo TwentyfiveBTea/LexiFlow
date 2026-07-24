@@ -1,0 +1,44 @@
+package com.btea.lexiflow.article.constant;
+
+import java.time.Duration;
+
+/**
+ * @Author: TwentyfiveBTea
+ * @Date: 2026/7/24
+ * @Description: 文章Redis缓存常量
+ */
+public final class ArticleRedisConstant {
+
+    private ArticleRedisConstant() {
+    }
+
+    /**
+     * 文章缓存键前缀
+     */
+    public static final String CACHE_KEY_PREFIX = "lexiflow:cache:v1:article:";
+
+    /**
+     * 空结果缓存时间
+     */
+    public static final Duration EMPTY_CACHE_TTL = Duration.ofMinutes(1);
+
+    /**
+     * 文章列表缓存时间
+     */
+    public static final Duration LIST_CACHE_TTL = Duration.ofMinutes(5);
+
+    /**
+     * 文章详情缓存时间
+     */
+    public static final Duration DETAIL_CACHE_TTL = Duration.ofMinutes(30);
+
+    /**
+     * 文章处理状态缓存时间
+     */
+    public static final Duration PROCESSING_CACHE_TTL = Duration.ofSeconds(2);
+
+    /**
+     * 文章词汇数据缓存时间
+     */
+    public static final Duration VOCAB_CACHE_TTL = Duration.ofHours(2);
+}
