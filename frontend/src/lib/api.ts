@@ -138,6 +138,7 @@ export interface ArticleVocabOccurrenceResponse {
 export interface ArticleAnalyzeResponse {
   articleId: string
   analysisLevel: string
+  analysisStatus: number
   reused: boolean
   matchedWordCount: number
   vocabs: ArticleVocabResponse[]

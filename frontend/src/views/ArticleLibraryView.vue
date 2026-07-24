@@ -7,7 +7,7 @@ import { articles } from '@/data/demo'
 import type { Article, ArticleProcessingDetail } from '@/data/demo'
 import AppSelect from '@/components/AppSelect.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
-import { analyzeArticle, deleteArticle, getArticleProcessingDetail, getArticles } from '@/lib/api'
+import { analyzeArticle, deleteArticle, getArticleProcessingDetail, getArticleVocabs, getArticles } from '@/lib/api'
 
 interface ArticleCard {
   articleId: string
@@ -179,16 +179,41 @@ async function confirmAnalysis() {
   analysisResult.value = null
   try {
     const result = await analyzeArticle(analysisArticle.value.articleId, analysisLevel.value)
-    analysisResult.value = {
-      matchedWordCount: result.matchedWordCount,
-      reused: result.reused,
-      analysisLevel: result.analysisLevel,
+    if (result.reused || result.analysisStatus === 2) {
+      analysisResult.value = {
+        matchedWordCount: result.matchedWordCount,
+        reused: result.reused,
+        analysisLevel: result.analysisLevel,
+      }
+      return
     }
+
+    await waitForAnalysis(result.articleId, result.analysisLevel)
   } catch (error) {
     analysisError.value = error instanceof Error ? error.message : '词汇解析失败，请稍后重试'
   } finally {
     analysisLoading.value = false
   }
+}
+
+async function waitForAnalysis(articleId: string, level: string) {
+  for (let attempt = 0; attempt < 80; attempt += 1) {
+    await new Promise((resolve) => window.setTimeout(resolve, 1500))
+    const detail = await getArticleProcessingDetail(articleId)
+    if (detail.analysisStatus === 3) {
+      throw new Error('词汇解析失败，请稍后重试')
+    }
+    if (detail.analysisStatus === 2) {
+      const vocabs = await getArticleVocabs(articleId, level)
+      analysisResult.value = {
+        matchedWordCount: vocabs.length,
+        reused: false,
+        analysisLevel: level,
+      }
+      return
+    }
+  }
+  throw new Error('词汇解析仍在后台进行，请稍后查看文章详情')
 }
 
 function requestDeleteArticle() {
