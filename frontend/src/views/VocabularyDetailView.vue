@@ -3,6 +3,7 @@ import { ArrowLeft, Filter, RefreshCw, Search, Trash2 } from 'lucide-vue-next'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import AppSelect from '@/components/AppSelect.vue'
+import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import { collections, words } from '@/data/demo'
 import type { Word } from '@/data/demo'
 import { deleteVocabLibraryWord, getVocabLibraries, getVocabLibraryStatistics, getVocabLibraryWords } from '@/lib/api'
@@ -18,6 +19,8 @@ const loading = ref(true)
 const loadError = ref('')
 const usingDemoData = ref(false)
 const deleteError = ref('')
+const deleteDialogOpen = ref(false)
+const selectedWord = ref<Word | null>(null)
 const englishLevels = [
   { value: 'BEC', label: 'BEC' }, { value: 'CET4', label: 'CET4' }, { value: 'CET6', label: 'CET6' },
   { value: 'GMAT', label: 'GMAT' }, { value: 'GRE', label: 'GRE' }, { value: 'IELTS', label: 'IELTS' },
@@ -55,6 +58,7 @@ function mapWord(word: VocabLibraryWordResponse): Word {
     libraryWordId: word.libraryWordId,
     wordId: word.wordId,
     languageCode: word.languageCode,
+    level: word.level ?? '',
     word: word.word,
     kana: word.kana ?? '',
     us: word.us ?? '',
@@ -66,7 +70,6 @@ function mapWord(word: VocabLibraryWordResponse): Word {
     partOfSpeech: '',
     definition: '',
     translation: '',
-    level: '',
     mastery: 0,
   }
 }
@@ -160,13 +163,24 @@ function formatPhrases(value: string) {
   }
 }
 
-async function removeWord(word: Word) {
+function requestDeleteWord(word: Word) {
+  deleteError.value = ''
+  selectedWord.value = word
+  deleteDialogOpen.value = true
+}
+
+async function confirmDeleteWord() {
+  const word = selectedWord.value
+  if (!word) return
+
+  deleteDialogOpen.value = false
   deleteError.value = ''
   try {
     if (!usingDemoData.value) {
       await deleteVocabLibraryWord(String(route.params.id), word.wordId, word.languageCode)
     }
     localWords.value = localWords.value.filter((item) => item.libraryWordId !== word.libraryWordId)
+    selectedWord.value = null
   } catch (error) {
     deleteError.value = error instanceof Error ? error.message : '删除词条失败'
   }
@@ -191,7 +205,7 @@ onMounted(() => { void loadDetail() })
     <section v-if="loading" class="detail-state surface"><RefreshCw :size="20" class="spin" /><p>正在加载词条...</p></section>
     <section v-else-if="loadError" class="detail-state surface"><p>{{ loadError }}</p><button class="btn btn-secondary" type="button" @click="loadDetail">重新加载</button></section>
     <section v-else class="word-table surface fade-in">
-      <div class="table-head"><span>单词</span><span>释义与短语</span><span>发音</span><span>等级</span><span>加入时间</span><span aria-hidden="true"></span></div>
+      <div class="table-head"><span>单词</span><span>释义</span><span>发音</span><span>等级</span><span>加入时间</span><span aria-hidden="true"></span></div>
       <article v-for="word in filteredWords" :key="word.libraryWordId" class="word-row">
         <div class="term"><div class="term-text"><small v-if="word.kana">{{ word.kana }}</small><strong class="serif">{{ word.word }}</strong></div></div>
         <div class="meaning">
@@ -202,16 +216,23 @@ onMounted(() => { void loadDetail() })
             </div>
           </template>
           <strong v-else class="empty-value">暂无释义</strong>
-          <span v-if="word.phrases && word.phrases !== '[]'" class="phrases">{{ formatPhrases(word.phrases) }}</span>
         </div>
         <div class="pronunciation"><span v-if="word.us">US {{ formatPhonetic(word.us) }}</span><span v-if="word.uk">UK {{ formatPhonetic(word.uk) }}</span></div>
         <div><span class="badge level-badge">{{ word.level }}</span></div>
         <div class="added-at">{{ formatDate(word.addedAt) }}</div>
-        <button class="delete-word icon-btn" type="button" :aria-label="`从词汇库删除 ${word.word}`" title="从词汇库删除" @click="removeWord(word)"><Trash2 :size="16" /></button>
+        <button class="delete-word icon-btn" type="button" :aria-label="`从词汇库删除 ${word.word}`" title="从词汇库删除" @click="requestDeleteWord(word)"><Trash2 :size="16" /></button>
       </article>
       <div v-if="!filteredWords.length" class="table-empty">没有符合条件的单词</div>
     </section>
     <p v-if="deleteError" class="delete-error" role="alert">{{ deleteError }}</p>
+
+    <ConfirmDialog
+      :visible="deleteDialogOpen"
+      title="删除词条"
+      message="删除之后该词条不能恢复，确定要继续吗？"
+      @close="deleteDialogOpen = false; selectedWord = null"
+      @confirm="confirmDeleteWord"
+    />
   </main>
 </template>
 

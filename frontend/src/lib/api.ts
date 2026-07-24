@@ -158,6 +158,7 @@ export interface VocabLibraryWordResponse {
   libraryWordId: string
   wordId: number
   languageCode: 'en' | 'ja'
+  level: string | null
   word: string
   kana: string | null
   us: string | null
