@@ -30,6 +30,11 @@ public class VocabLibraryWordRespDTO {
     private String languageCode;
 
     /**
+     * 词汇等级，例如 CET4、CET6、N3
+     */
+    private String level;
+
+    /**
      * 单词或日语词条
      */
     private String word;

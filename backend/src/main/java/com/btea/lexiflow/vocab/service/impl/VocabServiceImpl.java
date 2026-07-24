@@ -223,7 +223,7 @@ public class VocabServiceImpl implements VocabService {
         }
         Set<String> levelWords = loadLevelWords(library.getLanguageCode(), normalizedLevel);
         return relations.stream()
-                .map(relation -> toWordResp(relation, library.getLanguageCode()))
+                .map(relation -> toWordResp(relation, library.getLanguageCode(), userId))
                 .filter(word -> matchesWord(word, normalizedKeyword, levelWords))
                 .toList();
     }
@@ -365,11 +365,12 @@ public class VocabServiceImpl implements VocabService {
                 .build();
     }
 
-    private VocabLibraryWordRespDTO toWordResp(RelVocabLibraryWordDO relation, String languageCode) {
+    private VocabLibraryWordRespDTO toWordResp(RelVocabLibraryWordDO relation, String languageCode, String userId) {
         VocabLibraryWordRespDTO.VocabLibraryWordRespDTOBuilder builder = VocabLibraryWordRespDTO.builder()
                 .libraryWordId(relation.getId())
                 .wordId(relation.getWordId())
                 .languageCode(languageCode)
+                .level(resolveWordLevel(relation, languageCode, userId))
                 .addedAt(relation.getCreatedAt());
         if ("ja".equals(languageCode)) {
             BizVocabJpDO word = bizVocabJpMapper.selectById(relation.getWordId());
@@ -384,11 +385,28 @@ public class VocabServiceImpl implements VocabService {
                 builder.word(word.getWord())
                         .us(word.getUs())
                         .uk(word.getUk())
-                        .translations(word.getTranslations())
-                        .phrases(word.getPhrases());
+                        .translations(word.getTranslations());
             }
         }
         return builder.build();
+    }
+
+    private String resolveWordLevel(RelVocabLibraryWordDO relation, String languageCode, String userId) {
+        RelArticleVocabDO source = relArticleVocabMapper.selectOne(new LambdaQueryWrapper<RelArticleVocabDO>()
+                .eq(RelArticleVocabDO::getUserId, userId)
+                .eq(RelArticleVocabDO::getWordId, relation.getWordId())
+                .eq(RelArticleVocabDO::getLanguageCode, languageCode)
+                .orderByDesc(RelArticleVocabDO::getCreatedAt)
+                .last("LIMIT 1"));
+        if (source != null && source.getAnalysisLevel() != null && !source.getAnalysisLevel().isBlank()) {
+            return source.getAnalysisLevel();
+        }
+        if ("ja".equals(languageCode)) {
+            BizVocabJpDO word = bizVocabJpMapper.selectById(relation.getWordId());
+            return word == null ? null : articleVocabAnalyzer.findLevel(languageCode, word.getWord());
+        }
+        BizVocabEnDO word = bizVocabEnMapper.selectById(relation.getWordId());
+        return word == null ? null : articleVocabAnalyzer.findLevel(languageCode, word.getWord());
     }
 
     private String normalizeLevel(String languageCode, String level) {
