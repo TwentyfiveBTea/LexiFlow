@@ -7,6 +7,7 @@ import com.btea.lexiflow.pay.model.AiProcessingContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.tika.metadata.Metadata;
+import org.apache.tika.metadata.TikaCoreProperties;
 import org.apache.tika.parser.AutoDetectParser;
 import org.apache.tika.parser.ParseContext;
 import org.apache.tika.sax.BodyContentHandler;
@@ -46,7 +47,7 @@ public class ArticleTextExtractor {
                               String contentType,
                               AiProcessingContext context) {
         Metadata metadata = new Metadata();
-        String tikaText = extractTextByTika(fileBytes, metadata);
+        String tikaText = extractTextByTika(fileBytes, filename, contentType, metadata);
         long meaningfulChars = countMeaningfulChars(tikaText);
         log.info("Tika 文章文本解析完成: filename={}, contentType={}, tikaContentType={}, textLength={}, meaningfulChars={}",
                 filename, contentType, metadata.get(Metadata.CONTENT_TYPE), tikaText.length(), meaningfulChars);
@@ -63,7 +64,16 @@ public class ArticleTextExtractor {
         throw new ClientException(BaseErrorCode.FILE_PARSE_FAILED);
     }
 
-    private String extractTextByTika(byte[] fileBytes, Metadata metadata) {
+    private String extractTextByTika(byte[] fileBytes,
+                                     String filename,
+                                     String contentType,
+                                     Metadata metadata) {
+        if (filename != null && !filename.isBlank()) {
+            metadata.set(TikaCoreProperties.RESOURCE_NAME_KEY, filename);
+        }
+        if (contentType != null && !contentType.isBlank()) {
+            metadata.set(Metadata.CONTENT_TYPE, contentType);
+        }
         try (InputStream inputStream = new ByteArrayInputStream(fileBytes)) {
             AutoDetectParser parser = new AutoDetectParser();
             BodyContentHandler handler = new BodyContentHandler(-1);

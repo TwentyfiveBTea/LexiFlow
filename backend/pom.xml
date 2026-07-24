@@ -113,7 +113,7 @@
             <version>${aws.sdk.version}</version>
         </dependency>
 
-        <!-- 文件解析：PDF/DOCX/TXT/MD 等 -->
+        <!-- 文件解析：PDF/DOCX/TXT/MD/HTML 等 -->
         <dependency>
             <groupId>org.apache.tika</groupId>
             <artifactId>tika-core</artifactId>

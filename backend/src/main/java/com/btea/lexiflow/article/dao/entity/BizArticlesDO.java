@@ -46,7 +46,7 @@ public class BizArticlesDO {
     private String originalFilename;
 
     /**
-     * 文件类型：pdf/docx/txt/md
+     * 文件类型：pdf/doc/docx/txt/md/html/htm
      */
     private String fileType;
 
