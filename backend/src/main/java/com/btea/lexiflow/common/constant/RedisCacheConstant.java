@@ -8,6 +8,11 @@ package com.btea.lexiflow.common.constant;
 public class RedisCacheConstant {
 
     /**
+     * 缓存过期时间随机抖动比例
+     */
+    public static final double CACHE_TTL_JITTER_RATIO = 0.1D;
+
+    /**
      * 用户 Token 缓存 key 前缀
      */
     public static final String USER_TOKEN_KEY_PREFIX = "lexiflow:user:token:";
