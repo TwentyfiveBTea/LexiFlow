@@ -1,0 +1,55 @@
+# IDE
+.idea/
+.cursor/
+.vscode/
+*.iml
+
+# Claude Code
+.claude/
+
+# Data & Scripts
+/data/
+/scripts/
+
+# SQL
+*.sql
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Java
+backend/src/main/resources/
+backend/src/test/
+target/
+*.class
+*.jar
+*.war
+
+# Frontend / Node.js
+/frontend/node_modules/
+/frontend/dist/
+/frontend/coverage/
+/frontend/.vite/
+/frontend/.cache/
+/frontend/.eslintcache
+/frontend/playwright-report/
+/frontend/test-results/
+/frontend/*.tsbuildinfo
+
+# Frontend local environment files
+/frontend/.env
+/frontend/.env.*
+!/frontend/.env.example
+
+# Package manager logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Base UI
+/stitch_lexifocus_intensive_reader
+
+# config
+/deploy/*
