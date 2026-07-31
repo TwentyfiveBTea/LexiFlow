@@ -11,5 +11,6 @@ public record VocabWordCacheEntry(Long wordId,
                                   String kana,
                                   String us,
                                   String uk,
-                                  String translations) {
+                                  String translations,
+                                  String level) {
 }

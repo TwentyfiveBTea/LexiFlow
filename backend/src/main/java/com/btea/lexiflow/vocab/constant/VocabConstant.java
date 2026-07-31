@@ -1,6 +1,7 @@
 package com.btea.lexiflow.vocab.constant;
 
 import java.math.BigDecimal;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -68,7 +69,44 @@ public final class VocabConstant {
      */
     public static final Set<String> ENGLISH_LEVELS = Set.of(
             "BEC", "CET4", "CET6", "GMAT", "GRE", "IELTS", "LEVEL4", "LEVEL8", "SAT", "TOEFL",
-            "CHUZHONG", "GAOZHONG", "KAOYAN");
+            "CHUZHONG", "GAOZHONG", "KAOYAN", "POSTGRADUATE");
+
+    /**
+     * 英语API等级与数据库等级的映射
+     */
+    public static final Map<String, String> ENGLISH_LEVEL_DATABASE_VALUES = Map.ofEntries(
+            Map.entry("BEC", "BEC"),
+            Map.entry("CET4", "CET-4"),
+            Map.entry("CET6", "CET-6"),
+            Map.entry("GMAT", "GMAT"),
+            Map.entry("GRE", "GRE"),
+            Map.entry("IELTS", "雅思"),
+            Map.entry("LEVEL4", "专四"),
+            Map.entry("LEVEL8", "专八"),
+            Map.entry("SAT", "SAT"),
+            Map.entry("TOEFL", "托福"),
+            Map.entry("CHUZHONG", "初中"),
+            Map.entry("GAOZHONG", "高中"),
+            Map.entry("KAOYAN", "考研"),
+            Map.entry("POSTGRADUATE", "考研"));
+
+    /**
+     * 英语数据库等级与API等级的映射
+     */
+    public static final Map<String, String> ENGLISH_LEVEL_API_VALUES = Map.ofEntries(
+            Map.entry("BEC", "BEC"),
+            Map.entry("CET-4", "CET4"),
+            Map.entry("CET-6", "CET6"),
+            Map.entry("GMAT", "GMAT"),
+            Map.entry("GRE", "GRE"),
+            Map.entry("雅思", "IELTS"),
+            Map.entry("专四", "LEVEL4"),
+            Map.entry("专八", "LEVEL8"),
+            Map.entry("SAT", "SAT"),
+            Map.entry("托福", "TOEFL"),
+            Map.entry("初中", "CHUZHONG"),
+            Map.entry("高中", "GAOZHONG"),
+            Map.entry("考研", "KAOYAN"));
 
     /**
      * 日语词汇等级

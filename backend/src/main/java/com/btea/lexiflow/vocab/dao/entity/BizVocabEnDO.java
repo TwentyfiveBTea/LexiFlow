@@ -56,6 +56,11 @@ public class BizVocabEnDO {
     private String phrases;
 
     /**
+     * 词汇等级
+     */
+    private String level;
+
+    /**
      * 创建时间
      */
     @TableField(fill = FieldFill.INSERT)

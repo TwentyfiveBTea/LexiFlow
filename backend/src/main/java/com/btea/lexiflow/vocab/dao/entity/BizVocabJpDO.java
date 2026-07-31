@@ -46,6 +46,11 @@ public class BizVocabJpDO {
     private String translations;
 
     /**
+     * 日语能力等级：N1-N5
+     */
+    private String level;
+
+    /**
      * 创建时间
      */
     @TableField(fill = FieldFill.INSERT)
