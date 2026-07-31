@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ArrowLeft, BookmarkPlus, Check, ChevronRight, Filter, PanelRightClose, PanelRightOpen } from 'lucide-vue-next'
+import { ArrowLeft, BookmarkPlus, Check, ChevronRight, Filter, PanelRightClose, PanelRightOpen, Plus, X } from 'lucide-vue-next'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppSelect from '@/components/AppSelect.vue'
@@ -8,6 +8,7 @@ import { articles, collections, words } from '@/data/demo'
 import { usePreferencesStore } from '@/stores/preferences'
 import {
   addArticleVocabToLibrary,
+  createVocabLibrary,
   getArticleDetail,
   getArticleVocabLevels,
   getArticleVocabLevelOccurrences,
@@ -53,6 +54,11 @@ const articleOccurrences = ref<ArticleVocabOccurrenceResponse[]>([])
 const libraryPickerFor = ref<string | null>(null)
 const addedLibraryNames = ref<Record<string, string>>({})
 const addMessages = ref<Record<string, string>>({})
+const createLibraryOpen = ref(false)
+const createLibraryName = ref('')
+const createLibraryDescription = ref('')
+const createLibraryError = ref('')
+const createLibrarySubmitting = ref(false)
 
 const articleId = computed(() => String(route.params.id ?? ''))
 const levelOptions = computed(() => availableLevels.value.map((level) => ({ value: level, label: level })))
@@ -61,6 +67,8 @@ const contentBlocks = computed(() => article.value
   : [])
 const languageLabel = computed(() => article.value?.languageCode === 'ja' ? '日语 · JA' : '英语 · EN')
 const compatibleLibraries = computed(() => libraries.value.filter((library) => library.languageCode === article.value?.languageCode))
+const articleLanguageCode = computed(() => article.value?.languageCode === 'ja' ? 'ja' : 'en')
+const articleLanguageLabel = computed(() => articleLanguageCode.value === 'ja' ? '日语' : '英语')
 const readingMinutes = computed(() => Math.max(1, Math.ceil((article.value?.wordCount ?? 0) / 250)))
 const readerStyle = computed<Record<string, string>>(() => ({
   '--reader-font-family': preferences.readingFont === 'Georgia' ? 'Georgia, serif' : preferences.readingFont === '宋体' ? '"Songti SC", SimSun, serif' : "'Literata', Georgia, serif",
@@ -197,6 +205,58 @@ async function togglePanelWord(vocab: ArticleVocabResponse) {
 function openLibraryPicker(vocab: ArticleVocabResponse) {
   libraryPickerFor.value = libraryPickerFor.value === vocab.articleVocabId ? null : vocab.articleVocabId
   addMessages.value[vocab.articleVocabId] = ''
+}
+
+function openCreateLibrary() {
+  createLibraryError.value = ''
+  createLibraryName.value = ''
+  createLibraryDescription.value = ''
+  libraryPickerFor.value = null
+  createLibraryOpen.value = true
+}
+
+function closeCreateLibrary() {
+  if (createLibrarySubmitting.value) return
+  createLibraryOpen.value = false
+}
+
+async function createLibrary() {
+  const name = createLibraryName.value.trim()
+  if (!name || !article.value) {
+    createLibraryError.value = '请输入词汇库名称'
+    return
+  }
+
+  createLibrarySubmitting.value = true
+  createLibraryError.value = ''
+  const languageCode = articleLanguageCode.value
+  try {
+    let created: VocabLibraryResponse
+    if (usingDemoData.value) {
+      const now = new Date().toISOString()
+      created = {
+        libraryId: `demo-library-${Date.now()}`,
+        name,
+        languageCode,
+        description: createLibraryDescription.value.trim() || null,
+        wordCount: 0,
+        createdAt: now,
+        updatedAt: now,
+      }
+    } else {
+      created = await createVocabLibrary({
+        name,
+        languageCode,
+        description: createLibraryDescription.value.trim(),
+      })
+    }
+    libraries.value = [...libraries.value, created]
+    createLibraryOpen.value = false
+  } catch (error) {
+    createLibraryError.value = error instanceof Error ? error.message : '创建词汇库失败，请稍后重试'
+  } finally {
+    createLibrarySubmitting.value = false
+  }
 }
 
 async function addToLibrary(vocab: ArticleVocabResponse, library: VocabLibraryResponse) {
@@ -403,6 +463,10 @@ onBeforeUnmount(() => window.removeEventListener('scroll', updateProgress))
                       <strong>选择{{ vocab.languageCode === 'ja' ? '日语' : '英语' }}词汇库</strong>
                       <button v-for="library in compatibleLibraries" :key="library.libraryId" type="button" @click.stop="addToLibrary(vocab, library)"><span>{{ library.name }}</span><small>{{ library.wordCount.toLocaleString() }} 词</small></button>
                       <p v-if="!compatibleLibraries.length">暂无同语言词汇库</p>
+                      <template v-if="!compatibleLibraries.length">
+                        <div class="library-picker-divider" aria-hidden="true"></div>
+                        <button class="create-library-trigger" type="button" @click.stop="openCreateLibrary"><Plus :size="15" />新建{{ articleLanguageLabel }}词汇库</button>
+                      </template>
                     </div>
                   </Transition>
                 </div>
@@ -413,6 +477,22 @@ onBeforeUnmount(() => window.removeEventListener('scroll', updateProgress))
         </div>
       </aside>
     </main>
+
+    <Transition name="dialog">
+      <div v-if="createLibraryOpen" class="modal-backdrop reader-create-backdrop" @click.self="closeCreateLibrary">
+        <form class="dialog-panel reader-create-modal surface" role="dialog" aria-modal="true" aria-labelledby="reader-create-library-title" @submit.prevent="createLibrary">
+          <div class="modal-heading"><div><p class="eyebrow">New collection</p><h2 id="reader-create-library-title" class="serif">创建词汇库</h2></div><button class="icon-btn" type="button" aria-label="关闭创建词汇库弹窗" @click="closeCreateLibrary"><X :size="18" /></button></div>
+          <label class="field-label" for="reader-library-name">词汇库名称</label>
+          <input id="reader-library-name" v-model="createLibraryName" class="field" maxlength="128" required autofocus />
+          <span class="field-label">语言标识</span>
+          <div class="fixed-language"><strong>{{ articleLanguageCode }}</strong><span>{{ articleLanguageLabel }}</span></div>
+          <div class="description-label"><label class="field-label" for="reader-library-description">词汇库描述</label><span>{{ createLibraryDescription.length }} / 500</span></div>
+          <textarea id="reader-library-description" v-model="createLibraryDescription" class="field description-field" maxlength="500"></textarea>
+          <p v-if="createLibraryError" class="form-message" role="alert">{{ createLibraryError }}</p>
+          <div class="modal-actions"><button class="btn btn-secondary" type="button" :disabled="createLibrarySubmitting" @click="closeCreateLibrary">取消</button><button class="btn btn-primary" type="submit" :disabled="createLibrarySubmitting">{{ createLibrarySubmitting ? '创建中…' : '创建' }}</button></div>
+        </form>
+      </div>
+    </Transition>
   </div>
 </template>
 
