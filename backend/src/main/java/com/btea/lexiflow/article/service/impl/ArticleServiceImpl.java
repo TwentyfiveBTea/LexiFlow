@@ -14,6 +14,8 @@ import com.btea.lexiflow.article.dto.resp.*;
 import com.btea.lexiflow.article.nlp.ArticleVocabAnalyzer;
 import com.btea.lexiflow.article.nlp.ArticleVocabMatch;
 import com.btea.lexiflow.article.nlp.ArticleVocabOccurrence;
+import com.btea.lexiflow.article.nlp.ArticleSourceRangeUtil;
+import com.btea.lexiflow.article.nlp.ArticleSourceRangeUtil.SourceSegment;
 import com.btea.lexiflow.article.service.ArticleProcessingService;
 import com.btea.lexiflow.article.service.ArticleService;
 import com.btea.lexiflow.common.context.UserContext;
@@ -183,6 +185,7 @@ public class ArticleServiceImpl implements ArticleService {
             return acceptedAnalysis(articleId, analysisLevel);
         }
 
+        deleteAnalysisResults(articleId, userId, analysisLevel);
         article.setAnalysisStatus(ANALYSIS_STATUS_PROCESSING);
         bizArticlesMapper.updateById(article);
         articleQueryCache.invalidateArticle(userId, articleId);
@@ -231,7 +234,9 @@ public class ArticleServiceImpl implements ArticleService {
             if (text == null || text.isBlank()) {
                 throw new ClientException(BaseErrorCode.ARTICLE_PARSE_FAILED);
             }
-            List<ArticleVocabMatch> matches = articleVocabAnalyzer.analyzeText(text, article.getLanguageCode(), analysisLevel);
+            boolean translated = Integer.valueOf(TRANSLATION_STATUS_SUCCESS).equals(article.getTranslationStatus());
+            List<ArticleVocabMatch> matches = articleVocabAnalyzer.analyzeText(
+                    text, article.getLanguageCode(), analysisLevel, translated);
             log.info("文章词汇匹配完成: userId={}, articleId={}, analysisLevel={}, matchedWordCount={}",
                     userId, articleId, analysisLevel, matches.size());
             saveMatches(article, analysisLevel, matches);
@@ -245,7 +250,7 @@ public class ArticleServiceImpl implements ArticleService {
                     .map(ArticleVocabMatch::getWordId)
                     .collect(Collectors.toSet()));
 
-            List<ArticleVocabRespDTO> vocabs = listArticleVocabs(articleId, userId, analysisLevel, article.getLanguageCode());
+            List<ArticleVocabRespDTO> vocabs = listArticleVocabs(article, userId, analysisLevel);
             log.info("文章词汇分析成功: userId={}, articleId={}, analysisLevel={}, matchedWordCount={}",
                     userId, articleId, analysisLevel, vocabs.size());
         } catch (ClientException e) {
@@ -281,6 +286,7 @@ public class ArticleServiceImpl implements ArticleService {
                 .title(article.getTitle())
                 .parsedContent(article.getParsedContent())
                 .languageCode(article.getLanguageCode())
+                .translationStatus(article.getTranslationStatus())
                 .wordCount(article.getWordCount())
                 .charCount(article.getCharCount())
                 .createdAt(article.getCreatedAt())
@@ -390,7 +396,7 @@ public class ArticleServiceImpl implements ArticleService {
     @Override
     public List<ArticleVocabRespDTO> listArticleVocabs(String articleId, String analysisLevel) {
         String userId = getCurrentUserId();
-        ArticleDetailRespDTO article = getArticleDetail(articleId);
+        BizArticlesDO article = getUserArticle(articleId, userId);
         String normalizedLevel = analysisLevel.trim().toUpperCase(Locale.ROOT);
         long cacheVersion = articleQueryCache.getArticleVersion(userId, articleId);
         List<ArticleVocabRespDTO> cached = articleQueryCache.getArticleVocabs(
@@ -398,7 +404,7 @@ public class ArticleServiceImpl implements ArticleService {
         if (cached != null) {
             return cached;
         }
-        List<ArticleVocabRespDTO> vocabs = listArticleVocabs(articleId, userId, normalizedLevel, article.getLanguageCode());
+        List<ArticleVocabRespDTO> vocabs = listArticleVocabs(article, userId, normalizedLevel);
         articleQueryCache.putArticleVocabs(userId, articleId, cacheVersion, normalizedLevel, vocabs);
         log.info("获取文章命中词汇列表成功: userId={}, articleId={}, analysisLevel={}, vocabCount={}",
                 userId, articleId, analysisLevel, vocabs.size());
@@ -458,7 +464,7 @@ public class ArticleServiceImpl implements ArticleService {
             return cached;
         }
         // 校验文章是否存在且属于当前用户，防止越权查询词汇出现位置
-        getUserArticle(articleId, userId);
+        BizArticlesDO article = getUserArticle(articleId, userId);
         RelArticleVocabDO articleVocab = relArticleVocabMapper.selectOne(new LambdaQueryWrapper<RelArticleVocabDO>()
                 .eq(RelArticleVocabDO::getId, articleVocabId)
                 .eq(RelArticleVocabDO::getArticleId, articleId)
@@ -467,29 +473,33 @@ public class ArticleServiceImpl implements ArticleService {
             throw new ClientException(BaseErrorCode.VOCAB_NOT_FOUND);
         }
 
-        List<RelArticleVocabOccurrenceDO> occurrences = relArticleVocabOccurrenceMapper.selectList(
-                new LambdaQueryWrapper<RelArticleVocabOccurrenceDO>()
-                        .eq(RelArticleVocabOccurrenceDO::getArticleId, articleId)
-                        .eq(RelArticleVocabOccurrenceDO::getArticleVocabId, articleVocabId)
-                        .eq(RelArticleVocabOccurrenceDO::getUserId, userId)
-                        .orderByAsc(RelArticleVocabOccurrenceDO::getStartOffset));
+        List<RelArticleVocabOccurrenceDO> occurrences = querySourceOccurrences(
+                article, userId, articleVocab.getAnalysisLevel(), articleVocabId);
         log.info("获取词汇出现位置列表成功: userId={}, articleId={}, articleVocabId={}, occurrenceCount={}",
                 userId, articleId, articleVocabId, occurrences.size());
         List<ArticleVocabOccurrenceRespDTO> result = occurrences.stream()
-                .map(each -> ArticleVocabOccurrenceRespDTO.builder()
-                        .occurrenceId(each.getId())
-                        .articleVocabId(each.getArticleVocabId())
-                        .wordId(each.getWordId())
-                        .normalizedText(each.getNormalizedText())
-                        .posTag(each.getPosTag())
-                        .posType(each.getPosType())
-                        .sentence(each.getSentence())
-                        .startOffset(each.getStartOffset())
-                        .endOffset(each.getEndOffset())
-                        .build())
+                .map(this::toOccurrenceResp)
                 .collect(Collectors.toList());
         articleQueryCache.putOccurrences(userId, articleId, cacheVersion, articleVocabId, result);
         return result;
+    }
+
+    /**
+     * 获取指定词汇等级的全部原文出现位置
+     *
+     * @param articleId 文章ID
+     * @param analysisLevel 词汇分析等级
+     * @return 原文出现位置列表
+     */
+    @Override
+    public List<ArticleVocabOccurrenceRespDTO> listArticleVocabLevelOccurrences(String articleId,
+                                                                                String analysisLevel) {
+        String userId = getCurrentUserId();
+        BizArticlesDO article = getUserArticle(articleId, userId);
+        String normalizedLevel = analysisLevel.trim().toUpperCase(Locale.ROOT);
+        return querySourceOccurrences(article, userId, normalizedLevel, null).stream()
+                .map(this::toOccurrenceResp)
+                .toList();
     }
 
     /**
@@ -575,7 +585,9 @@ public class ArticleServiceImpl implements ArticleService {
         }
     }
 
-    private List<ArticleVocabRespDTO> listArticleVocabs(String articleId, String userId, String analysisLevel, String languageCode) {
+    private List<ArticleVocabRespDTO> listArticleVocabs(BizArticlesDO article, String userId,
+                                                        String analysisLevel) {
+        String articleId = article.getId();
         List<RelArticleVocabDO> articleVocabs = relArticleVocabMapper.selectList(new LambdaQueryWrapper<RelArticleVocabDO>()
                 .eq(RelArticleVocabDO::getArticleId, articleId)
                 .eq(RelArticleVocabDO::getUserId, userId)
@@ -585,21 +597,34 @@ public class ArticleServiceImpl implements ArticleService {
             return List.of();
         }
 
-        Map<Long, ArticleVocabDetail> vocabDetailMap = getVocabDetailMap(languageCode, articleVocabs.stream()
+        Map<String, List<RelArticleVocabOccurrenceDO>> sourceOccurrences = querySourceOccurrences(
+                article, userId, analysisLevel, null).stream()
+                .collect(Collectors.groupingBy(RelArticleVocabOccurrenceDO::getArticleVocabId));
+        articleVocabs = articleVocabs.stream()
+                .filter(each -> sourceOccurrences.containsKey(each.getId()))
+                .toList();
+        if (articleVocabs.isEmpty()) {
+            return List.of();
+        }
+
+        Map<Long, ArticleVocabDetail> vocabDetailMap = getVocabDetailMap(article.getLanguageCode(), articleVocabs.stream()
                 .map(RelArticleVocabDO::getWordId)
                 .collect(Collectors.toSet()));
         return articleVocabs.stream()
                 .map(each -> {
                     ArticleVocabDetail vocabDetail = vocabDetailMap.get(each.getWordId());
+                    List<RelArticleVocabOccurrenceDO> validOccurrences = sourceOccurrences.get(each.getId());
+                    RelArticleVocabOccurrenceDO firstOccurrence = validOccurrences.get(0);
                     return ArticleVocabRespDTO.builder()
                             .articleVocabId(each.getId())
                             .wordId(each.getWordId())
                             .languageCode(each.getLanguageCode())
                             .baseWord(each.getBaseWord())
                             .matchedForms(each.getMatchedForms())
-                            .occurrenceCount(each.getOccurrenceCount())
-                            .firstMatchedText(each.getFirstMatchedText())
-                            .firstSentence(each.getFirstSentence())
+                            .occurrenceCount(validOccurrences.size())
+                            .firstMatchedText(article.getParsedContent().substring(
+                                    firstOccurrence.getStartOffset(), firstOccurrence.getEndOffset()))
+                            .firstSentence(firstOccurrence.getSentence())
                             .translations(vocabDetail == null ? null : vocabDetail.translations())
                             .us(vocabDetail == null ? null : vocabDetail.us())
                             .uk(vocabDetail == null ? null : vocabDetail.uk())
@@ -607,6 +632,53 @@ public class ArticleServiceImpl implements ArticleService {
                             .build();
                 })
                 .collect(Collectors.toList());
+    }
+
+    private List<RelArticleVocabOccurrenceDO> querySourceOccurrences(BizArticlesDO article, String userId,
+                                                                      String analysisLevel,
+                                                                      String articleVocabId) {
+        LambdaQueryWrapper<RelArticleVocabOccurrenceDO> query = new LambdaQueryWrapper<RelArticleVocabOccurrenceDO>()
+                .eq(RelArticleVocabOccurrenceDO::getArticleId, article.getId())
+                .eq(RelArticleVocabOccurrenceDO::getUserId, userId)
+                .eq(RelArticleVocabOccurrenceDO::getAnalysisLevel, analysisLevel)
+                .orderByAsc(RelArticleVocabOccurrenceDO::getStartOffset);
+        if (articleVocabId != null) {
+            query.eq(RelArticleVocabOccurrenceDO::getArticleVocabId, articleVocabId);
+        }
+        List<RelArticleVocabOccurrenceDO> occurrences = relArticleVocabOccurrenceMapper.selectList(query);
+        boolean translated = Integer.valueOf(TRANSLATION_STATUS_SUCCESS).equals(article.getTranslationStatus());
+        List<SourceSegment> sourceSegments = ArticleSourceRangeUtil.extract(article.getParsedContent(), translated);
+        return occurrences.stream()
+                .filter(each -> each.getStartOffset() != null && each.getEndOffset() != null)
+                .filter(each -> sourceSegments.stream().anyMatch(segment ->
+                        each.getStartOffset() >= segment.startOffset()
+                                && each.getEndOffset() <= segment.endOffset()))
+                .toList();
+    }
+
+    private ArticleVocabOccurrenceRespDTO toOccurrenceResp(RelArticleVocabOccurrenceDO occurrence) {
+        return ArticleVocabOccurrenceRespDTO.builder()
+                .occurrenceId(occurrence.getId())
+                .articleVocabId(occurrence.getArticleVocabId())
+                .wordId(occurrence.getWordId())
+                .normalizedText(occurrence.getNormalizedText())
+                .posTag(occurrence.getPosTag())
+                .posType(occurrence.getPosType())
+                .sentence(occurrence.getSentence())
+                .startOffset(occurrence.getStartOffset())
+                .endOffset(occurrence.getEndOffset())
+                .build();
+    }
+
+    private void deleteAnalysisResults(String articleId, String userId, String analysisLevel) {
+        relArticleVocabOccurrenceMapper.delete(new LambdaQueryWrapper<RelArticleVocabOccurrenceDO>()
+                .eq(RelArticleVocabOccurrenceDO::getArticleId, articleId)
+                .eq(RelArticleVocabOccurrenceDO::getUserId, userId)
+                .eq(RelArticleVocabOccurrenceDO::getAnalysisLevel, analysisLevel));
+        relArticleVocabMapper.delete(new LambdaQueryWrapper<RelArticleVocabDO>()
+                .eq(RelArticleVocabDO::getArticleId, articleId)
+                .eq(RelArticleVocabDO::getUserId, userId)
+                .eq(RelArticleVocabDO::getAnalysisLevel, analysisLevel));
     }
 
     private Map<Long, ArticleVocabDetail> getVocabDetailMap(String languageCode, Set<Long> wordIds) {

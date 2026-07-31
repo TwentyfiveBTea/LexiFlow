@@ -15,7 +15,7 @@ public final class ArticleRedisConstant {
     /**
      * 文章缓存键前缀
      */
-    public static final String CACHE_KEY_PREFIX = "lexiflow:cache:v1:article:";
+    public static final String CACHE_KEY_PREFIX = "lexiflow:cache:v2:article:";
 
     /**
      * 空结果缓存时间

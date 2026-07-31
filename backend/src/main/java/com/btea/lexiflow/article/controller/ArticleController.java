@@ -145,6 +145,20 @@ public class ArticleController {
     }
 
     /**
+     * 获取指定词汇等级的全部原文出现位置
+     *
+     * @param articleId 文章ID
+     * @param analysisLevel 词汇分析等级
+     * @return 响应结果
+     */
+    @GetMapping("/{articleId}/vocab-occurrences")
+    public Result<List<ArticleVocabOccurrenceRespDTO>> listArticleVocabLevelOccurrences(
+            @PathVariable String articleId,
+            @RequestParam("analysisLevel") String analysisLevel) {
+        return Results.success(articleService.listArticleVocabLevelOccurrences(articleId, analysisLevel));
+    }
+
+    /**
      * 删除文章
      *
      * @param articleId 文章ID

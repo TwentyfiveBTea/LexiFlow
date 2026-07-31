@@ -95,6 +95,15 @@ public interface ArticleService {
     List<ArticleVocabOccurrenceRespDTO> listArticleVocabOccurrences(String articleId, String articleVocabId);
 
     /**
+     * 获取指定词汇等级的全部原文出现位置
+     *
+     * @param articleId 文章ID
+     * @param analysisLevel 词汇分析等级
+     * @return 原文出现位置列表
+     */
+    List<ArticleVocabOccurrenceRespDTO> listArticleVocabLevelOccurrences(String articleId, String analysisLevel);
+
+    /**
      * 删除文章
      *
      * @param articleId 文章ID

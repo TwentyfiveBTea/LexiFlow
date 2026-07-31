@@ -3,6 +3,7 @@ package com.btea.lexiflow.article.nlp;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.btea.lexiflow.common.convention.errorcode.BaseErrorCode;
 import com.btea.lexiflow.common.convention.exception.ClientException;
+import com.btea.lexiflow.article.nlp.ArticleSourceRangeUtil.SourceSegment;
 import com.btea.lexiflow.vocab.dao.entity.BizVocabEnDO;
 import com.btea.lexiflow.vocab.dao.entity.BizVocabJpDO;
 import com.btea.lexiflow.vocab.dao.mapper.BizVocabEnMapper;
@@ -55,31 +56,49 @@ public class ArticleVocabAnalyzer {
      * @return 词汇命中结果
      */
     public List<ArticleVocabMatch> analyzeText(String text, String languageCode, String analysisLevel) throws Exception {
-        if ("ja".equals(languageCode)) {
-            return analyzeJapaneseText(text, analysisLevel);
-        }
-        return analyzeEnglishText(text, analysisLevel);
+        return analyzeText(text, languageCode, analysisLevel, false);
     }
 
-    private List<ArticleVocabMatch> analyzeEnglishText(String text, String analysisLevel) throws Exception {
-        String databaseLevel = VocabLevelUtil.toDatabaseLevel("en", analysisLevel);
-        Annotation annotation = new Annotation(text);
-        getEnglishPipeline().annotate(annotation);
-        List<CoreMap> sentences = annotation.get(CoreAnnotations.SentencesAnnotation.class);
-        if (sentences == null) {
-            return List.of();
+    /**
+     * 分析文章原文范围内的词汇
+     *
+     * @param text 文章正文，可能同时包含原文和中文译文
+     * @param languageCode 语言标识
+     * @param analysisLevel 词汇分析等级
+     * @param translated 是否按原文和译文交替结构存储
+     * @return 词汇命中结果
+     */
+    public List<ArticleVocabMatch> analyzeText(String text, String languageCode, String analysisLevel,
+                                               boolean translated) throws Exception {
+        List<SourceSegment> sourceSegments = ArticleSourceRangeUtil.extract(text, translated);
+        if ("ja".equals(languageCode)) {
+            return analyzeJapaneseText(sourceSegments, analysisLevel);
         }
+        return analyzeEnglishText(sourceSegments, analysisLevel);
+    }
 
+    private List<ArticleVocabMatch> analyzeEnglishText(List<SourceSegment> sourceSegments,
+                                                       String analysisLevel) throws Exception {
+        String databaseLevel = VocabLevelUtil.toDatabaseLevel("en", analysisLevel);
         Set<String> candidates = new LinkedHashSet<>();
-        for (CoreMap sentence : sentences) {
-            for (CoreLabel token : sentence.get(CoreAnnotations.TokensAnnotation.class)) {
-                String normalizedText = normalizeEnglish(token.word());
-                String lemma = normalizeEnglish(token.lemma());
-                if (!normalizedText.isEmpty()) {
-                    candidates.add(normalizedText);
-                }
-                if (!lemma.isEmpty()) {
-                    candidates.add(lemma);
+        List<EnglishSegmentAnalysis> analyses = new ArrayList<>();
+        for (SourceSegment sourceSegment : sourceSegments) {
+            Annotation annotation = new Annotation(sourceSegment.text());
+            getEnglishPipeline().annotate(annotation);
+            List<CoreMap> sentences = annotation.get(CoreAnnotations.SentencesAnnotation.class);
+            if (sentences != null && !sentences.isEmpty()) {
+                analyses.add(new EnglishSegmentAnalysis(sourceSegment, sentences));
+                for (CoreMap sentence : sentences) {
+                    for (CoreLabel token : sentence.get(CoreAnnotations.TokensAnnotation.class)) {
+                        String normalizedText = normalizeEnglish(token.word());
+                        String lemma = normalizeEnglish(token.lemma());
+                        if (!normalizedText.isEmpty()) {
+                            candidates.add(normalizedText);
+                        }
+                        if (!lemma.isEmpty()) {
+                            candidates.add(lemma);
+                        }
+                    }
                 }
             }
         }
@@ -92,41 +111,45 @@ public class ArticleVocabAnalyzer {
         }
         Map<Long, ArticleVocabMatch> matchMap = new LinkedHashMap<>();
 
-        for (CoreMap sentence : sentences) {
-            String sentenceText = sentence.get(CoreAnnotations.TextAnnotation.class);
-            Integer sentenceStart = sentence.get(CoreAnnotations.CharacterOffsetBeginAnnotation.class);
-            Integer sentenceEnd = sentence.get(CoreAnnotations.CharacterOffsetEndAnnotation.class);
-            for (CoreLabel token : sentence.get(CoreAnnotations.TokensAnnotation.class)) {
-                String matchedText = token.word();
-                String normalizedText = normalizeEnglish(matchedText);
-                String lemma = normalizeEnglish(token.lemma());
-                BizVocabEnDO vocab = vocabMap.get(lemma);
-                if (vocab == null) {
-                    vocab = vocabMap.get(normalizedText);
+        for (EnglishSegmentAnalysis analysis : analyses) {
+            int baseOffset = analysis.sourceSegment().startOffset();
+            for (CoreMap sentence : analysis.sentences()) {
+                String sentenceText = sentence.get(CoreAnnotations.TextAnnotation.class);
+                Integer sentenceStart = sentence.get(CoreAnnotations.CharacterOffsetBeginAnnotation.class);
+                Integer sentenceEnd = sentence.get(CoreAnnotations.CharacterOffsetEndAnnotation.class);
+                for (CoreLabel token : sentence.get(CoreAnnotations.TokensAnnotation.class)) {
+                    String matchedText = token.word();
+                    String normalizedText = normalizeEnglish(matchedText);
+                    String lemma = normalizeEnglish(token.lemma());
+                    BizVocabEnDO vocab = vocabMap.get(lemma);
+                    if (vocab == null) {
+                        vocab = vocabMap.get(normalizedText);
+                    }
+                    if (vocab == null) {
+                        continue;
+                    }
+                    ArticleVocabOccurrence occurrence = ArticleVocabOccurrence.builder()
+                            .matchedText(matchedText)
+                            .normalizedText(lemma == null || lemma.isEmpty() ? normalizedText : lemma)
+                            .posTag(token.tag())
+                            .posType(convertEnglishPos(token.tag()))
+                            .sentence(sentenceText)
+                            .sentenceStartOffset(baseOffset + sentenceStart)
+                            .sentenceEndOffset(baseOffset + sentenceEnd)
+                            .startOffset(baseOffset + token.beginPosition())
+                            .endOffset(baseOffset + token.endPosition())
+                            .analysisProvider("corenlp")
+                            .analysisVersion("4.5.7-source-v1")
+                            .build();
+                    addOccurrence(matchMap, vocab.getId(), vocab.getWord(), matchedText, occurrence);
                 }
-                if (vocab == null) {
-                    continue;
-                }
-                ArticleVocabOccurrence occurrence = ArticleVocabOccurrence.builder()
-                        .matchedText(matchedText)
-                        .normalizedText(lemma == null || lemma.isEmpty() ? normalizedText : lemma)
-                        .posTag(token.tag())
-                        .posType(convertEnglishPos(token.tag()))
-                        .sentence(sentenceText)
-                        .sentenceStartOffset(sentenceStart)
-                        .sentenceEndOffset(sentenceEnd)
-                        .startOffset(token.beginPosition())
-                        .endOffset(token.endPosition())
-                        .analysisProvider("corenlp")
-                        .analysisVersion("4.5.7")
-                        .build();
-                addOccurrence(matchMap, vocab.getId(), vocab.getWord(), matchedText, occurrence);
             }
         }
         return toSortedMatches(matchMap);
     }
 
-    private List<ArticleVocabMatch> analyzeJapaneseText(String text, String analysisLevel) throws Exception {
+    private List<ArticleVocabMatch> analyzeJapaneseText(List<SourceSegment> sourceSegments,
+                                                        String analysisLevel) throws Exception {
         String databaseLevel = VocabLevelUtil.toDatabaseLevel("ja", analysisLevel);
         List<BizVocabJpDO> vocabList = bizVocabJpMapper.selectList(new LambdaQueryWrapper<BizVocabJpDO>()
                 .eq(BizVocabJpDO::getLevel, databaseLevel));
@@ -135,28 +158,33 @@ public class ArticleVocabAnalyzer {
         }
         Map<Long, ArticleVocabMatch> matchMap = new LinkedHashMap<>();
         for (BizVocabJpDO vocab : vocabList) {
-            int fromIndex = 0;
-            while (fromIndex < text.length()) {
-                int start = text.indexOf(vocab.getWord(), fromIndex);
-                if (start < 0) {
-                    break;
+            for (SourceSegment sourceSegment : sourceSegments) {
+                String sourceText = sourceSegment.text();
+                int fromIndex = 0;
+                while (fromIndex < sourceText.length()) {
+                    int localStart = sourceText.indexOf(vocab.getWord(), fromIndex);
+                    if (localStart < 0) {
+                        break;
+                    }
+                    int localEnd = localStart + vocab.getWord().length();
+                    int start = sourceSegment.startOffset() + localStart;
+                    int end = sourceSegment.startOffset() + localEnd;
+                    SentenceRange sentenceRange = findSentenceRange(sourceText, localStart, localEnd);
+                    ArticleVocabOccurrence occurrence = ArticleVocabOccurrence.builder()
+                            .matchedText(vocab.getWord())
+                            .normalizedText(vocab.getWord())
+                            .posType("other")
+                            .sentence(sourceText.substring(sentenceRange.getStartOffset(), sentenceRange.getEndOffset()))
+                            .sentenceStartOffset(sourceSegment.startOffset() + sentenceRange.getStartOffset())
+                            .sentenceEndOffset(sourceSegment.startOffset() + sentenceRange.getEndOffset())
+                            .startOffset(start)
+                            .endOffset(end)
+                            .analysisProvider("simple")
+                            .analysisVersion("2.0-source-only")
+                            .build();
+                    addOccurrence(matchMap, vocab.getId(), vocab.getWord(), vocab.getWord(), occurrence);
+                    fromIndex = localEnd;
                 }
-                int end = start + vocab.getWord().length();
-                SentenceRange sentenceRange = findSentenceRange(text, start, end);
-                ArticleVocabOccurrence occurrence = ArticleVocabOccurrence.builder()
-                        .matchedText(vocab.getWord())
-                        .normalizedText(vocab.getWord())
-                        .posType("other")
-                        .sentence(text.substring(sentenceRange.getStartOffset(), sentenceRange.getEndOffset()))
-                        .sentenceStartOffset(sentenceRange.getStartOffset())
-                        .sentenceEndOffset(sentenceRange.getEndOffset())
-                        .startOffset(start)
-                        .endOffset(end)
-                        .analysisProvider("simple")
-                        .analysisVersion("1.0")
-                        .build();
-                addOccurrence(matchMap, vocab.getId(), vocab.getWord(), vocab.getWord(), occurrence);
-                fromIndex = end;
             }
         }
         return toSortedMatches(matchMap);
@@ -286,5 +314,8 @@ public class ArticleVocabAnalyzer {
     private static class SentenceRange {
         private Integer startOffset;
         private Integer endOffset;
+    }
+
+    private record EnglishSegmentAnalysis(SourceSegment sourceSegment, List<CoreMap> sentences) {
     }
 }

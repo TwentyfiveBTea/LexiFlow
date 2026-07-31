@@ -353,7 +353,7 @@ public class ArticleTranslationServiceImpl implements ArticleTranslationService 
             result.add(ArticleTranslatedParagraphDTO.builder()
                     .index(paragraphIndex)
                     .source(chunk.getParagraphs().get(i))
-                    .translation(translated.getTranslation().trim())
+                    .translation(translated.getTranslation().replaceAll("\\s*\\n\\s*", " ").trim())
                     .build());
         }
         return result;

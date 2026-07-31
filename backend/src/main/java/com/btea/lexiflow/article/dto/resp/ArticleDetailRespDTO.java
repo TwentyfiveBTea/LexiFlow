@@ -39,6 +39,11 @@ public class ArticleDetailRespDTO {
     private String languageCode;
 
     /**
+     * 翻译状态：0=待翻译，1=翻译中，2=翻译成功，3=翻译失败
+     */
+    private Integer translationStatus;
+
+    /**
      * 词数统计
      */
     private Integer wordCount;
