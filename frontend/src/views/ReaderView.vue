@@ -158,7 +158,28 @@ function updateProgress() {
   progress.value = height > 0 ? Math.min(100, window.scrollY / height * 100) : 0
 }
 
-async function toggleWord(vocab: ArticleVocabResponse) {
+async function selectArticleWord(vocab: ArticleVocabResponse) {
+  expandedVocabId.value = vocab.articleVocabId
+  libraryPickerFor.value = null
+  panelOpen.value = true
+  occurrences.value = articleOccurrences.value.filter((occurrence) => occurrence.articleVocabId === vocab.articleVocabId)
+  await nextTick()
+  scrollPanelToWord(vocab.articleVocabId)
+}
+
+function scrollPanelToWord(articleVocabId: string) {
+  const panel = document.querySelector<HTMLElement>('.vocab-panel')
+  const panelItem = Array.from(document.querySelectorAll<HTMLElement>('.vocab-panel .word-item[data-vocab-id]'))
+    .find((element) => element.dataset.vocabId === articleVocabId)
+  if (!panel || !panelItem) return
+
+  const panelRect = panel.getBoundingClientRect()
+  const itemRect = panelItem.getBoundingClientRect()
+  const targetTop = panel.scrollTop + itemRect.top - panelRect.top - (panel.clientHeight - itemRect.height) / 2
+  panel.scrollTo({ top: Math.max(targetTop, 0), behavior: 'smooth' })
+}
+
+async function togglePanelWord(vocab: ArticleVocabResponse) {
   expandedVocabId.value = expandedVocabId.value === vocab.articleVocabId ? null : vocab.articleVocabId
   libraryPickerFor.value = null
   panelOpen.value = true
@@ -329,7 +350,7 @@ onBeforeUnmount(() => window.removeEventListener('scroll', updateProgress))
           <section v-for="(block, blockIndex) in contentBlocks" :key="blockIndex" class="content-block">
             <p class="source-paragraph">
               <template v-for="(segment, segmentIndex) in segmentText(block.source, block.sourceStartOffset)" :key="segment.occurrenceId ?? `plain-${segmentIndex}`">
-                <button v-if="segment.vocab" class="word" :class="{ active: expandedVocabId === segment.vocab.articleVocabId }" :data-vocab-id="segment.vocab.articleVocabId" :data-occurrence-id="segment.occurrenceId" @click="toggleWord(segment.vocab)">{{ segment.text }}</button>
+                <button v-if="segment.vocab" class="word" :class="{ active: expandedVocabId === segment.vocab.articleVocabId }" :data-vocab-id="segment.vocab.articleVocabId" :data-occurrence-id="segment.occurrenceId" @click="selectArticleWord(segment.vocab)">{{ segment.text }}</button>
                 <template v-else>{{ segment.text }}</template>
               </template>
             </p>
@@ -351,8 +372,8 @@ onBeforeUnmount(() => window.removeEventListener('scroll', updateProgress))
         <div v-else-if="!levelOptions.length" class="panel-state">这篇文章还没有已解析的词汇等级</div>
         <div v-else-if="!articleVocabs.length" class="panel-state">当前等级没有命中词汇</div>
         <div v-else class="word-index">
-          <article v-for="vocab in articleVocabs" :key="vocab.articleVocabId" class="word-item" :class="{ active: expandedVocabId === vocab.articleVocabId }">
-            <button class="word-row" type="button" :aria-expanded="expandedVocabId === vocab.articleVocabId" @click="toggleWord(vocab)">
+          <article v-for="vocab in articleVocabs" :key="vocab.articleVocabId" class="word-item" :class="{ active: expandedVocabId === vocab.articleVocabId }" :data-vocab-id="vocab.articleVocabId">
+            <button class="word-row" type="button" :aria-expanded="expandedVocabId === vocab.articleVocabId" @click="togglePanelWord(vocab)">
               <span><strong class="serif">{{ vocab.baseWord }}</strong><small>{{ translationPreview(vocab.translations) }}</small></span>
               <ChevronRight :size="16" />
             </button>
