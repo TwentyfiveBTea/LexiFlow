@@ -28,6 +28,6 @@ public class MyMetaObjectHandler implements MetaObjectHandler {
      */
     @Override
     public void updateFill(MetaObject metaObject) {
-        this.strictUpdateFill(metaObject, "updatedAt", Date.class, new Date());
+        this.setFieldValByName("updatedAt", new Date(), metaObject);
     }
 }
