@@ -7,7 +7,6 @@ import com.btea.lexiflow.article.dao.entity.BizArticlesDO;
 import com.btea.lexiflow.article.dao.entity.RelArticleVocabDO;
 import com.btea.lexiflow.article.dao.mapper.BizArticlesMapper;
 import com.btea.lexiflow.article.dao.mapper.RelArticleVocabMapper;
-import com.btea.lexiflow.article.nlp.ArticleVocabAnalyzer;
 import com.btea.lexiflow.common.context.UserContext;
 import com.btea.lexiflow.common.cache.AfterCommitExecutor;
 import com.btea.lexiflow.common.convention.errorcode.BaseErrorCode;
@@ -29,6 +28,7 @@ import com.btea.lexiflow.vocab.dto.resp.VocabLibraryRespDTO;
 import com.btea.lexiflow.vocab.dto.resp.VocabLibraryStatisticsRespDTO;
 import com.btea.lexiflow.vocab.dto.resp.VocabLibraryWordRespDTO;
 import com.btea.lexiflow.vocab.service.VocabService;
+import com.btea.lexiflow.vocab.util.VocabLevelUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -55,7 +55,6 @@ public class VocabServiceImpl implements VocabService {
     private final RelUserWordProgressMapper relUserWordProgressMapper;
     private final BizArticlesMapper bizArticlesMapper;
     private final RelArticleVocabMapper relArticleVocabMapper;
-    private final ArticleVocabAnalyzer articleVocabAnalyzer;
     private final VocabQueryCache vocabQueryCache;
     private final VocabWordCacheLoader vocabWordCacheLoader;
     private final AfterCommitExecutor afterCommitExecutor;
@@ -233,7 +232,7 @@ public class VocabServiceImpl implements VocabService {
         long cacheVersion = vocabQueryCache.getUserVersion(userId);
         List<VocabLibraryWordRespDTO> cached = vocabQueryCache.getLibraryWords(userId, cacheVersion, libraryId);
         if (cached != null) {
-            return filterLibraryWords(cached, normalizedKeyword, library.getLanguageCode(), normalizedLevel);
+            return filterLibraryWords(cached, normalizedKeyword, normalizedLevel);
         }
         List<RelVocabLibraryWordDO> relations = relVocabLibraryWordMapper.selectList(new LambdaQueryWrapper<RelVocabLibraryWordDO>()
                 .eq(RelVocabLibraryWordDO::getLibraryId, libraryId)
@@ -245,7 +244,6 @@ public class VocabServiceImpl implements VocabService {
             return List.of();
         }
         Set<Long> wordIds = relations.stream().map(RelVocabLibraryWordDO::getWordId).collect(Collectors.toSet());
-        Set<String> levelWords = loadLevelWords(library.getLanguageCode(), normalizedLevel);
         Map<Long, VocabWordCacheEntry> wordDetails = vocabWordCacheLoader.loadWords(library.getLanguageCode(), wordIds);
         Map<Long, VocabWordLevelCacheEntry> wordLevels = vocabWordCacheLoader.loadLevels(
                 userId, library.getLanguageCode(), wordIds, wordDetails);
@@ -254,7 +252,7 @@ public class VocabServiceImpl implements VocabService {
                         wordLevels.get(relation.getWordId())))
                 .toList();
         vocabQueryCache.putLibraryWords(userId, cacheVersion, libraryId, words);
-        return filterLibraryWords(words, normalizedKeyword, levelWords);
+        return filterLibraryWords(words, normalizedKeyword, normalizedLevel);
     }
 
     /**
@@ -458,15 +456,9 @@ public class VocabServiceImpl implements VocabService {
     }
 
     private List<VocabLibraryWordRespDTO> filterLibraryWords(List<VocabLibraryWordRespDTO> words,
-                                                              String keyword, String languageCode, String level) {
-        Set<String> levelWords = loadLevelWords(languageCode, level);
-        return filterLibraryWords(words, keyword, levelWords);
-    }
-
-    private List<VocabLibraryWordRespDTO> filterLibraryWords(List<VocabLibraryWordRespDTO> words,
-                                                              String keyword, Set<String> levelWords) {
+                                                              String keyword, String level) {
         return words.stream()
-                .filter(word -> matchesWord(word, keyword, levelWords))
+                .filter(word -> matchesWord(word, keyword, level))
                 .toList();
     }
 
@@ -492,34 +484,11 @@ public class VocabServiceImpl implements VocabService {
     }
 
     private String normalizeLevel(String languageCode, String level) {
-        if (level == null || level.isBlank()) {
-            return null;
-        }
-        String normalizedLevel = level.trim().toUpperCase(Locale.ROOT);
-        Set<String> supportedLevels = "ja".equals(languageCode)
-                ? VocabConstant.JAPANESE_LEVELS
-                : VocabConstant.ENGLISH_LEVELS;
-        if (!supportedLevels.contains(normalizedLevel)) {
-            throw new ClientException(BaseErrorCode.VOCAB_LEVEL_NOT_SUPPORTED);
-        }
-        return normalizedLevel;
+        return VocabLevelUtil.normalizeApiLevel(languageCode, level);
     }
 
-    private Set<String> loadLevelWords(String languageCode, String level) {
-        if (level == null) {
-            return null;
-        }
-        try {
-            return articleVocabAnalyzer.loadLevelWords(languageCode, level);
-        } catch (ClientException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new ClientException(BaseErrorCode.VOCAB_NOT_FOUND);
-        }
-    }
-
-    private boolean matchesWord(VocabLibraryWordRespDTO word, String keyword, Set<String> levelWords) {
-        boolean matchesLevel = levelWords == null || levelWords.contains(normalizeWord(word.getWord()));
+    private boolean matchesWord(VocabLibraryWordRespDTO word, String keyword, String level) {
+        boolean matchesLevel = level == null || level.equalsIgnoreCase(valueOrEmpty(word.getLevel()));
         if (!matchesLevel) {
             return false;
         }
@@ -531,10 +500,6 @@ public class VocabServiceImpl implements VocabService {
                 valueOrEmpty(word.getUk()), valueOrEmpty(word.getTranslations()), valueOrEmpty(word.getPhrases()))
                 .toLowerCase(Locale.ROOT);
         return searchable.contains(keyword);
-    }
-
-    private String normalizeWord(String word) {
-        return valueOrEmpty(word).trim().toLowerCase(Locale.ROOT);
     }
 
     private String valueOrEmpty(String value) {

@@ -1,11 +1,8 @@
 package com.btea.lexiflow.vocab.cache;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.btea.lexiflow.article.dao.entity.RelArticleVocabDO;
-import com.btea.lexiflow.article.dao.mapper.RelArticleVocabMapper;
-import com.btea.lexiflow.article.nlp.ArticleVocabAnalyzer;
 import com.btea.lexiflow.vocab.dao.mapper.BizVocabEnMapper;
 import com.btea.lexiflow.vocab.dao.mapper.BizVocabJpMapper;
+import com.btea.lexiflow.vocab.util.VocabLevelUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -21,7 +18,7 @@ import static com.btea.lexiflow.article.constant.ArticleConstant.VOCAB_QUERY_BAT
 /**
  * @Author: TwentyfiveBTea
  * @Date: 2026/7/24
- * @Description: 词典与词汇等级批量缓存加载器
+ * @Description: 词典与数据库词汇等级批量缓存加载器
  */
 @Component
 @RequiredArgsConstructor
@@ -30,8 +27,6 @@ public class VocabWordCacheLoader {
     private final VocabQueryCache vocabQueryCache;
     private final BizVocabEnMapper bizVocabEnMapper;
     private final BizVocabJpMapper bizVocabJpMapper;
-    private final RelArticleVocabMapper relArticleVocabMapper;
-    private final ArticleVocabAnalyzer articleVocabAnalyzer;
 
     /**
      * 批量加载词典词条，优先读取缓存并查询缺失数据
@@ -48,10 +43,12 @@ public class VocabWordCacheLoader {
         for (List<Long> batch : partition(new ArrayList<>(missing))) {
             if ("ja".equals(languageCode)) {
                 bizVocabJpMapper.selectBatchIds(batch).forEach(word -> loaded.add(new VocabWordCacheEntry(
-                        word.getId(), languageCode, word.getWord(), word.getKana(), null, null, word.getTranslations())));
+                        word.getId(), languageCode, word.getWord(), word.getKana(), null, null,
+                        word.getTranslations(), VocabLevelUtil.toApiLevel(languageCode, word.getLevel()))));
             } else {
                 bizVocabEnMapper.selectBatchIds(batch).forEach(word -> loaded.add(new VocabWordCacheEntry(
-                        word.getId(), languageCode, word.getWord(), null, word.getUs(), word.getUk(), word.getTranslations())));
+                        word.getId(), languageCode, word.getWord(), null, word.getUs(), word.getUk(),
+                        word.getTranslations(), VocabLevelUtil.toApiLevel(languageCode, word.getLevel()))));
             }
         }
         vocabQueryCache.putWords(languageCode, loaded);
@@ -60,13 +57,13 @@ public class VocabWordCacheLoader {
     }
 
     /**
-     * 批量加载用户词汇等级，优先读取缓存并计算缺失数据
+     * 批量加载词汇等级，优先读取缓存并使用词典等级补齐缺失数据
      *
      * @param userId 用户ID
      * @param languageCode 语言编码
      * @param wordIds 单词ID集合
      * @param wordDetails 词典词条映射
-     * @return 单词ID与用户词汇等级的映射
+     * @return 单词ID与词汇等级的映射
      */
     public Map<Long, VocabWordLevelCacheEntry> loadLevels(String userId, String languageCode,
                                                            Set<Long> wordIds,
@@ -78,26 +75,9 @@ public class VocabWordCacheLoader {
         if (missing.isEmpty()) {
             return result;
         }
-        for (List<Long> batch : partition(new ArrayList<>(missing))) {
-            List<RelArticleVocabDO> sources = relArticleVocabMapper.selectList(new LambdaQueryWrapper<RelArticleVocabDO>()
-                    .select(RelArticleVocabDO::getWordId, RelArticleVocabDO::getAnalysisLevel,
-                            RelArticleVocabDO::getCreatedAt)
-                    .eq(RelArticleVocabDO::getUserId, userId)
-                    .eq(RelArticleVocabDO::getLanguageCode, languageCode)
-                    .in(RelArticleVocabDO::getWordId, batch)
-                    .orderByDesc(RelArticleVocabDO::getCreatedAt));
-            for (RelArticleVocabDO source : sources) {
-                if (source.getAnalysisLevel() != null && !source.getAnalysisLevel().isBlank()) {
-                    result.putIfAbsent(source.getWordId(), new VocabWordLevelCacheEntry(source.getAnalysisLevel()));
-                }
-            }
-        }
         for (Long wordId : missing) {
-            if (result.containsKey(wordId)) {
-                continue;
-            }
             VocabWordCacheEntry word = wordDetails.get(wordId);
-            String level = word == null ? null : articleVocabAnalyzer.findLevel(languageCode, word.word());
+            String level = word == null ? null : word.level();
             result.put(wordId, new VocabWordLevelCacheEntry(level));
         }
         vocabQueryCache.putWordLevels(userId, languageCode, result);
