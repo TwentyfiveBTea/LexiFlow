@@ -68,6 +68,16 @@ async function submit() {
 
         <p class="auth-switch">还没有账号？<RouterLink to="/register">创建账号</RouterLink></p>
       </div>
+
+      <footer class="auth-footer">
+        <a
+          href="https://beian.miit.gov.cn/"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          粤ICP备2025405156号-2
+        </a>
+      </footer>
     </section>
   </main>
 </template>
@@ -81,8 +91,8 @@ async function submit() {
 .auth-intro h1 { max-width: 650px; margin: 0; font-size: clamp(42px, 4vw, 60px); line-height: 1.18; font-weight: 600; }
 .intro-english { max-width: 610px; margin: 26px 0 0; color: #dce9ec; font-family: 'Literata', Georgia, serif; font-size: 19px; line-height: 1.65; }
 .intro-chinese { max-width: 590px; margin: 18px 0 0; color: #bdd0d5; font-size: 15px; line-height: 1.75; }
-.auth-panel { display: grid; place-items: center; padding: 48px; }
-.auth-card { width: min(100%, 430px); animation-delay: .12s; }
+.auth-panel { min-height: 100vh; display: grid; grid-template-rows: minmax(0, 1fr) auto; padding: 48px 48px 24px; }
+.auth-card { align-self: center; justify-self: center; width: min(100%, 430px); animation-delay: .12s; }
 .auth-card > .eyebrow { margin-bottom: 12px; font-size: 14px; line-height: 18px; }
 .auth-card h2 { margin: 0; color: var(--primary); font-size: 36px; font-weight: 600; }
 .auth-copy { margin: 8px 0 30px; color: var(--ink-muted); }
@@ -97,11 +107,14 @@ form { display: grid; }
 .form-message { margin: 14px 0 0; color: var(--error); font-size: 13px; }
 .auth-switch { margin: 24px 0 0; text-align: center; color: var(--ink-muted); font-size: 13px; }
 .auth-switch a { margin-left: 5px; color: var(--secondary); font-weight: 700; }
+.auth-footer { margin-top: 28px; color: var(--ink-muted); font-size: 11px; line-height: 18px; text-align: center; }
+.auth-footer a { text-underline-offset: 3px; }
+.auth-footer a:hover, .auth-footer a:focus-visible { color: var(--primary); text-decoration: underline; }
 
 @media (max-width: 900px) {
   .auth-page { grid-template-columns: 1fr; }
   .auth-intro { display: none; }
-  .auth-panel { padding: 40px 22px; }
+  .auth-panel { padding: 40px 22px 20px; }
   .mobile-brand { display: block; }
 }
 </style>
