@@ -1,7 +1,6 @@
 <script setup lang="ts">
-import { FileText, Grid2X2, List, MoreVertical, RefreshCw, ScanSearch, Search, Trash2, X } from 'lucide-vue-next'
-import { computed, ref } from 'vue'
-import { onMounted } from 'vue'
+import { CircleAlert, CircleCheck, FileText, Grid2X2, List, MoreVertical, RefreshCw, ScanSearch, Search, Trash2, X } from 'lucide-vue-next'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { articles } from '@/data/demo'
 import type { Article, ArticleProcessingDetail } from '@/data/demo'
@@ -19,6 +18,13 @@ interface ArticleCard {
   processingDetail: ArticleProcessingDetail
 }
 
+interface AnalysisNotice {
+  key: string
+  status: 'processing' | 'success' | 'error'
+  title: string
+  detail: string
+}
+
 const router = useRouter()
 const query = ref('')
 const view = ref<'grid' | 'list'>('grid')
@@ -33,8 +39,7 @@ const analysisArticle = ref<ArticleCard | null>(null)
 const analysisLevel = ref('CET4')
 const analysisDialogOpen = ref(false)
 const analysisLoading = ref(false)
-const analysisError = ref('')
-const analysisResult = ref<{ matchedWordCount: number; reused: boolean; analysisLevel: string } | null>(null)
+const analysisNotice = ref<AnalysisNotice | null>(null)
 const deletedArticleIds = ref<string[]>([])
 const deleteError = ref('')
 const deleteDialogOpen = ref(false)
@@ -50,6 +55,7 @@ const articleItems = ref<ArticleCard[]>(articles.map((article) => ({
   tone: article.tone,
   processingDetail: article.processingDetail,
 })))
+let analysisTrackerDisposed = false
 const filteredArticles = computed(() => {
   const keyword = query.value.trim().toLowerCase()
   return articleItems.value.filter((article) => {
@@ -158,15 +164,13 @@ const japaneseAnalysisLevels = [
 const analysisLevels = computed(() => analysisArticle.value?.languageCode === 'ja' ? japaneseAnalysisLevels : englishAnalysisLevels)
 
 function openAnalysisDialog(article: ArticleCard) {
+  if (analysisLoading.value || article.processingDetail.analysisStatus === 1) return
   analysisArticle.value = article
   analysisLevel.value = article.languageCode === 'ja' ? 'N3' : 'CET4'
-  analysisError.value = ''
-  analysisResult.value = null
   analysisDialogOpen.value = true
 }
 
 function closeAnalysisDialog() {
-  if (analysisLoading.value) return
   analysisDialogOpen.value = false
   analysisArticle.value = null
 }
@@ -174,46 +178,103 @@ function closeAnalysisDialog() {
 async function confirmAnalysis() {
   if (!analysisArticle.value || analysisLoading.value) return
 
+  const article = analysisArticle.value
+  const level = analysisLevel.value
+  const noticeKey = `${article.articleId}:${level}:${Date.now()}`
   analysisLoading.value = true
-  analysisError.value = ''
-  analysisResult.value = null
+  closeAnalysisDialog()
+  analysisNotice.value = {
+    key: noticeKey,
+    status: 'processing',
+    title: '正在提交词汇解析',
+    detail: `${article.title} · ${level}`,
+  }
   try {
-    const result = await analyzeArticle(analysisArticle.value.articleId, analysisLevel.value)
+    const result = await analyzeArticle(article.articleId, level)
     if (result.reused || result.analysisStatus === 2) {
-      analysisResult.value = {
-        matchedWordCount: result.matchedWordCount,
-        reused: result.reused,
-        analysisLevel: result.analysisLevel,
+      updateArticleAnalysisStatus(article.articleId, 2)
+      analysisNotice.value = {
+        key: noticeKey,
+        status: 'success',
+        title: result.reused ? '已复用现有解析结果' : '词汇解析完成',
+        detail: `${article.title} · ${result.matchedWordCount.toLocaleString()} 个词汇`,
       }
       return
     }
 
-    await waitForAnalysis(result.articleId, result.analysisLevel)
+    updateArticleAnalysisStatus(article.articleId, 1)
+    analysisNotice.value = {
+      key: noticeKey,
+      status: 'processing',
+      title: '词汇解析已在后台运行',
+      detail: `${article.title} · 可以继续使用文章库`,
+    }
+    void trackAnalysis(result.articleId, article.title, result.analysisLevel, noticeKey)
   } catch (error) {
-    analysisError.value = error instanceof Error ? error.message : '词汇解析失败，请稍后重试'
+    analysisNotice.value = {
+      key: noticeKey,
+      status: 'error',
+      title: '词汇解析提交失败',
+      detail: error instanceof Error ? error.message : '请稍后重试',
+    }
   } finally {
     analysisLoading.value = false
   }
 }
 
-async function waitForAnalysis(articleId: string, level: string) {
+async function trackAnalysis(articleId: string, title: string, level: string, noticeKey: string) {
   for (let attempt = 0; attempt < 80; attempt += 1) {
     await new Promise((resolve) => window.setTimeout(resolve, 1500))
-    const detail = await getArticleProcessingDetail(articleId)
+    if (analysisTrackerDisposed) return
+    let detail: ArticleProcessingDetail
+    try {
+      detail = await getArticleProcessingDetail(articleId)
+    } catch {
+      continue
+    }
     if (detail.analysisStatus === 3) {
-      throw new Error('词汇解析失败，请稍后重试')
+      updateArticleAnalysisStatus(articleId, 3)
+      updateAnalysisNotice(noticeKey, {
+        status: 'error',
+        title: '词汇解析失败',
+        detail: `${title} · 请稍后重试`,
+      })
+      return
     }
     if (detail.analysisStatus === 2) {
-      const vocabs = await getArticleVocabs(articleId, level)
-      analysisResult.value = {
-        matchedWordCount: vocabs.length,
-        reused: false,
-        analysisLevel: level,
+      updateArticleAnalysisStatus(articleId, 2)
+      let matchedWordCount: number | null = null
+      try {
+        matchedWordCount = (await getArticleVocabs(articleId, level)).length
+      } catch {
+        // The analysis is complete even when the result count cannot be refreshed immediately.
       }
+      updateAnalysisNotice(noticeKey, {
+        status: 'success',
+        title: '词汇解析完成',
+        detail: matchedWordCount === null
+          ? `${title} · ${level} 词表`
+          : `${title} · ${matchedWordCount.toLocaleString()} 个词汇`,
+      })
       return
     }
   }
-  throw new Error('词汇解析仍在后台进行，请稍后查看文章详情')
+  updateAnalysisNotice(noticeKey, {
+    status: 'processing',
+    title: '词汇解析仍在后台运行',
+    detail: `${title} · 可稍后打开文章查看结果`,
+  })
+}
+
+function updateArticleAnalysisStatus(articleId: string, status: number) {
+  const article = articleItems.value.find((item) => item.articleId === articleId)
+  if (article) article.processingDetail.analysisStatus = status
+}
+
+function updateAnalysisNotice(noticeKey: string, update: Omit<AnalysisNotice, 'key'>) {
+  if (analysisNotice.value?.key === noticeKey) {
+    analysisNotice.value = { key: noticeKey, ...update }
+  }
 }
 
 function requestDeleteArticle() {
@@ -240,6 +301,7 @@ async function confirmDeleteArticle() {
 }
 
 onMounted(() => { void loadArticles() })
+onBeforeUnmount(() => { analysisTrackerDisposed = true })
 </script>
 
 <template>
@@ -247,6 +309,16 @@ onMounted(() => { void loadArticles() })
     <header class="page-header fade-in">
       <div><p class="eyebrow">Repository · {{ articleItems.length }} texts<span v-if="usingDemoData"> · Demo</span></p><h1 class="page-title">文章库</h1><p class="page-description">整理所有阅读材料，回到任何一段仍值得推敲的文本</p></div>
     </header>
+
+    <Transition name="analysis-notice">
+      <aside v-if="analysisNotice" class="analysis-notice" :class="analysisNotice.status" role="status" aria-live="polite">
+        <RefreshCw v-if="analysisNotice.status === 'processing'" :size="18" class="spin" />
+        <CircleCheck v-else-if="analysisNotice.status === 'success'" :size="18" />
+        <CircleAlert v-else :size="18" />
+        <span><strong>{{ analysisNotice.title }}</strong><small>{{ analysisNotice.detail }}</small></span>
+        <button class="icon-btn" type="button" aria-label="关闭解析状态通知" title="关闭" @click="analysisNotice = null"><X :size="16" /></button>
+      </aside>
+    </Transition>
 
     <section class="library-toolbar surface fade-in">
       <label class="search-field"><Search :size="18" /><input v-model="query" placeholder="搜索标题" /></label>
@@ -262,7 +334,7 @@ onMounted(() => { void loadArticles() })
     <section v-else class="article-grid" :class="{ list: view === 'list' }">
       <article v-for="(article, index) in filteredArticles" :key="article.articleId" class="article-card surface fade-in" :style="{ animationDelay: `${index * 70}ms` }">
         <div class="card-actions">
-          <button class="parse-button" type="button" :aria-label="`解析 ${article.title} 的词汇`" title="解析文章词汇" @click="openAnalysisDialog(article)"><ScanSearch :size="15" />解析</button>
+          <button class="parse-button" type="button" :aria-label="`${article.processingDetail.analysisStatus === 1 ? '正在解析' : '解析'} ${article.title} 的词汇`" :title="article.processingDetail.analysisStatus === 1 ? '词汇解析正在后台运行' : '解析文章词汇'" :disabled="analysisLoading || article.processingDetail.analysisStatus === 1" @click="openAnalysisDialog(article)"><RefreshCw v-if="article.processingDetail.analysisStatus === 1" :size="15" class="spin" /><ScanSearch v-else :size="15" />{{ article.processingDetail.analysisStatus === 1 ? '解析中' : '解析' }}</button>
           <button class="more icon-btn" type="button" :aria-label="`查看 ${article.title} 详细信息`" title="查看文章详细信息" @click="selectedArticle = article; deleteError = ''"><MoreVertical :size="18" /></button>
         </div>
         <button class="cover" :class="article.tone" @click="router.push(`/reader/${article.articleId}`)"><FileText :size="38" :stroke-width="1.2" /></button>
@@ -301,21 +373,19 @@ onMounted(() => { void loadArticles() })
         <section class="dialog-panel analysis-modal surface" role="dialog" aria-modal="true" aria-labelledby="analysis-dialog-title">
           <div class="modal-heading">
             <div><p class="eyebrow">Vocabulary analysis</p><h2 id="analysis-dialog-title" class="serif">选择解析等级</h2><p>{{ analysisArticle.title }}</p></div>
-            <button class="icon-btn" type="button" aria-label="关闭词汇解析弹窗" title="关闭" :disabled="analysisLoading" @click="closeAnalysisDialog"><X :size="18" /></button>
+            <button class="icon-btn" type="button" aria-label="关闭词汇解析弹窗" title="关闭" @click="closeAnalysisDialog"><X :size="18" /></button>
           </div>
 
           <div class="analysis-context"><ScanSearch :size="18" /><span>将按所选等级匹配文章中的目标词汇</span></div>
           <div class="level-grid" role="radiogroup" aria-label="词汇解析等级">
-            <button v-for="level in analysisLevels" :key="level.value" class="level-option" :class="{ selected: analysisLevel === level.value }" type="button" role="radio" :aria-checked="analysisLevel === level.value" :disabled="analysisLoading" @click="analysisLevel = level.value">
+            <button v-for="level in analysisLevels" :key="level.value" class="level-option" :class="{ selected: analysisLevel === level.value }" type="button" role="radio" :aria-checked="analysisLevel === level.value" @click="analysisLevel = level.value">
               <span class="level-check" aria-hidden="true"></span><strong>{{ level.label }}</strong><small>{{ level.description }}</small>
             </button>
           </div>
 
-          <p v-if="analysisError" class="analysis-message error" role="alert">{{ analysisError }}</p>
-          <div v-if="analysisResult" class="analysis-result" :class="{ reused: analysisResult.reused }"><div class="analysis-result-copy"><strong>{{ analysisResult.reused ? '已经解析过该等级' : '解析完成' }}</strong><span>{{ analysisResult.matchedWordCount.toLocaleString() }} 个词汇已{{ analysisResult.reused ? '复用' : '完成解析' }}</span></div><small>{{ analysisResult.analysisLevel }} 词表</small></div>
           <div class="modal-actions analysis-actions">
-            <button class="btn btn-secondary" type="button" :disabled="analysisLoading" @click="closeAnalysisDialog">{{ analysisResult ? '完成' : '取消' }}</button>
-            <button v-if="!analysisResult" class="btn btn-primary" type="button" :disabled="analysisLoading" @click="confirmAnalysis"><ScanSearch :size="16" />{{ analysisLoading ? '解析中…' : '确认解析' }}</button>
+            <button class="btn btn-secondary" type="button" @click="closeAnalysisDialog">取消</button>
+            <button class="btn btn-primary" type="button" :disabled="analysisLoading" @click="confirmAnalysis"><ScanSearch :size="16" />确认解析</button>
           </div>
         </section>
       </div>
@@ -346,6 +416,7 @@ onMounted(() => { void loadArticles() })
 .more { position: static; }
 .parse-button { min-height: 32px; display: inline-flex; align-items: center; gap: 5px; padding: 0 8px; border: 1px solid transparent; border-radius: 6px; color: var(--primary); background: transparent; font-size: 11px; font-weight: 700; }
 .parse-button:hover, .parse-button:focus-visible { border-color: var(--primary); background: var(--primary-soft); outline: none; }
+.parse-button:disabled { color: var(--ink-muted); cursor: wait; opacity: .7; }
 .cover { width: 108px; flex: 0 0 108px; display: grid; place-items: center; border: 0; border-radius: 5px; color: white; background: var(--primary); }
 .cover.clay { background: var(--secondary); }.cover.charcoal { background: #454848; }.cover.sage { background: #597166; }
 .article-copy { min-width: 0; flex: 1; display: flex; flex-direction: column; }
@@ -368,6 +439,9 @@ onMounted(() => { void loadArticles() })
 .delete-error { margin: 14px 0 0; color: var(--error); font-size: 12px; }.modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }.danger-action { margin-right: auto; color: var(--error); border-color: #d7b8b8; }.danger-action:hover { color: #8f3028; border-color: var(--error); background: #f8eaea; }
 .analysis-backdrop { z-index: 65; }
 .analysis-modal { width: min(100%, 620px); padding: 28px 30px; }
+.analysis-notice { position: fixed; z-index: 58; top: 82px; right: 24px; width: min(390px, calc(100vw - 48px)); min-height: 64px; display: grid; grid-template-columns: 20px minmax(0, 1fr) 34px; align-items: center; gap: 11px; padding: 10px 9px 10px 14px; border: 1px solid var(--outline); border-radius: 7px; color: var(--primary); background: var(--surface-lowest); box-shadow: 0 14px 34px rgba(45,45,45,.12), 0 2px 8px rgba(45,45,45,.06); }
+.analysis-notice > span { min-width: 0; display: grid; gap: 3px; }.analysis-notice strong, .analysis-notice small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.analysis-notice strong { font-size: 12px; }.analysis-notice small { color: var(--ink-muted); font-size: 10.5px; }.analysis-notice > .icon-btn { width: 32px; height: 32px; }.analysis-notice.success { color: var(--success); border-color: #bcd4c2; }.analysis-notice.error { color: var(--error); border-color: #ddc0bc; }
+.analysis-notice-enter-active, .analysis-notice-leave-active { transition: opacity .18s ease, transform .18s ease; }.analysis-notice-enter-from, .analysis-notice-leave-to { opacity: 0; transform: translateY(-8px); }
 .analysis-context { display: flex; align-items: center; gap: 9px; padding: 12px 14px; margin-bottom: 18px; border: 1px solid var(--outline); border-radius: 7px; color: var(--primary); background: var(--primary-soft); font-size: 12px; }
 .level-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; max-height: 300px; padding: 2px; overflow-y: auto; }
 .level-option { min-height: 68px; display: grid; grid-template-columns: 14px 1fr; grid-template-rows: auto auto; align-content: center; column-gap: 8px; padding: 10px; border: 1px solid var(--outline); border-radius: 7px; color: var(--ink); background: var(--surface-lowest); text-align: left; transition: border-color .18s ease, background-color .18s ease, transform .18s ease; }
@@ -377,9 +451,7 @@ onMounted(() => { void loadArticles() })
 .level-check { grid-row: 1 / span 2; width: 12px; height: 12px; align-self: center; border: 1px solid var(--outline); border-radius: 50%; background: white; }
 .level-option.selected .level-check { border: 3px solid var(--primary); }
 .level-option strong { font-size: 12px; line-height: 16px; }.level-option small { color: var(--ink-muted); font-size: 10px; line-height: 15px; }
-.analysis-message { margin: 14px 0 0; font-size: 12px; }.analysis-message.error { color: var(--error); }
-.analysis-result { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 16px; margin-top: 16px; border: 1px solid #bcd4c2; border-radius: 7px; color: var(--success); background: #f2f8f3; }.analysis-result-copy { min-width: 0; display: grid; gap: 3px; }.analysis-result strong { font-size: 15px; }.analysis-result span { font-size: 13px; font-weight: 650; }.analysis-result small { flex: 0 0 auto; color: var(--ink-muted); font-size: 11px; }.analysis-result.reused { border-color: #d9c59c; color: var(--secondary); background: #fff9ed; }
 .analysis-actions { margin-top: 20px; }
 @media (max-width: 1100px) { .article-grid { grid-template-columns: 1fr; } }
-@media (max-width: 640px) { .library-toolbar { align-items: stretch; flex-wrap: wrap; }.search-field { flex-basis: 100%; }.language-select { flex: 1; width: auto; }.article-card { min-height: 218px; gap: 14px; padding: 16px; }.cover { width: 72px; flex-basis: 72px; }.article-meta div { align-items: flex-start; flex-direction: column; gap: 2px; }.article-meta dd { white-space: normal; }.article-detail-modal, .analysis-modal { padding: 24px; }.detail-list div { align-items: flex-start; flex-direction: column; gap: 3px; padding-block: 10px; }.detail-list dd { white-space: normal; }.level-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }.card-actions { right: 7px; }.parse-button { padding-inline: 6px; } }
+@media (max-width: 640px) { .library-toolbar { align-items: stretch; flex-wrap: wrap; }.search-field { flex-basis: 100%; }.language-select { flex: 1; width: auto; }.article-card { min-height: 218px; gap: 14px; padding: 16px; }.cover { width: 72px; flex-basis: 72px; }.article-meta div { align-items: flex-start; flex-direction: column; gap: 2px; }.article-meta dd { white-space: normal; }.article-detail-modal, .analysis-modal { padding: 24px; }.detail-list div { align-items: flex-start; flex-direction: column; gap: 3px; padding-block: 10px; }.detail-list dd { white-space: normal; }.level-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }.card-actions { right: 7px; }.parse-button { padding-inline: 6px; }.analysis-notice { top: 76px; right: 14px; width: calc(100vw - 28px); } }
 </style>
