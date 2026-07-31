@@ -266,8 +266,8 @@ onMounted(() => { void loadCreditAccount() })
               </table>
 
               <table v-else class="records-table credits-table">
-                <thead><tr><th>完成时间</th><th>文章 ID</th><th class="numeric">总消耗</th><th class="numeric">OCR</th><th class="numeric">翻译</th></tr></thead>
-                <tbody><tr v-for="record in creditRecords.records" :key="`${record.articleId}-${record.completedAt}`"><td>{{ formatDate(record.completedAt) }}</td><td class="identifier">{{ record.articleId }}</td><td class="numeric credits-cell">{{ formatCredits(record.totalCredits) }}</td><td class="numeric">{{ formatCredits(record.ocrCredits) }}</td><td class="numeric">{{ formatCredits(record.translationCredits) }}</td></tr></tbody>
+                <thead><tr><th>完成时间</th><th>文章名称</th><th class="numeric">总消耗</th><th class="numeric">OCR</th><th class="numeric">翻译</th></tr></thead>
+                <tbody><tr v-for="record in creditRecords.records" :key="`${record.articleId}-${record.completedAt}`"><td>{{ formatDate(record.completedAt) }}</td><td class="identifier" :title="record.articleTitle ?? record.articleId">{{ record.articleTitle ?? record.articleId }}</td><td class="numeric credits-cell">{{ formatCredits(record.totalCredits) }}</td><td class="numeric">{{ formatCredits(record.ocrCredits) }}</td><td class="numeric">{{ formatCredits(record.translationCredits) }}</td></tr></tbody>
               </table>
             </div>
           </div>

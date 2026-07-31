@@ -66,6 +66,7 @@ export interface RechargeRecordResponse {
 
 export interface CreditLedgerResponse {
   articleId: string
+  articleTitle: string | null
   totalCredits: number
   ocrCredits: number
   translationCredits: number

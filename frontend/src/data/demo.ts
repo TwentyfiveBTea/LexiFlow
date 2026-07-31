@@ -76,6 +76,7 @@ export interface DemoRechargeRecord {
 
 export interface DemoCreditLedgerRecord {
   articleId: string
+  articleTitle: string
   totalCredits: number
   ocrCredits: number
   translationCredits: number
@@ -108,14 +109,14 @@ export const rechargeRecordsDemo: DemoRechargeRecord[] = [
 ]
 
 export const creditLedgerRecordsDemo: DemoCreditLedgerRecord[] = [
-  { articleId: 'algorithmic-sentience', totalCredits: 18420, ocrCredits: 3200, translationCredits: 15220, completedAt: '2026-07-19T15:18:00+08:00' },
-  { articleId: 'language-acquisition', totalCredits: 12680, ocrCredits: 0, translationCredits: 12680, completedAt: '2026-07-19T11:46:00+08:00' },
-  { articleId: 'academic-memory', totalCredits: 14750, ocrCredits: 2800, translationCredits: 11950, completedAt: '2026-07-18T20:32:00+08:00' },
-  { articleId: 'memory-language', totalCredits: 10960, ocrCredits: 0, translationCredits: 10960, completedAt: '2026-07-18T09:15:00+08:00' },
-  { articleId: 'comparative-linguistics', totalCredits: 22140, ocrCredits: 4600, translationCredits: 17540, completedAt: '2026-07-16T16:24:00+08:00' },
-  { articleId: 'digital-humanities', totalCredits: 16530, ocrCredits: 3100, translationCredits: 13430, completedAt: '2026-07-14T13:08:00+08:00' },
-  { articleId: 'cognitive-reading', totalCredits: 9280, ocrCredits: 0, translationCredits: 9280, completedAt: '2026-07-11T19:52:00+08:00' },
-  { articleId: 'translation-studies', totalCredits: 19870, ocrCredits: 3900, translationCredits: 15970, completedAt: '2026-07-08T08:41:00+08:00' },
+  { articleId: 'algorithmic-sentience', articleTitle: 'The Jurisprudence of Algorithmic Sentience', totalCredits: 18420, ocrCredits: 3200, translationCredits: 15220, completedAt: '2026-07-19T15:18:00+08:00' },
+  { articleId: 'language-acquisition', articleTitle: 'How Deep Reading Shapes Language Acquisition', totalCredits: 12680, ocrCredits: 0, translationCredits: 12680, completedAt: '2026-07-19T11:46:00+08:00' },
+  { articleId: 'academic-memory', articleTitle: 'Memory, Context, and Academic Vocabulary', totalCredits: 14750, ocrCredits: 2800, translationCredits: 11950, completedAt: '2026-07-18T20:32:00+08:00' },
+  { articleId: 'memory-language', articleTitle: '記憶と言語のあいだにあるもの', totalCredits: 10960, ocrCredits: 0, translationCredits: 10960, completedAt: '2026-07-18T09:15:00+08:00' },
+  { articleId: 'comparative-linguistics', articleTitle: 'Comparative Linguistics in Practice', totalCredits: 22140, ocrCredits: 4600, translationCredits: 17540, completedAt: '2026-07-16T16:24:00+08:00' },
+  { articleId: 'digital-humanities', articleTitle: 'Digital Humanities and Close Reading', totalCredits: 16530, ocrCredits: 3100, translationCredits: 13430, completedAt: '2026-07-14T13:08:00+08:00' },
+  { articleId: 'cognitive-reading', articleTitle: 'Cognitive Reading Notes', totalCredits: 9280, ocrCredits: 0, translationCredits: 9280, completedAt: '2026-07-11T19:52:00+08:00' },
+  { articleId: 'translation-studies', articleTitle: 'Selected Topics in Translation Studies', totalCredits: 19870, ocrCredits: 3900, translationCredits: 15970, completedAt: '2026-07-08T08:41:00+08:00' },
 ]
 
 export const words: Word[] = [
