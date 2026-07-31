@@ -44,19 +44,23 @@ public interface BizCreditReservationMapper extends BaseMapper<BizCreditReservat
      */
     @Select("""
             SELECT r.article_id AS article_id,
+                   a.title AS article_title,
                    r.consumed_credits AS total_credits,
                    COALESCE(SUM(CASE WHEN u.scene = 1 THEN u.credits_cost ELSE 0 END), 0) AS ocr_credits,
                    COALESCE(SUM(CASE WHEN u.scene IN (2, 3) THEN u.credits_cost ELSE 0 END), 0)
                        AS translation_credits,
                    r.completed_at AS completed_at
             FROM biz_credit_reservation r
+            LEFT JOIN biz_articles a
+              ON a.id = r.article_id
+             AND a.user_id = r.user_id
             LEFT JOIN biz_ai_usage u
               ON u.processing_no = r.processing_no
              AND u.request_status = #{requestStatus}
              AND u.billing_status = #{billingStatus}
             WHERE r.user_id = #{userId}
               AND r.status = #{reservationStatus}
-            GROUP BY r.id, r.article_id, r.consumed_credits, r.completed_at
+            GROUP BY r.id, r.article_id, a.title, r.consumed_credits, r.completed_at
             ORDER BY r.completed_at DESC
             LIMIT #{offset}, #{pageSize}
             """)

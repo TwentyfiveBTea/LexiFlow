@@ -24,6 +24,11 @@ public class CreditLedgerRespDTO {
     private String articleId;
 
     /**
+     * 文章名称
+     */
+    private String articleTitle;
+
+    /**
      * 本篇文章实际使用的Credits总量
      */
     private Long totalCredits;
