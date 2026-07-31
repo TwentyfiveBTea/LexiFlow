@@ -7,6 +7,7 @@ import type { CreditLedgerResponse, PageResponse, RechargeRecordResponse } from 
 import alipayLogo from '@/assets/alipay.svg'
 
 type RecordDialog = 'recharge' | 'credits'
+type PaymentDevice = 'pc' | 'mobile' | 'qq' | 'wechat' | 'alipay'
 
 const amounts = [10, 20, 35, 50, 75, 100]
 const CREDITS_PER_CNY = 10_000
@@ -52,6 +53,15 @@ function formatMoney(value: number) {
 
 function formatDate(value: string) {
   return dateFormatter.format(new Date(value))
+}
+
+function detectPaymentDevice(): PaymentDevice {
+  const userAgent = navigator.userAgent.toLowerCase()
+  if (userAgent.includes('micromessenger')) return 'wechat'
+  if (userAgent.includes('alipayclient')) return 'alipay'
+  if (/\bqq\//.test(userAgent)) return 'qq'
+  if (/android|iphone|ipad|ipod|mobile/.test(userAgent)) return 'mobile'
+  return 'pc'
 }
 
 async function loadCreditAccount() {
@@ -177,7 +187,7 @@ async function confirmPayment() {
     const order = await createPaymentOrder({
       amountYuan: payableAmount.value,
       clientRequestNo: `web-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      deviceType: 'web',
+      deviceType: detectPaymentDevice(),
     })
     paymentDialogOpen.value = false
     paymentNotice.value = `订单 ${order.orderNo} 已创建，请继续完成支付`
