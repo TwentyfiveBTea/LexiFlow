@@ -7,8 +7,7 @@ import com.btea.lexiflow.vocab.dao.entity.BizVocabEnDO;
 import com.btea.lexiflow.vocab.dao.entity.BizVocabJpDO;
 import com.btea.lexiflow.vocab.dao.mapper.BizVocabEnMapper;
 import com.btea.lexiflow.vocab.dao.mapper.BizVocabJpMapper;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.btea.lexiflow.vocab.util.VocabLevelUtil;
 import edu.stanford.nlp.ling.CoreAnnotations;
 import edu.stanford.nlp.ling.CoreLabel;
 import edu.stanford.nlp.pipeline.Annotation;
@@ -19,13 +18,9 @@ import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -33,7 +28,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 import static com.btea.lexiflow.article.constant.ArticleConstant.VOCAB_QUERY_BATCH_SIZE;
@@ -50,36 +44,7 @@ public class ArticleVocabAnalyzer {
     private final BizVocabEnMapper bizVocabEnMapper;
     private final BizVocabJpMapper bizVocabJpMapper;
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
-    private final Map<String, Set<String>> levelWordCache = new ConcurrentHashMap<>();
     private volatile StanfordCoreNLP englishPipeline;
-
-    /**
-     * 获取词条所属的第一个词汇等级。
-     *
-     * @param languageCode 语言标识
-     * @param word         词条
-     * @return 词汇等级，未找到时返回 null
-     */
-    public String findLevel(String languageCode, String word) {
-        if (word == null || word.isBlank()) {
-            return null;
-        }
-        List<String> levels = "ja".equals(languageCode)
-                ? List.of("N5", "N4", "N3", "N2", "N1")
-                : List.of("BEC", "CET4", "CET6", "GMAT", "GRE", "IELTS", "LEVEL4", "LEVEL8", "SAT", "TOEFL", "CHUZHONG", "GAOZHONG", "KAOYAN");
-        String normalizedWord = "ja".equals(languageCode) ? word.trim() : normalizeEnglish(word);
-        try {
-            for (String level : levels) {
-                if (loadLevelWords(languageCode, level).contains(normalizedWord)) {
-                    return displayLevel(level);
-                }
-            }
-        } catch (Exception ignored) {
-            return null;
-        }
-        return null;
-    }
 
     /**
      * 分析文章词汇
@@ -97,16 +62,35 @@ public class ArticleVocabAnalyzer {
     }
 
     private List<ArticleVocabMatch> analyzeEnglishText(String text, String analysisLevel) throws Exception {
-        Set<String> levelWords = loadLevelWords("en", analysisLevel);
-        Map<String, BizVocabEnDO> vocabMap = getEnglishVocabMap(levelWords);
-        Map<Long, ArticleVocabMatch> matchMap = new LinkedHashMap<>();
-
+        String databaseLevel = VocabLevelUtil.toDatabaseLevel("en", analysisLevel);
         Annotation annotation = new Annotation(text);
         getEnglishPipeline().annotate(annotation);
         List<CoreMap> sentences = annotation.get(CoreAnnotations.SentencesAnnotation.class);
         if (sentences == null) {
             return List.of();
         }
+
+        Set<String> candidates = new LinkedHashSet<>();
+        for (CoreMap sentence : sentences) {
+            for (CoreLabel token : sentence.get(CoreAnnotations.TokensAnnotation.class)) {
+                String normalizedText = normalizeEnglish(token.word());
+                String lemma = normalizeEnglish(token.lemma());
+                if (!normalizedText.isEmpty()) {
+                    candidates.add(normalizedText);
+                }
+                if (!lemma.isEmpty()) {
+                    candidates.add(lemma);
+                }
+            }
+        }
+        if (candidates.isEmpty()) {
+            return List.of();
+        }
+        Map<String, BizVocabEnDO> vocabMap = getEnglishVocabMap(candidates, databaseLevel);
+        if (vocabMap.isEmpty() && !hasEnglishLevel(databaseLevel)) {
+            throw new ClientException(BaseErrorCode.VOCAB_NOT_FOUND);
+        }
+        Map<Long, ArticleVocabMatch> matchMap = new LinkedHashMap<>();
 
         for (CoreMap sentence : sentences) {
             String sentenceText = sentence.get(CoreAnnotations.TextAnnotation.class);
@@ -143,10 +127,14 @@ public class ArticleVocabAnalyzer {
     }
 
     private List<ArticleVocabMatch> analyzeJapaneseText(String text, String analysisLevel) throws Exception {
-        Set<String> levelWords = loadLevelWords("ja", analysisLevel);
-        Map<String, BizVocabJpDO> vocabMap = getJapaneseVocabMap(levelWords);
+        String databaseLevel = VocabLevelUtil.toDatabaseLevel("ja", analysisLevel);
+        List<BizVocabJpDO> vocabList = bizVocabJpMapper.selectList(new LambdaQueryWrapper<BizVocabJpDO>()
+                .eq(BizVocabJpDO::getLevel, databaseLevel));
+        if (vocabList.isEmpty()) {
+            throw new ClientException(BaseErrorCode.VOCAB_NOT_FOUND);
+        }
         Map<Long, ArticleVocabMatch> matchMap = new LinkedHashMap<>();
-        for (BizVocabJpDO vocab : vocabMap.values()) {
+        for (BizVocabJpDO vocab : vocabList) {
             int fromIndex = 0;
             while (fromIndex < text.length()) {
                 int start = text.indexOf(vocab.getWord(), fromIndex);
@@ -194,10 +182,11 @@ public class ArticleVocabAnalyzer {
                 .collect(Collectors.toList());
     }
 
-    private Map<String, BizVocabEnDO> getEnglishVocabMap(Set<String> words) {
+    private Map<String, BizVocabEnDO> getEnglishVocabMap(Set<String> words, String databaseLevel) {
         Map<String, BizVocabEnDO> result = new HashMap<>();
         for (List<String> batch : partition(new ArrayList<>(words))) {
             List<BizVocabEnDO> vocabList = bizVocabEnMapper.selectList(new LambdaQueryWrapper<BizVocabEnDO>()
+                    .eq(BizVocabEnDO::getLevel, databaseLevel)
                     .in(BizVocabEnDO::getWord, batch));
             for (BizVocabEnDO vocab : vocabList) {
                 result.put(normalizeEnglish(vocab.getWord()), vocab);
@@ -206,98 +195,9 @@ public class ArticleVocabAnalyzer {
         return result;
     }
 
-    private Map<String, BizVocabJpDO> getJapaneseVocabMap(Set<String> words) {
-        Map<String, BizVocabJpDO> result = new HashMap<>();
-        for (List<String> batch : partition(new ArrayList<>(words))) {
-            List<BizVocabJpDO> vocabList = bizVocabJpMapper.selectList(new LambdaQueryWrapper<BizVocabJpDO>()
-                    .in(BizVocabJpDO::getWord, batch));
-            for (BizVocabJpDO vocab : vocabList) {
-                result.put(vocab.getWord(), vocab);
-            }
-        }
-        return result;
-    }
-
-    public Set<String> loadLevelWords(String languageCode, String analysisLevel) throws Exception {
-        Path dataDir = resolveDataDir(languageCode);
-        String normalizedLevel = normalizeLevel(analysisLevel);
-        String cacheKey = languageCode + ":" + normalizedLevel;
-        Set<String> cachedWords = levelWordCache.get(cacheKey);
-        if (cachedWords != null) {
-            return cachedWords;
-        }
-        if (!Files.exists(dataDir)) {
-            throw new ClientException(BaseErrorCode.VOCAB_NOT_FOUND);
-        }
-
-        Set<String> words = new HashSet<>();
-        try (var stream = Files.list(dataDir)) {
-            List<Path> files = stream
-                    .filter(Files::isRegularFile)
-                    .filter(path -> path.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".json"))
-                    .filter(path -> matchesLevelFile(path.getFileName().toString(), normalizedLevel, languageCode))
-                    .collect(Collectors.toList());
-            for (Path file : files) {
-                JsonNode array = objectMapper.readTree(file.toFile());
-                if (!array.isArray()) {
-                    continue;
-                }
-                for (JsonNode node : array) {
-                    JsonNode wordNode = node.get("word");
-                    if (wordNode == null || wordNode.asText().isBlank()) {
-                        continue;
-                    }
-                    String word = wordNode.asText();
-                    words.add("ja".equals(languageCode) ? word : normalizeEnglish(word));
-                }
-            }
-        }
-        if (words.isEmpty()) {
-            throw new ClientException(BaseErrorCode.VOCAB_NOT_FOUND);
-        }
-        Set<String> immutableWords = Set.copyOf(words);
-        levelWordCache.putIfAbsent(cacheKey, immutableWords);
-        return immutableWords;
-    }
-
-    private String displayLevel(String level) {
-        return switch (level) {
-            case "LEVEL4" -> "Level4";
-            case "LEVEL8" -> "Level8";
-            case "CHUZHONG" -> "初中";
-            case "GAOZHONG" -> "高中";
-            case "KAOYAN" -> "考研";
-            default -> level;
-        };
-    }
-
-    private boolean matchesLevelFile(String filename, String normalizedLevel, String languageCode) {
-        String lowerFilename = filename.toLowerCase(Locale.ROOT);
-        String lowerLevel = normalizedLevel.toLowerCase(Locale.ROOT);
-        if ("ja".equals(languageCode)) {
-            return lowerFilename.contains("." + lowerLevel + ".");
-        }
-        return lowerFilename.startsWith(lowerLevel + "_");
-    }
-
-    private String normalizeLevel(String analysisLevel) {
-        String level = analysisLevel.trim().toUpperCase(Locale.ROOT);
-        return switch (level) {
-            case "POSTGRADUATE", "KAOYAN" -> "KaoYan";
-            default -> level;
-        };
-    }
-
-    private Path resolveDataDir(String languageCode) {
-        Path projectDirData = Paths.get("data", languageCode);
-        if (Files.exists(projectDirData)) {
-            return projectDirData;
-        }
-        Path backendDirData = Paths.get("..", "data", languageCode);
-        if (Files.exists(backendDirData)) {
-            return backendDirData;
-        }
-        return projectDirData;
+    private boolean hasEnglishLevel(String databaseLevel) {
+        return bizVocabEnMapper.selectCount(new LambdaQueryWrapper<BizVocabEnDO>()
+                .eq(BizVocabEnDO::getLevel, databaseLevel)) > 0;
     }
 
     private StanfordCoreNLP getEnglishPipeline() {
