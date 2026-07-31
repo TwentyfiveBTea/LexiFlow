@@ -1,14 +1,17 @@
 <script setup lang="ts">
 import logoUrl from '@/assets/lexiflow-logo.png'
 
-withDefaults(defineProps<{ compact?: boolean }>(), { compact: false })
+withDefaults(defineProps<{ compact?: boolean; bilingual?: boolean }>(), {
+  compact: false,
+  bilingual: false,
+})
 </script>
 
 <template>
   <div class="brand" :class="{ compact }">
     <span class="brand-icon"><img class="brand-logo" :src="logoUrl" alt="" /></span>
     <span v-if="!compact" class="brand-copy">
-      <strong><span class="brand-cn">译流</span><span class="brand-en">LexiFlow</span></strong>
+      <strong><span v-if="bilingual" class="brand-cn">译流</span><span class="brand-en">LexiFlow</span></strong>
     </span>
   </div>
 </template>

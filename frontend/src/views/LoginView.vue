@@ -33,7 +33,7 @@ async function submit() {
 <template>
   <main class="auth-page">
     <section class="auth-intro fade-in">
-      <BrandMark />
+      <BrandMark bilingual />
       <div class="intro-copy">
         <h1 class="serif">Turn what you read into what you remember.</h1>
         <p class="intro-english">A smart language learning platform based on news, literature, and academic research.</p>
@@ -43,7 +43,7 @@ async function submit() {
 
     <section class="auth-panel">
       <div class="auth-card fade-in">
-        <div class="mobile-brand"><BrandMark /></div>
+        <div class="mobile-brand"><BrandMark bilingual /></div>
         <p class="eyebrow">欢迎回来</p>
         <h2 class="serif">登录 LexiFlow</h2>
         <p class="auth-copy">继续您的外刊精读和外语学习</p>

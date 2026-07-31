@@ -45,7 +45,7 @@ async function submit() {
   <main class="register-page">
     <section class="register-card surface fade-in">
       <header>
-        <BrandMark />
+        <BrandMark bilingual />
         <h1 class="serif">创建账号</h1>
         <p>加入 LexiFlow，开启精读学习之旅</p>
       </header>
