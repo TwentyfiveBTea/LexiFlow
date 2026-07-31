@@ -95,6 +95,7 @@ export interface ArticleDetailResponse {
   title: string
   parsedContent: string
   languageCode: 'en' | 'ja'
+  translationStatus: number
   wordCount: number
   charCount: number
   createdAt: string
@@ -321,6 +322,13 @@ export async function getArticleVocabs(articleId: string, analysisLevel: string)
 
 export async function getArticleVocabOccurrences(articleId: string, articleVocabId: string) {
   const response = await api.get<ApiResult<ArticleVocabOccurrenceResponse[]>>(`/article/${articleId}/vocabs/${articleVocabId}/occurrences`)
+  return response.data.data
+}
+
+export async function getArticleVocabLevelOccurrences(articleId: string, analysisLevel: string) {
+  const response = await api.get<ApiResult<ArticleVocabOccurrenceResponse[]>>(`/article/${articleId}/vocab-occurrences`, {
+    params: { analysisLevel },
+  })
   return response.data.data
 }
 

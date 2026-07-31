@@ -10,7 +10,7 @@ import {
   addArticleVocabToLibrary,
   getArticleDetail,
   getArticleVocabLevels,
-  getArticleVocabOccurrences,
+  getArticleVocabLevelOccurrences,
   getArticleVocabs,
   getVocabLibraries,
 } from '@/lib/api'
@@ -24,6 +24,13 @@ interface TranslationItem {
 interface TextSegment {
   text: string
   vocab: ArticleVocabResponse | null
+  occurrenceId: string | null
+}
+
+interface ContentBlock {
+  source: string
+  translation: string | null
+  sourceStartOffset: number
 }
 
 const route = useRoute()
@@ -42,14 +49,16 @@ const selectedLevel = ref('')
 const libraries = ref<VocabLibraryResponse[]>([])
 const expandedVocabId = ref<string | null>(null)
 const occurrences = ref<ArticleVocabOccurrenceResponse[]>([])
-const occurrenceLoading = ref(false)
+const articleOccurrences = ref<ArticleVocabOccurrenceResponse[]>([])
 const libraryPickerFor = ref<string | null>(null)
 const addedLibraryNames = ref<Record<string, string>>({})
 const addMessages = ref<Record<string, string>>({})
 
 const articleId = computed(() => String(route.params.id ?? ''))
 const levelOptions = computed(() => availableLevels.value.map((level) => ({ value: level, label: level })))
-const paragraphs = computed(() => article.value?.parsedContent.split(/\n\s*\n/).map((item) => item.trim()).filter(Boolean) ?? [])
+const contentBlocks = computed(() => article.value
+  ? splitContentBlocks(article.value.parsedContent, article.value.translationStatus === 2)
+  : [])
 const languageLabel = computed(() => article.value?.languageCode === 'ja' ? '日语 · JA' : '英语 · EN')
 const compatibleLibraries = computed(() => libraries.value.filter((library) => library.languageCode === article.value?.languageCode))
 const readingMinutes = computed(() => Math.max(1, Math.ceil((article.value?.wordCount ?? 0) / 250)))
@@ -65,16 +74,6 @@ const dateFormatter = new Intl.DateTimeFormat('zh-CN', {
 
 function formatDate(value: string) {
   return dateFormatter.format(new Date(value))
-}
-
-function parseJsonArray(value: string | null): string[] {
-  if (!value) return []
-  try {
-    const parsed = JSON.parse(value) as unknown
-    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string' && Boolean(item.trim())) : []
-  } catch {
-    return []
-  }
 }
 
 function parseTranslations(value: string | null): TranslationItem[] {
@@ -99,28 +98,59 @@ function formatPhonetic(value: string | null) {
   return normalized.startsWith('[') && normalized.endsWith(']') ? normalized : `[${normalized}]`
 }
 
-function escapeRegExp(value: string) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-}
-
-function formsFor(vocab: ArticleVocabResponse) {
-  return [...parseJsonArray(vocab.matchedForms), vocab.firstMatchedText, vocab.baseWord]
-    .filter((item): item is string => Boolean(item?.trim()))
-}
-
-function segmentText(text: string): TextSegment[] {
-  if (!text || !articleVocabs.value.length) return [{ text, vocab: null }]
-  const vocabularyByForm = new Map<string, ArticleVocabResponse>()
-  for (const vocab of articleVocabs.value) {
-    for (const form of formsFor(vocab)) vocabularyByForm.set(form.toLocaleLowerCase(), vocab)
+function splitContentBlocks(content: string, translated: boolean): ContentBlock[] {
+  const result: ContentBlock[] = []
+  const separator = /\n[ \t]*\n/g
+  let blockStart = 0
+  let match: RegExpExecArray | null
+  while ((match = separator.exec(content)) !== null) {
+    addContentBlock(result, content, blockStart, match.index, translated)
+    blockStart = separator.lastIndex
   }
-  const forms = [...vocabularyByForm.keys()].sort((left, right) => right.length - left.length)
-  if (!forms.length) return [{ text, vocab: null }]
-  const expression = new RegExp(`(${forms.map(escapeRegExp).join('|')})`, article.value?.languageCode === 'en' ? 'gi' : 'g')
-  return text.split(expression).filter(Boolean).map((part) => ({
-    text: part,
-    vocab: vocabularyByForm.get(part.toLocaleLowerCase()) ?? null,
-  }))
+  addContentBlock(result, content, blockStart, content.length, translated)
+  return result
+}
+
+function addContentBlock(result: ContentBlock[], content: string, blockStart: number, blockEnd: number, translated: boolean) {
+  let sourceStart = blockStart
+  let sourceEnd = blockEnd
+  let translation: string | null = null
+  if (translated) {
+    const lineBreak = content.indexOf('\n', blockStart)
+    if (lineBreak >= blockStart && lineBreak < blockEnd) {
+      sourceEnd = lineBreak
+      translation = content.slice(lineBreak + 1, blockEnd).trim() || null
+    }
+  }
+  while (sourceStart < sourceEnd && /\s/.test(content[sourceStart]!)) sourceStart += 1
+  while (sourceEnd > sourceStart && /\s/.test(content[sourceEnd - 1]!)) sourceEnd -= 1
+  if (sourceStart < sourceEnd) {
+    result.push({ source: content.slice(sourceStart, sourceEnd), translation, sourceStartOffset: sourceStart })
+  }
+}
+
+function segmentText(text: string, absoluteStart: number): TextSegment[] {
+  if (!text || !articleVocabs.value.length || !articleOccurrences.value.length) {
+    return [{ text, vocab: null, occurrenceId: null }]
+  }
+  const vocabularyById = new Map(articleVocabs.value.map((vocab) => [vocab.articleVocabId, vocab]))
+  const absoluteEnd = absoluteStart + text.length
+  const relevantOccurrences = articleOccurrences.value
+    .filter((occurrence) => occurrence.startOffset >= absoluteStart && occurrence.endOffset <= absoluteEnd)
+    .sort((left, right) => left.startOffset - right.startOffset || right.endOffset - left.endOffset)
+  const segments: TextSegment[] = []
+  let cursor = 0
+  for (const occurrence of relevantOccurrences) {
+    const vocab = vocabularyById.get(occurrence.articleVocabId)
+    const start = occurrence.startOffset - absoluteStart
+    const end = occurrence.endOffset - absoluteStart
+    if (!vocab || start < cursor || start < 0 || end > text.length || end <= start) continue
+    if (start > cursor) segments.push({ text: text.slice(cursor, start), vocab: null, occurrenceId: null })
+    segments.push({ text: text.slice(start, end), vocab, occurrenceId: occurrence.occurrenceId })
+    cursor = end
+  }
+  if (cursor < text.length) segments.push({ text: text.slice(cursor), vocab: null, occurrenceId: null })
+  return segments.length ? segments : [{ text, vocab: null, occurrenceId: null }]
 }
 
 function updateProgress() {
@@ -134,21 +164,12 @@ async function toggleWord(vocab: ArticleVocabResponse) {
   panelOpen.value = true
   occurrences.value = []
   if (expandedVocabId.value) {
+    occurrences.value = articleOccurrences.value.filter((occurrence) => occurrence.articleVocabId === vocab.articleVocabId)
     await nextTick()
     const articleBody = document.querySelector<HTMLElement>('.article-body')
     const firstOccurrence = Array.from(articleBody?.querySelectorAll<HTMLElement>('[data-vocab-id]') ?? [])
       .find((element) => element.dataset.vocabId === vocab.articleVocabId)
     firstOccurrence?.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' })
-  }
-  if (expandedVocabId.value && !usingDemoData.value) {
-    occurrenceLoading.value = true
-    try {
-      occurrences.value = await getArticleVocabOccurrences(articleId.value, vocab.articleVocabId)
-    } catch {
-      occurrences.value = []
-    } finally {
-      occurrenceLoading.value = false
-    }
   }
 }
 
@@ -181,6 +202,7 @@ function buildDemoDetail(): ArticleDetailResponse {
     title: demoArticle.title,
     parsedContent,
     languageCode: demoArticle.languageCode,
+    translationStatus: 0,
     wordCount: demoArticle.wordCount,
     charCount: parsedContent.length,
     createdAt: demoArticle.createdAt,
@@ -225,13 +247,25 @@ async function loadVocabs(level: string) {
   libraryPickerFor.value = null
   if (!level) {
     articleVocabs.value = []
+    articleOccurrences.value = []
     return
   }
   vocabLoading.value = true
   try {
-    articleVocabs.value = usingDemoData.value ? demoVocabs(level) : await getArticleVocabs(articleId.value, level)
+    if (usingDemoData.value) {
+      articleVocabs.value = demoVocabs(level)
+      articleOccurrences.value = []
+    } else {
+      const [vocabs, levelOccurrences] = await Promise.all([
+        getArticleVocabs(articleId.value, level),
+        getArticleVocabLevelOccurrences(articleId.value, level),
+      ])
+      articleVocabs.value = vocabs
+      articleOccurrences.value = levelOccurrences
+    }
   } catch {
     articleVocabs.value = []
+    articleOccurrences.value = []
   } finally {
     vocabLoading.value = false
   }
@@ -282,12 +316,7 @@ onBeforeUnmount(() => window.removeEventListener('scroll', updateProgress))
       <article v-else-if="article" class="article-body">
         <header class="article-header fade-in">
           <p class="article-kicker">{{ languageLabel }}</p>
-          <h1 class="serif">
-            <template v-for="(segment, index) in segmentText(article.title)" :key="index">
-              <button v-if="segment.vocab" class="word title-word" :class="{ active: expandedVocabId === segment.vocab.articleVocabId }" :data-vocab-id="segment.vocab.articleVocabId" @click="toggleWord(segment.vocab)">{{ segment.text }}</button>
-              <template v-else>{{ segment.text }}</template>
-            </template>
-          </h1>
+          <h1 class="serif">{{ article.title }}</h1>
           <dl class="article-meta">
             <div><dt>词数</dt><dd>{{ article.wordCount.toLocaleString() }}</dd></div>
             <div><dt>字符数</dt><dd>{{ article.charCount.toLocaleString() }}</dd></div>
@@ -297,12 +326,15 @@ onBeforeUnmount(() => window.removeEventListener('scroll', updateProgress))
         </header>
 
         <div class="prose serif">
-          <p v-for="(paragraph, paragraphIndex) in paragraphs" :key="paragraphIndex">
-            <template v-for="(segment, segmentIndex) in segmentText(paragraph)" :key="segmentIndex">
-              <button v-if="segment.vocab" class="word" :class="{ active: expandedVocabId === segment.vocab.articleVocabId }" :data-vocab-id="segment.vocab.articleVocabId" @click="toggleWord(segment.vocab)">{{ segment.text }}</button>
-              <template v-else>{{ segment.text }}</template>
-            </template>
-          </p>
+          <section v-for="(block, blockIndex) in contentBlocks" :key="blockIndex" class="content-block">
+            <p class="source-paragraph">
+              <template v-for="(segment, segmentIndex) in segmentText(block.source, block.sourceStartOffset)" :key="segment.occurrenceId ?? `plain-${segmentIndex}`">
+                <button v-if="segment.vocab" class="word" :class="{ active: expandedVocabId === segment.vocab.articleVocabId }" :data-vocab-id="segment.vocab.articleVocabId" :data-occurrence-id="segment.occurrenceId" @click="toggleWord(segment.vocab)">{{ segment.text }}</button>
+                <template v-else>{{ segment.text }}</template>
+              </template>
+            </p>
+            <p v-if="block.translation" class="translation-paragraph">{{ block.translation }}</p>
+          </section>
         </div>
       </article>
 
@@ -336,8 +368,7 @@ onBeforeUnmount(() => window.removeEventListener('scroll', updateProgress))
                   <div v-for="(item, index) in parseTranslations(vocab.translations)" :key="`${item.type}-${index}`"><span v-if="item.type">{{ item.type }}</span><strong>{{ item.translation }}</strong></div>
                   <p v-if="!parseTranslations(vocab.translations).length">暂无释义</p>
                 </div>
-                <div v-if="occurrenceLoading" class="occurrence-state">正在加载原文出现位置...</div>
-                <div v-else-if="occurrences.length" class="occurrence-list"><small>原文出现位置</small><p v-for="occurrence in occurrences.slice(0, 3)" :key="occurrence.occurrenceId">{{ occurrence.sentence }}</p></div>
+                <div v-if="occurrences.length" class="occurrence-list"><small>原文出现位置</small><p v-for="occurrence in occurrences.slice(0, 3)" :key="occurrence.occurrenceId">{{ occurrence.sentence }}</p></div>
                 <div class="add-area">
                   <button class="save-word" type="button" :class="{ saved: addedLibraryNames[vocab.articleVocabId] }" @click.stop="openLibraryPicker(vocab)">
                     <Check v-if="addedLibraryNames[vocab.articleVocabId]" :size="16" /><BookmarkPlus v-else :size="16" />
@@ -366,7 +397,7 @@ onBeforeUnmount(() => window.removeEventListener('scroll', updateProgress))
 .reader-nav { position: fixed; z-index: 45; left: 0; right: var(--panel); top: 0; height: 66px; display: flex; align-items: center; justify-content: space-between; padding: 0 24px; border-bottom: 1px solid rgba(199,196,192,.75); background: rgba(252,249,248,.94); backdrop-filter: blur(12px); transition: right .22s ease; }.reader-nav :deep(.brand-copy small) { display: none; }
 .reading-canvas { padding-right: var(--panel); transition: padding-right .22s ease; }.article-body { width: min(100%, 820px); margin-inline: auto; padding: 126px 42px 120px; }
 .article-header { margin-bottom: 50px; }.article-kicker { margin: 0 0 16px; color: var(--secondary); font-size: 11px; font-weight: 700; text-transform: uppercase; }.article-header h1 { max-width: 100%; margin: 0; color: var(--ink); font-size: 49px; line-height: 1.18; font-weight: 650; overflow-wrap: anywhere; word-break: break-word; }.article-meta { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; padding: 19px 0; margin: 30px 0 0; border-top: 1px solid var(--outline); border-bottom: 1px solid var(--outline); }.article-meta div { min-width: 0; padding: 0 16px; border-left: 1px solid var(--outline); }.article-meta div:first-child { padding-left: 0; border-left: 0; }.article-meta dt { color: var(--ink-muted); font-size: 10px; }.article-meta dd { overflow: hidden; margin: 4px 0 0; color: var(--ink); font-size: 12px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
-.prose { color: #282a29; font-size: 18.5px; line-height: 1.78; }.reader .prose { font-family: var(--reader-font-family); font-size: var(--reader-font-size); line-height: var(--reader-line-height); }.prose p { margin: 0 0 30px; white-space: pre-wrap; }.word { display: inline; padding: 0 1px; border: 0; border-bottom: 1px solid transparent; border-radius: 1px; color: inherit; background: transparent; font: inherit; line-height: inherit; cursor: pointer; }.word:hover, .word.active { border-bottom-color: var(--secondary); background: var(--secondary-soft); }.marking-disabled .word:not(.active), .marking-disabled .word:not(.active):hover { border-bottom-color: transparent; background: transparent; }.title-word { text-transform: none; }
+.prose { color: #282a29; font-size: 18.5px; line-height: 1.78; }.reader .prose { font-family: var(--reader-font-family); font-size: var(--reader-font-size); line-height: var(--reader-line-height); }.content-block { margin: 0 0 30px; }.prose .source-paragraph { margin: 0; white-space: pre-wrap; }.prose .translation-paragraph { margin: 10px 0 0; padding-left: 16px; border-left: 2px solid var(--outline); color: var(--ink-muted); font-size: .9em; line-height: 1.72; white-space: pre-wrap; }.word { display: inline; padding: 0 1px; border: 0; border-bottom: 1px solid transparent; border-radius: 1px; color: inherit; background: transparent; font: inherit; line-height: inherit; cursor: pointer; }.word:hover, .word.active { border-bottom-color: var(--secondary); background: var(--secondary-soft); }.marking-disabled .word:not(.active), .marking-disabled .word:not(.active):hover { border-bottom-color: transparent; background: transparent; }
 .vocab-panel { position: fixed; z-index: 50; inset: 0 0 0 auto; width: var(--panel); padding: 0 20px 24px; overflow-y: auto; border-left: 1px solid var(--outline); background: var(--surface-lowest); box-shadow: -8px 0 28px rgba(45,45,45,.04); }.panel-head { position: sticky; z-index: 8; top: 0; display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 96px; padding: 20px 0 14px; border-bottom: 1px solid var(--outline); background: var(--surface-lowest); }.panel-head .eyebrow { margin-bottom: 2px; }.panel-head h2 { margin: 0; color: var(--primary); font-size: 23px; }.panel-actions { display: flex; align-items: center; gap: 6px; }.level-select { width: 134px; height: 40px; }.panel-state { padding: 38px 12px; color: var(--ink-muted); font-size: 12px; line-height: 1.6; text-align: center; }
 .word-index { display: grid; }.word-item { border-bottom: 1px solid rgba(199,196,192,.7); }.word-row { width: 100%; min-height: 62px; display: flex; align-items: center; gap: 10px; padding: 9px 8px; border: 0; color: var(--ink-muted); background: transparent; text-align: left; }.word-row:hover, .word-item.active > .word-row { color: var(--primary); background: var(--surface-low); }.word-row > span { min-width: 0; flex: 1; display: grid; gap: 3px; }.word-row strong { overflow: hidden; color: var(--ink); font-size: 16px; text-overflow: ellipsis; white-space: nowrap; }.word-row small { overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }.word-row > svg { flex: 0 0 auto; transition: transform .18s ease; }.word-item.active > .word-row > svg { transform: rotate(90deg); }
 .occurrence-list { display: grid; gap: 6px; padding: 10px; margin-top: 14px; border-left: 2px solid var(--secondary-soft); background: var(--surface-low); }.occurrence-list small { color: var(--secondary); font-size: 10px; font-weight: 750; }.occurrence-list p { margin: 0; color: var(--ink-muted); font-family: 'Literata', Georgia, serif; font-size: 11px; line-height: 1.55; }.occurrence-state { margin-top: 14px; color: var(--ink-muted); font-size: 11px; }
