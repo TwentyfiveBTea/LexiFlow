@@ -202,6 +202,9 @@ function openLibraryPicker(vocab: ArticleVocabResponse) {
 async function addToLibrary(vocab: ArticleVocabResponse, library: VocabLibraryResponse) {
   try {
     if (!usingDemoData.value) await addArticleVocabToLibrary(library.libraryId, articleId.value, vocab.articleVocabId)
+    libraries.value = libraries.value.map((each) => each.libraryId === library.libraryId
+      ? { ...each, wordCount: each.wordCount + 1, updatedAt: new Date().toISOString() }
+      : each)
     addedLibraryNames.value[vocab.articleVocabId] = library.name
     addMessages.value[vocab.articleVocabId] = `已加入“${library.name}”`
     libraryPickerFor.value = null
