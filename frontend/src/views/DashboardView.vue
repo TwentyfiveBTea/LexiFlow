@@ -95,7 +95,7 @@ async function upload(event: Event) {
         <article class="start-card surface fade-in">
           <div class="start-heading">
             <span class="section-icon"><BookOpen :size="21" /></span>
-            <div><h2 class="serif">开始阅读</h2><p>上传外语文章，开启深度精读</p></div>
+            <div><h2 class="serif">开始阅读</h2><p>上传外语文章，开启深度精读（目前属于内测版本，仅支持英语和日语）</p></div>
           </div>
           <button class="file-drop" :disabled="uploading" @click="fileInput?.click()"><Upload :size="19" /><span>{{ uploading ? '正在上传文章…' : '上传 PDF、DOCX、TXT、Markdown 或 HTML 文件' }}</span></button>
           <input ref="fileInput" class="hidden" type="file" accept=".pdf,.doc,.docx,.txt,.md,.html,.htm" @change="upload" />
