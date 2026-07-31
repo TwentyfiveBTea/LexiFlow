@@ -9,6 +9,8 @@ const router = createRouter({
     { path: '/', redirect: '/dashboard' },
     { path: '/login', name: 'login', component: () => import('@/views/LoginView.vue'), meta: { public: true, title: '登录' } },
     { path: '/register', name: 'register', component: () => import('@/views/RegisterView.vue'), meta: { public: true, title: '注册' } },
+    { path: '/terms', name: 'terms', component: () => import('@/views/LegalDocumentView.vue'), props: { kind: 'terms' }, meta: { public: true, allowAuthenticated: true, title: '服务条款' } },
+    { path: '/privacy', name: 'privacy', component: () => import('@/views/LegalDocumentView.vue'), props: { kind: 'privacy' }, meta: { public: true, allowAuthenticated: true, title: '隐私政策' } },
     {
       path: '/',
       component: AppShell,
@@ -31,7 +33,7 @@ const router = createRouter({
 router.beforeEach((to) => {
   const isAuthenticated = Boolean(localStorage.getItem('lexiflow.token'))
   if (!to.meta.public && !isAuthenticated) return { name: 'login', query: { redirect: to.fullPath } }
-  if (to.meta.public && isAuthenticated) return { name: 'dashboard' }
+  if (to.meta.public && isAuthenticated && !to.meta.allowAuthenticated) return { name: 'dashboard' }
   return true
 })
 

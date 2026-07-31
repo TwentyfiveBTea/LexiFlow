@@ -49,6 +49,10 @@ function add(source: string, en: string, ja: string) {
   ['商务英语', 'Business English', 'ビジネス英語'], ['大学英语四级', 'College English Test Band 4', '大学英語四級'], ['大学英语六级', 'College English Test Band 6', '大学英語六級'], ['商学院入学考试', 'Business school entrance exam', 'ビジネススクール入試'], ['研究生入学考试', 'Graduate school entrance exam', '大学院入試'], ['英语四级词表', 'CET-4 vocabulary list', '英語四級語彙'], ['英语八级词表', 'CET-8 vocabulary list', '英語八級語彙'], ['美国大学入学考试', 'US college entrance exam', '米国大学入試'], ['初中英语词表', 'Junior high English vocabulary', '中学英語語彙'], ['高中英语词表', 'Senior high English vocabulary', '高校英語語彙'], ['考研英语词表', 'Postgraduate entrance exam vocabulary', '大学院入試英語語彙'], ['日语入门', 'Japanese for beginners', '日本語入門'], ['基础日语', 'Basic Japanese', '基礎日本語'], ['日常阅读', 'Everyday reading', '日常読解'], ['中高级阅读', 'Upper-intermediate reading', '中上級読解'], ['高级阅读', 'Advanced reading', '上級読解'],
 ].forEach(([source, en, ja]) => add(source, en, ja));
 
+[
+  ['服务条款', 'Terms of Service', '利用規約'], ['隐私政策', 'Privacy Policy', 'プライバシーポリシー'], ['我已阅读并同意', 'I have read and agree to the', '以下を読み、同意します：'], ['同意服务条款与隐私政策', 'Agree to the Terms of Service and Privacy Policy', '利用規約とプライバシーポリシーに同意する'], ['与', 'and', 'と'],
+].forEach(([source, en, ja]) => add(source, en, ja));
+
 const dynamicPatterns: Array<{ pattern: RegExp; render: (match: RegExpExecArray, locale: InterfaceLanguage) => string }> = [
   { pattern: /^Repository · (\d[\d,]*) texts$/, render: (m, l) => l === 'en' ? `Repository · ${m[1]} texts` : l === 'ja' ? `ライブラリ · ${m[1]}件` : `文章库 · ${m[1]} 篇` },
   { pattern: /^Collection · (\d[\d,]*) words$/, render: (m, l) => l === 'en' ? `Collection · ${m[1]} words` : l === 'ja' ? `単語帳 · ${m[1]}語` : `词汇库 · ${m[1]} 词` },
