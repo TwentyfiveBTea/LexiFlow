@@ -344,6 +344,9 @@ public class PaymentServiceImpl implements PaymentService {
         String normalized = deviceType == null || deviceType.isBlank()
                 ? epayProperties.getDefaultDevice()
                 : deviceType.trim().toLowerCase(Locale.ROOT);
+        if ("web".equals(normalized)) {
+            normalized = epayProperties.getDefaultDevice();
+        }
         if (normalized == null || epayProperties.getSupportedDevices() == null
                 || !epayProperties.getSupportedDevices().contains(normalized)) {
             throw new ClientException(BaseErrorCode.PAYMENT_DEVICE_INVALID);
