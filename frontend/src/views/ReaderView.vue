@@ -59,6 +59,7 @@ const createLibraryName = ref('')
 const createLibraryDescription = ref('')
 const createLibraryError = ref('')
 const createLibrarySubmitting = ref(false)
+let panelScrollTimer: ReturnType<typeof window.setTimeout> | null = null
 
 const articleId = computed(() => String(route.params.id ?? ''))
 const levelOptions = computed(() => availableLevels.value.map((level) => ({ value: level, label: level })))
@@ -172,7 +173,13 @@ async function selectArticleWord(vocab: ArticleVocabResponse) {
   panelOpen.value = true
   occurrences.value = articleOccurrences.value.filter((occurrence) => occurrence.articleVocabId === vocab.articleVocabId)
   await nextTick()
-  scrollPanelToWord(vocab.articleVocabId)
+  if (panelScrollTimer) window.clearTimeout(panelScrollTimer)
+  requestAnimationFrame(() => {
+    scrollPanelToWord(vocab.articleVocabId)
+    panelScrollTimer = window.setTimeout(() => {
+      if (expandedVocabId.value === vocab.articleVocabId) scrollPanelToWord(vocab.articleVocabId)
+    }, 220)
+  })
 }
 
 function scrollPanelToWord(articleVocabId: string) {
@@ -182,9 +189,11 @@ function scrollPanelToWord(articleVocabId: string) {
   if (!panel || !panelItem) return
 
   const panelRect = panel.getBoundingClientRect()
-  const itemRect = panelItem.getBoundingClientRect()
-  const targetTop = panel.scrollTop + itemRect.top - panelRect.top - (panel.clientHeight - itemRect.height) / 2
-  panel.scrollTo({ top: Math.max(targetTop, 0), behavior: 'smooth' })
+  const panelHead = panel.querySelector<HTMLElement>('.panel-head')
+  const panelItemRect = panelItem.getBoundingClientRect()
+  const visibleTop = (panelHead?.getBoundingClientRect().bottom ?? panelRect.top) - panelRect.top
+  const targetTop = panel.scrollTop + panelItemRect.top - panelRect.top - visibleTop
+  panel.scrollTo({ top: Math.max(targetTop, 0), behavior: 'auto' })
 }
 
 async function togglePanelWord(vocab: ArticleVocabResponse) {
@@ -382,7 +391,10 @@ onMounted(() => {
   updateProgress()
   window.addEventListener('scroll', updateProgress, { passive: true })
 })
-onBeforeUnmount(() => window.removeEventListener('scroll', updateProgress))
+onBeforeUnmount(() => {
+  window.removeEventListener('scroll', updateProgress)
+  if (panelScrollTimer) window.clearTimeout(panelScrollTimer)
+})
 </script>
 
 <template>
