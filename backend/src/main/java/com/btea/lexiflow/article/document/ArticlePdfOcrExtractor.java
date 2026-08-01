@@ -7,7 +7,6 @@ import com.btea.lexiflow.common.convention.errorcode.BaseErrorCode;
 import com.btea.lexiflow.common.convention.exception.ClientException;
 import com.btea.lexiflow.pay.constant.AiUsageConstant;
 import com.btea.lexiflow.pay.model.AiProcessingContext;
-import com.btea.lexiflow.pay.service.AiRequestReservationEstimator;
 import com.btea.lexiflow.pay.service.AiUsageService;
 import com.btea.lexiflow.pay.service.CreditReservationService;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -44,7 +43,6 @@ public class ArticlePdfOcrExtractor {
     private final ArticleOcrProperties articleOcrProperties;
     private final AiUsageService aiUsageService;
     private final CreditReservationService creditReservationService;
-    private final AiRequestReservationEstimator reservationEstimator;
 
     /**
      * OCR 提取 PDF 图片文本
@@ -82,9 +80,7 @@ public class ArticlePdfOcrExtractor {
                 }
                 int pageNumber = pageIndex + 1;
                 String requestNo = IdUtil.getSnowflakeNextIdStr();
-                long estimatedCredits = reservationEstimator.estimateOcr(articleOcrProperties.getMaxOutputTokens());
-                creditReservationService.reserveAdditional(
-                        context, "OCR:" + pageNumber, estimatedCredits);
+                creditReservationService.ensureBalanceAvailable(context);
                 String pageText = callOcrWithRetry(attemptNo -> callGeminiOcr(
                         imageBytes, context, requestNo, attemptNo, pageNumber));
                 pageTexts.add(pageText);
@@ -168,7 +164,7 @@ public class ArticlePdfOcrExtractor {
                     response.getId(),
                     usage.getPromptTokens(),
                     usage.getCompletionTokens());
-            creditReservationService.ensureActualUsageCovered(
+            creditReservationService.chargeActualUsage(
                     context, requestNo + ":" + attemptNo);
             return normalizeText(response.getChoices().get(0).getMessage().getContent());
         } catch (ClientException e) {

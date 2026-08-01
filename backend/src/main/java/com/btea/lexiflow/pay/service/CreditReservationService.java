@@ -7,33 +7,31 @@ import java.util.List;
 /**
  * @Author: TwentyfiveBTea
  * @Date: 2026/7/16
- * @Description: Credits预占服务接口
+ * @Description: 文章处理Credits计费服务接口
  */
 public interface CreditReservationService {
 
     /**
-     * 创建文章处理初始Credits预占
+     * 创建文章处理Credits计费记录
      *
      * @param context AI处理上下文
      */
     void createInitialReservation(AiProcessingContext context);
 
     /**
-     * 为逻辑模型请求追加Credits预占
+     * 检查当前用户是否还有可用Credits
      *
      * @param context AI处理上下文
-     * @param stageKey 预占阶段幂等键
-     * @param credits 追加Credits
      */
-    void reserveAdditional(AiProcessingContext context, String stageKey, long credits);
+    void ensureBalanceAvailable(AiProcessingContext context);
 
     /**
-     * 确保预占额度能够覆盖当前实际用量
+     * 按当前实际用量扣除Credits
      *
      * @param context AI处理上下文
      * @param usageKey 用量幂等键
      */
-    void ensureActualUsageCovered(AiProcessingContext context, String usageKey);
+    void chargeActualUsage(AiProcessingContext context, String usageKey);
 
     /**
      * 结算文章处理Credits
@@ -43,14 +41,14 @@ public interface CreditReservationService {
     void settle(String processingNo);
 
     /**
-     * 释放文章处理Credits
+     * 退回处理失败任务已扣除的Credits
      *
      * @param processingNo 文章处理编号
      */
     void release(String processingNo);
 
     /**
-     * 超时释放文章处理Credits
+     * 退回超时任务已扣除的Credits
      *
      * @param processingNo 文章处理编号
      */

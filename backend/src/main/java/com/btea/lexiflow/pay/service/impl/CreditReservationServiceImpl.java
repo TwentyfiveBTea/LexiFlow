@@ -28,7 +28,7 @@ import java.util.List;
 /**
  * @Author: TwentyfiveBTea
  * @Date: 2026/7/16
- * @Description: Credits预占服务实现类
+ * @Description: 文章处理Credits计费服务实现类
  */
 @Service
 @RequiredArgsConstructor
@@ -44,7 +44,7 @@ public class CreditReservationServiceImpl implements CreditReservationService {
     private final CreditBillingProperties billingProperties;
 
     /**
-     * 创建文章处理初始Credits预占
+     * 创建文章处理Credits计费记录
      *
      * @param context AI处理上下文
      */
@@ -57,84 +57,92 @@ public class CreditReservationServiceImpl implements CreditReservationService {
         if (existing != null) {
             return;
         }
-        long initialCredits = getPositive(billingProperties.getInitialReservationCredits(), 1L);
         creditAccountService.initializeAccount(context.userId());
         BizCreditAccountDO account = lockAccount(context.userId(), true);
         long availableCredits = valueOrZero(account.getAvailableCredits());
-        if (availableCredits < initialCredits) {
+        if (availableCredits <= 0) {
             throw new ClientException(BaseErrorCode.CREDIT_BALANCE_INSUFFICIENT);
         }
-        long availableAfter = availableCredits - initialCredits;
-        long frozenAfter = Math.addExact(valueOrZero(account.getFrozenCredits()), initialCredits);
-        account.setAvailableCredits(availableAfter);
-        account.setFrozenCredits(frozenAfter);
-        accountMapper.updateById(account);
 
         BizCreditReservationDO reservation = BizCreditReservationDO.builder()
                 .id(IdUtil.getSnowflakeNextIdStr())
                 .processingNo(context.processingNo())
                 .userId(context.userId())
                 .articleId(context.articleId())
-                .reservedCredits(initialCredits)
+                .reservedCredits(0L)
                 .consumedCredits(0L)
                 .releasedCredits(0L)
                 .status(CreditConstant.RESERVATION_STATUS_PROCESSING)
                 .expiresAt(nextExpiration())
                 .build();
         reservationMapper.insert(reservation);
-        insertLedger(context.userId(), CreditConstant.TRANSACTION_TYPE_RESERVE,
-                -initialCredits, initialCredits, availableAfter, frozenAfter, context.processingNo(),
-                "RESERVE:" + context.processingNo() + ":INITIAL", "文章处理Credits初始预占");
     }
 
     /**
-     * 为逻辑模型请求追加Credits预占
+     * 检查当前用户是否还有可用Credits
      *
      * @param context AI处理上下文
-     * @param stageKey 预占阶段幂等键
-     * @param credits 追加的Credits数量
      */
     @Override
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
-    public void reserveAdditional(AiProcessingContext context, String stageKey, long credits) {
-        if (credits <= 0) {
-            return;
-        }
+    public void ensureBalanceAvailable(AiProcessingContext context) {
         BizCreditReservationDO reservation = reservationMapper.selectByProcessingNoForUpdate(context.processingNo());
         validateReservation(reservation, context);
-        String idempotencyKey = "RESERVE:" + context.processingNo() + ":" + stageKey;
-        if (ledgerExists(idempotencyKey)) {
-            return;
+        BizCreditAccountDO account = lockAccount(context.userId(), true);
+        if (valueOrZero(account.getAvailableCredits()) <= 0) {
+            throw new ClientException(BaseErrorCode.CREDIT_BALANCE_INSUFFICIENT);
         }
-        reserveLocked(reservation, stageKey, credits);
+        reservation.setExpiresAt(nextExpiration());
+        reservationMapper.updateById(reservation);
     }
 
     /**
-     * 确保预占额度能够覆盖当前实际用量
+     * 按当前实际用量扣除Credits
      *
      * @param context AI处理上下文
      * @param usageKey 用量幂等键
      */
     @Override
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
-    public void ensureActualUsageCovered(AiProcessingContext context, String usageKey) {
+    public void chargeActualUsage(AiProcessingContext context, String usageKey) {
         BizCreditReservationDO reservation = reservationMapper.selectByProcessingNoForUpdate(context.processingNo());
         validateReservation(reservation, context);
-        long actualCredits = getPendingCredits(context.processingNo());
-        long reservedCredits = valueOrZero(reservation.getReservedCredits());
-        long missingCredits = actualCredits - reservedCredits;
-        if (missingCredits <= 0) {
-            return;
-        }
-        String idempotencyKey = "RESERVE:" + context.processingNo() + ":ACTUAL:" + usageKey;
+        String idempotencyKey = "CHARGE:" + context.processingNo() + ":" + usageKey;
         if (ledgerExists(idempotencyKey)) {
             return;
         }
-        reserveLocked(reservation, "ACTUAL:" + usageKey, missingCredits);
+        long actualCredits = getPendingCredits(context.processingNo());
+        long consumedCredits = valueOrZero(reservation.getConsumedCredits());
+        long creditsToCharge = actualCredits - consumedCredits;
+        if (creditsToCharge < 0) {
+            throw new ClientException(BaseErrorCode.CREDIT_RESERVATION_CONFLICT);
+        }
+        if (creditsToCharge == 0) {
+            return;
+        }
+        BizCreditAccountDO account = lockAccount(context.userId(), true);
+        long availableCredits = valueOrZero(account.getAvailableCredits());
+        if (availableCredits < creditsToCharge) {
+            throw new ClientException(BaseErrorCode.CREDIT_BALANCE_INSUFFICIENT);
+        }
+        long availableAfter = availableCredits - creditsToCharge;
+        long frozenCredits = valueOrZero(account.getFrozenCredits());
+        account.setAvailableCredits(availableAfter);
+        accountMapper.updateById(account);
+
+        long consumedAfter = Math.addExact(consumedCredits, creditsToCharge);
+        reservation.setReservedCredits(consumedAfter);
+        reservation.setConsumedCredits(consumedAfter);
+        reservation.setExpiresAt(nextExpiration());
+        reservationMapper.updateById(reservation);
+
+        insertLedger(context.userId(), CreditConstant.TRANSACTION_TYPE_RESERVATION_SETTLE,
+                -creditsToCharge, 0L, availableAfter, frozenCredits, context.processingNo(),
+                idempotencyKey, "AI调用Credits实时扣费");
     }
 
     /**
-     * 结算文章处理Credits并退回剩余预占额度
+     * 完成文章处理Credits结算
      *
      * @param processingNo 文章处理编号
      */
@@ -149,6 +157,108 @@ public class CreditReservationServiceImpl implements CreditReservationService {
             return;
         }
         ensureProcessing(reservation);
+        if (isLegacyFrozenReservation(reservation)) {
+            settleLegacyReservation(reservation, processingNo);
+            return;
+        }
+        long consumedCredits = getPendingCredits(processingNo);
+        long chargedCredits = valueOrZero(reservation.getConsumedCredits());
+        if (consumedCredits != chargedCredits) {
+            throw new ClientException(BaseErrorCode.CREDIT_RESERVATION_CONFLICT);
+        }
+        reservation.setReleasedCredits(0L);
+        reservation.setStatus(CreditConstant.RESERVATION_STATUS_SETTLED);
+        reservation.setCompletedAt(new Date());
+        reservationMapper.updateById(reservation);
+
+        aiUsageMapper.updateBillingStatus(processingNo,
+                AiUsageConstant.BILLING_STATUS_PENDING,
+                AiUsageConstant.BILLING_STATUS_SETTLED);
+    }
+
+    /**
+     * 退回处理失败任务已扣除的Credits
+     *
+     * @param processingNo 文章处理编号
+     */
+    @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
+    public void release(String processingNo) {
+        releaseInternal(processingNo, CreditConstant.RESERVATION_STATUS_RELEASED, "RELEASE:" + processingNo,
+                "文章处理失败，退回已扣Credits");
+    }
+
+    /**
+     * 退回超时任务已扣除的Credits
+     *
+     * @param processingNo 文章处理编号
+     */
+    @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
+    public void timeoutRelease(String processingNo) {
+        releaseInternal(processingNo, CreditConstant.RESERVATION_STATUS_TIMEOUT_RELEASED,
+                "TIMEOUT_RELEASE:" + processingNo, "文章处理超时，退回已扣Credits");
+    }
+
+    /**
+     * 获取已经超时的预占处理编号
+     *
+     * @param limit 返回数量
+     * @return 文章处理编号列表
+     */
+    @Override
+    public List<String> listExpiredProcessingNos(int limit) {
+        int queryLimit = Math.min(Math.max(limit, 1), 100);
+        return reservationMapper.selectList(new LambdaQueryWrapper<BizCreditReservationDO>()
+                        .eq(BizCreditReservationDO::getStatus, CreditConstant.RESERVATION_STATUS_PROCESSING)
+                        .le(BizCreditReservationDO::getExpiresAt, new Date())
+                        .orderByAsc(BizCreditReservationDO::getExpiresAt)
+                        .last("LIMIT " + queryLimit))
+                .stream()
+                .map(BizCreditReservationDO::getProcessingNo)
+                .toList();
+    }
+
+    private void releaseInternal(String processingNo, int targetStatus, String idempotencyKey, String remark) {
+        BizCreditReservationDO reservation = reservationMapper.selectByProcessingNoForUpdate(processingNo);
+        if (reservation == null) {
+            return;
+        }
+        if (!Integer.valueOf(CreditConstant.RESERVATION_STATUS_PROCESSING).equals(reservation.getStatus())) {
+            return;
+        }
+        if (isLegacyFrozenReservation(reservation)) {
+            releaseLegacyReservation(reservation, targetStatus, idempotencyKey, remark);
+            return;
+        }
+        long chargedCredits = valueOrZero(reservation.getConsumedCredits());
+        if (chargedCredits > 0) {
+            BizCreditAccountDO account = lockAccount(reservation.getUserId(), false);
+            long availableAfter = Math.addExact(valueOrZero(account.getAvailableCredits()), chargedCredits);
+            long frozenCredits = valueOrZero(account.getFrozenCredits());
+            account.setAvailableCredits(availableAfter);
+            accountMapper.updateById(account);
+            insertLedger(reservation.getUserId(), CreditConstant.TRANSACTION_TYPE_RESERVATION_RELEASE,
+                    chargedCredits, 0L, availableAfter, frozenCredits,
+                    processingNo, idempotencyKey, remark);
+        }
+
+        reservation.setConsumedCredits(0L);
+        reservation.setReleasedCredits(chargedCredits);
+        reservation.setStatus(targetStatus);
+        reservation.setCompletedAt(new Date());
+        reservationMapper.updateById(reservation);
+        aiUsageMapper.updateBillingStatus(processingNo,
+                AiUsageConstant.BILLING_STATUS_PENDING,
+                AiUsageConstant.BILLING_STATUS_FREE);
+    }
+
+    private boolean isLegacyFrozenReservation(BizCreditReservationDO reservation) {
+        return valueOrZero(reservation.getReservedCredits()) > 0
+                && valueOrZero(reservation.getConsumedCredits()) == 0;
+    }
+
+    private void settleLegacyReservation(BizCreditReservationDO reservation, String processingNo) {
         long consumedCredits = getPendingCredits(processingNo);
         long reservedCredits = valueOrZero(reservation.getReservedCredits());
         if (consumedCredits > reservedCredits) {
@@ -179,80 +289,10 @@ public class CreditReservationServiceImpl implements CreditReservationService {
                 AiUsageConstant.BILLING_STATUS_SETTLED);
     }
 
-    /**
-     * 释放文章处理预占的Credits
-     *
-     * @param processingNo 文章处理编号
-     */
-    @Override
-    @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
-    public void release(String processingNo) {
-        releaseInternal(processingNo, CreditConstant.RESERVATION_STATUS_RELEASED, "RELEASE:" + processingNo,
-                "文章处理失败，释放预占Credits");
-    }
-
-    /**
-     * 超时释放文章处理预占的Credits
-     *
-     * @param processingNo 文章处理编号
-     */
-    @Override
-    @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
-    public void timeoutRelease(String processingNo) {
-        releaseInternal(processingNo, CreditConstant.RESERVATION_STATUS_TIMEOUT_RELEASED,
-                "TIMEOUT_RELEASE:" + processingNo, "文章处理超时，释放预占Credits");
-    }
-
-    /**
-     * 获取已经超时的预占处理编号
-     *
-     * @param limit 返回数量
-     * @return 文章处理编号列表
-     */
-    @Override
-    public List<String> listExpiredProcessingNos(int limit) {
-        int queryLimit = Math.min(Math.max(limit, 1), 100);
-        return reservationMapper.selectList(new LambdaQueryWrapper<BizCreditReservationDO>()
-                        .eq(BizCreditReservationDO::getStatus, CreditConstant.RESERVATION_STATUS_PROCESSING)
-                        .le(BizCreditReservationDO::getExpiresAt, new Date())
-                        .orderByAsc(BizCreditReservationDO::getExpiresAt)
-                        .last("LIMIT " + queryLimit))
-                .stream()
-                .map(BizCreditReservationDO::getProcessingNo)
-                .toList();
-    }
-
-    private void reserveLocked(BizCreditReservationDO reservation, String stageKey, long credits) {
-        creditAccountService.initializeAccount(reservation.getUserId());
-        BizCreditAccountDO account = lockAccount(reservation.getUserId(), true);
-        long availableCredits = valueOrZero(account.getAvailableCredits());
-        if (availableCredits < credits) {
-            throw new ClientException(BaseErrorCode.CREDIT_BALANCE_INSUFFICIENT);
-        }
-        long frozenCredits = valueOrZero(account.getFrozenCredits());
-        long availableAfter = availableCredits - credits;
-        long frozenAfter = Math.addExact(frozenCredits, credits);
-        account.setAvailableCredits(availableAfter);
-        account.setFrozenCredits(frozenAfter);
-        accountMapper.updateById(account);
-
-        reservation.setReservedCredits(Math.addExact(valueOrZero(reservation.getReservedCredits()), credits));
-        reservation.setExpiresAt(nextExpiration());
-        reservationMapper.updateById(reservation);
-
-        insertLedger(reservation.getUserId(), CreditConstant.TRANSACTION_TYPE_RESERVE,
-                -credits, credits, availableAfter, frozenAfter, reservation.getProcessingNo(),
-                "RESERVE:" + reservation.getProcessingNo() + ":" + stageKey, "文章处理Credits预占");
-    }
-
-    private void releaseInternal(String processingNo, int targetStatus, String idempotencyKey, String remark) {
-        BizCreditReservationDO reservation = reservationMapper.selectByProcessingNoForUpdate(processingNo);
-        if (reservation == null) {
-            return;
-        }
-        if (!Integer.valueOf(CreditConstant.RESERVATION_STATUS_PROCESSING).equals(reservation.getStatus())) {
-            return;
-        }
+    private void releaseLegacyReservation(BizCreditReservationDO reservation,
+                                          int targetStatus,
+                                          String idempotencyKey,
+                                          String remark) {
         BizCreditAccountDO account = lockAccount(reservation.getUserId(), false);
         long reservedCredits = valueOrZero(reservation.getReservedCredits());
         long frozenAfter = valueOrZero(account.getFrozenCredits()) - reservedCredits;
@@ -272,8 +312,8 @@ public class CreditReservationServiceImpl implements CreditReservationService {
 
         insertLedger(reservation.getUserId(), CreditConstant.TRANSACTION_TYPE_RESERVATION_RELEASE,
                 reservedCredits, -reservedCredits, availableAfter, frozenAfter,
-                processingNo, idempotencyKey, remark);
-        aiUsageMapper.updateBillingStatus(processingNo,
+                reservation.getProcessingNo(), idempotencyKey, remark);
+        aiUsageMapper.updateBillingStatus(reservation.getProcessingNo(),
                 AiUsageConstant.BILLING_STATUS_PENDING,
                 AiUsageConstant.BILLING_STATUS_FREE);
     }
@@ -354,7 +394,4 @@ public class CreditReservationServiceImpl implements CreditReservationService {
         return value == null ? 0L : value;
     }
 
-    private long getPositive(Long value, long fallback) {
-        return value == null || value <= 0 ? fallback : value;
-    }
 }

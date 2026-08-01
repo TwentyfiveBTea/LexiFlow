@@ -15,7 +15,7 @@ import java.util.Date;
 /**
  * @Author: TwentyfiveBTea
  * @Date: 2026/7/16
- * @Description: Credits预占记录实体类
+ * @Description: 文章处理Credits计费记录实体类
  */
 @Data
 @AllArgsConstructor
@@ -46,17 +46,17 @@ public class BizCreditReservationDO {
     private String articleId;
 
     /**
-     * 本次文章处理累计预占的Credits
+     * 本次文章处理累计已扣除的Credits
      */
     private Long reservedCredits;
 
     /**
-     * 最终实际消费的Credits
+     * 当前实际消费的Credits
      */
     private Long consumedCredits;
 
     /**
-     * 最终退回用户的Credits
+     * 处理失败时退回用户的Credits
      */
     private Long releasedCredits;
 

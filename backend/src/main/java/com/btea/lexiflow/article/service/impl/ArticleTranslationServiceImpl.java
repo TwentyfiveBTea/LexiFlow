@@ -16,7 +16,6 @@ import com.btea.lexiflow.common.convention.errorcode.BaseErrorCode;
 import com.btea.lexiflow.common.convention.exception.ClientException;
 import com.btea.lexiflow.pay.constant.AiUsageConstant;
 import com.btea.lexiflow.pay.model.AiProcessingContext;
-import com.btea.lexiflow.pay.service.AiRequestReservationEstimator;
 import com.btea.lexiflow.pay.service.AiUsageService;
 import com.btea.lexiflow.pay.service.CreditReservationService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -58,7 +57,6 @@ public class ArticleTranslationServiceImpl implements ArticleTranslationService 
     private final ArticleTranslationProperties articleTranslationProperties;
     private final AiUsageService aiUsageService;
     private final CreditReservationService creditReservationService;
-    private final AiRequestReservationEstimator reservationEstimator;
 
     /**
      * 翻译文章正文
@@ -149,10 +147,7 @@ public class ArticleTranslationServiceImpl implements ArticleTranslationService 
         String userPrompt = ArticleTranslationPrompt.GLOBAL_PROFILE_USER_PROMPT
                 .replace("{{article_content}}", originalContent);
         String requestNo = IdUtil.getSnowflakeNextIdStr();
-        String stageKey = "GLOBAL_PROFILE";
-        creditReservationService.reserveAdditional(context, stageKey,
-                reservationEstimator.estimateText(
-                        ArticleTranslationPrompt.GLOBAL_PROFILE_SYSTEM_PROMPT, userPrompt));
+        creditReservationService.ensureBalanceAvailable(context);
         String response = callLlmWithRetry(attemptNo -> callLlm(
                 ArticleTranslationPrompt.GLOBAL_PROFILE_SYSTEM_PROMPT,
                 userPrompt,
@@ -192,9 +187,7 @@ public class ArticleTranslationServiceImpl implements ArticleTranslationService 
                 chunk.getChunkIndex(), chunk.getStartParagraphIndex(), chunk.getParagraphs().size());
         String requestNo = IdUtil.getSnowflakeNextIdStr();
         int unitIndex = chunk.getChunkIndex() + 1;
-        creditReservationService.reserveAdditional(context, "TRANSLATION:" + unitIndex,
-                reservationEstimator.estimateText(
-                        ArticleTranslationPrompt.CHUNK_TRANSLATION_SYSTEM_PROMPT, userPrompt));
+        creditReservationService.ensureBalanceAvailable(context);
         String response = callLlmWithRetry(attemptNo -> callLlm(
                 ArticleTranslationPrompt.CHUNK_TRANSLATION_SYSTEM_PROMPT,
                 userPrompt,
@@ -251,7 +244,7 @@ public class ArticleTranslationServiceImpl implements ArticleTranslationService 
                     chatResponse.id(),
                     tokenUsage.inputTokenCount(),
                     tokenUsage.outputTokenCount());
-            creditReservationService.ensureActualUsageCovered(
+            creditReservationService.chargeActualUsage(
                     context, requestNo + ":" + attemptNo);
             return response.trim();
         } catch (ClientException e) {
