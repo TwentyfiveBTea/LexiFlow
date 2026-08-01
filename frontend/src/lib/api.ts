@@ -9,6 +9,7 @@ export interface ApiResult<T> {
 export interface LoginResponse {
   userId: string
   email: string
+  username: string
   avatar: string | null
   token: string
 }

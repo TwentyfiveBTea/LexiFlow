@@ -33,7 +33,7 @@ async function submit() {
       confirmPassword: confirmPassword.value,
     })
     const response = await login({ email: email.value, password: password.value })
-    session.signIn(response, username.value)
+    session.signIn(response)
     await router.push('/dashboard')
   } catch (error) {
     message.value = error instanceof Error ? error.message : '注册失败，请稍后重试'

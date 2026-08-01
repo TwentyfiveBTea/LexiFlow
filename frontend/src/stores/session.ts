@@ -10,7 +10,8 @@ export const useSessionStore = defineStore('session', () => {
   const registeredDays = ref(Number(localStorage.getItem('lexiflow.registeredDays')) || 1)
   const isAuthenticated = computed(() => Boolean(token.value))
 
-  function signIn(response: LoginResponse, name = response.email.split('@')[0] || '学者') {
+  function signIn(response: LoginResponse) {
+    const name = response.username?.trim() || response.email.split('@')[0] || '学者'
     token.value = response.token
     userName.value = name
     email.value = response.email

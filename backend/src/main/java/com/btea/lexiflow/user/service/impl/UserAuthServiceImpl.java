@@ -55,6 +55,7 @@ public class UserAuthServiceImpl implements UserAuthService {
         return UserLoginRespDTO.builder()
                 .userId(user.getId())
                 .email(user.getEmail())
+                .username(user.getUsername())
                 .avatar(user.getAvatar())
                 .token(token)
                 .build();

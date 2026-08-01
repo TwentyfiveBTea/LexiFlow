@@ -23,6 +23,11 @@ public class UserLoginRespDTO {
     private String email;
 
     /**
+     * 用户名
+     */
+    private String username;
+
+    /**
      * 头像
      */
     private String avatar;
