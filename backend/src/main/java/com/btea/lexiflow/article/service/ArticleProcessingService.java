@@ -14,14 +14,8 @@ public interface ArticleProcessingService {
      * 异步处理已上传文章
      *
      * @param article 文章记录
-     * @param fileBytes 文件字节数组
-     * @param originalFilename 原始文件名
-     * @param contentType 文件 MIME 类型
      * @param context AI处理计费上下文
      */
     void processUploadedArticle(BizArticlesDO article,
-                                byte[] fileBytes,
-                                String originalFilename,
-                                String contentType,
                                 AiProcessingContext context);
 }

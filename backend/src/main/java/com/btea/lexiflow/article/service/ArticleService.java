@@ -1,11 +1,13 @@
 package com.btea.lexiflow.article.service;
 
 import com.btea.lexiflow.article.dto.req.ArticleAnalyzeReqDTO;
+import com.btea.lexiflow.article.dto.req.ArticleUploadInitReqDTO;
 import com.btea.lexiflow.article.dto.resp.ArticleAnalyzeRespDTO;
 import com.btea.lexiflow.article.dto.resp.ArticleDetailRespDTO;
 import com.btea.lexiflow.article.dto.resp.ArticleListRespDTO;
 import com.btea.lexiflow.article.dto.resp.ArticleProcessingDetailRespDTO;
 import com.btea.lexiflow.article.dto.resp.ArticleUploadRespDTO;
+import com.btea.lexiflow.article.dto.resp.ArticleUploadInitRespDTO;
 import com.btea.lexiflow.article.dto.resp.ArticleVocabOccurrenceRespDTO;
 import com.btea.lexiflow.article.dto.resp.ArticleVocabRespDTO;
 import org.springframework.web.multipart.MultipartFile;
@@ -26,6 +28,22 @@ public interface ArticleService {
      * @return 上传响应参数
      */
     ArticleUploadRespDTO uploadArticle(MultipartFile file);
+
+    /**
+     * 初始化文章直传会话
+     *
+     * @param reqDTO 上传文件信息
+     * @return 预签名上传信息
+     */
+    ArticleUploadInitRespDTO initializeArticleUpload(ArticleUploadInitReqDTO reqDTO);
+
+    /**
+     * 确认文章直传完成并提交异步处理
+     *
+     * @param articleId 文章ID
+     * @return 上传响应参数
+     */
+    ArticleUploadRespDTO completeArticleUpload(String articleId);
 
     /**
      * 分析文章词汇

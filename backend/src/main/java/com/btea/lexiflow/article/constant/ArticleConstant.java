@@ -18,6 +18,22 @@ public final class ArticleConstant {
     public static final String ARTICLE_DIR = "article/";
 
     /**
+     * 文章直传临时目录
+     */
+    public static final String ARTICLE_UPLOAD_DIR = "article-upload/";
+
+    /**
+     * 文章文件最大上传字节数
+     */
+    public static final long MAX_UPLOAD_FILE_SIZE = 50L * 1024L * 1024L;
+
+    /**
+     * 支持上传的文章文件类型
+     */
+    public static final Set<String> SUPPORTED_FILE_TYPES = Set.of(
+            "pdf", "doc", "docx", "txt", "md", "html", "htm");
+
+    /**
      * 文章已删除状态
      */
     public static final int STATUS_DELETED = 0;

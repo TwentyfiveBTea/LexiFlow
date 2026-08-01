@@ -13,8 +13,9 @@ import org.apache.tika.parser.ParseContext;
 import org.apache.tika.sax.BodyContentHandler;
 import org.springframework.stereotype.Component;
 
-import java.io.ByteArrayInputStream;
 import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Locale;
 
 /**
@@ -36,18 +37,18 @@ public class ArticleTextExtractor {
     /**
      * 提取文章纯文本
      *
-     * @param fileBytes 文件字节数组
+     * @param filePath 本地文件路径
      * @param filename 文件名
      * @param contentType 文件 MIME 类型
      * @param context AI处理计费上下文
      * @return 纯文本
      */
-    public String extractText(byte[] fileBytes,
+    public String extractText(Path filePath,
                               String filename,
                               String contentType,
                               AiProcessingContext context) {
         Metadata metadata = new Metadata();
-        String tikaText = extractTextByTika(fileBytes, filename, contentType, metadata);
+        String tikaText = extractTextByTika(filePath, filename, contentType, metadata);
         long meaningfulChars = countMeaningfulChars(tikaText);
         log.info("Tika 文章文本解析完成: filename={}, contentType={}, tikaContentType={}, textLength={}, meaningfulChars={}",
                 filename, contentType, metadata.get(Metadata.CONTENT_TYPE), tikaText.length(), meaningfulChars);
@@ -59,12 +60,12 @@ public class ArticleTextExtractor {
         if (isPdf(filename, contentType, metadata)) {
             log.info("Tika 解析文本过短，开始使用 OCR 解析 PDF: filename={}, textLength={}, meaningfulChars={}",
                     filename, tikaText.length(), meaningfulChars);
-            return articlePdfOcrExtractor.extractText(fileBytes, context);
+            return articlePdfOcrExtractor.extractText(filePath, context);
         }
         throw new ClientException(BaseErrorCode.FILE_PARSE_FAILED);
     }
 
-    private String extractTextByTika(byte[] fileBytes,
+    private String extractTextByTika(Path filePath,
                                      String filename,
                                      String contentType,
                                      Metadata metadata) {
@@ -74,7 +75,7 @@ public class ArticleTextExtractor {
         if (contentType != null && !contentType.isBlank()) {
             metadata.set(Metadata.CONTENT_TYPE, contentType);
         }
-        try (InputStream inputStream = new ByteArrayInputStream(fileBytes)) {
+        try (InputStream inputStream = Files.newInputStream(filePath)) {
             AutoDetectParser parser = new AutoDetectParser();
             BodyContentHandler handler = new BodyContentHandler(-1);
             parser.parse(inputStream, handler, metadata, new ParseContext());

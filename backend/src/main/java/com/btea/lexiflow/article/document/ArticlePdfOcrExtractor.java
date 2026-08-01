@@ -25,6 +25,7 @@ import org.springframework.web.client.RestClient;
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
+import java.nio.file.Path;
 import java.util.*;
 import java.util.function.IntFunction;
 
@@ -48,11 +49,11 @@ public class ArticlePdfOcrExtractor {
     /**
      * OCR 提取 PDF 图片文本
      *
-     * @param fileBytes PDF 文件字节数组
+     * @param filePath PDF文件路径
      * @param context AI处理计费上下文
      * @return OCR 文本
      */
-    public String extractText(byte[] fileBytes, AiProcessingContext context) {
+    public String extractText(Path filePath, AiProcessingContext context) {
         if (!Boolean.TRUE.equals(articleOcrProperties.getEnabled())) {
             throw new ClientException(BaseErrorCode.FILE_PARSE_FAILED);
         }
@@ -61,7 +62,7 @@ public class ArticlePdfOcrExtractor {
             throw new ClientException(BaseErrorCode.FILE_PARSE_FAILED);
         }
 
-        try (PDDocument document = Loader.loadPDF(fileBytes)) {
+        try (PDDocument document = Loader.loadPDF(filePath.toFile())) {
             int pageCount = document.getNumberOfPages();
             int maxPages = getMaxPages();
             if (pageCount > maxPages) {
@@ -113,6 +114,8 @@ public class ArticlePdfOcrExtractor {
         try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
             ImageIO.write(image, getImageFormat(), outputStream);
             return outputStream.toByteArray();
+        } finally {
+            image.flush();
         }
     }
 

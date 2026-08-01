@@ -9,7 +9,10 @@ import com.btea.lexiflow.article.dao.mapper.BizArticlesMapper;
 import com.btea.lexiflow.article.dao.mapper.RelArticleVocabMapper;
 import com.btea.lexiflow.article.dao.mapper.RelArticleVocabOccurrenceMapper;
 import com.btea.lexiflow.article.cache.ArticleQueryCache;
+import com.btea.lexiflow.article.cache.ArticleUploadSession;
+import com.btea.lexiflow.article.cache.ArticleUploadSessionCache;
 import com.btea.lexiflow.article.dto.req.ArticleAnalyzeReqDTO;
+import com.btea.lexiflow.article.dto.req.ArticleUploadInitReqDTO;
 import com.btea.lexiflow.article.dto.resp.*;
 import com.btea.lexiflow.article.nlp.ArticleVocabAnalyzer;
 import com.btea.lexiflow.article.nlp.ArticleVocabMatch;
@@ -40,7 +43,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.security.MessageDigest;
+import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ForkJoinPool;
@@ -67,6 +70,7 @@ public class ArticleServiceImpl implements ArticleService {
     private final ArticleProcessingService articleProcessingService;
     private final CreditReservationService creditReservationService;
     private final ArticleQueryCache articleQueryCache;
+    private final ArticleUploadSessionCache articleUploadSessionCache;
     private final VocabQueryCache vocabQueryCache;
     private final VocabWordCacheLoader vocabWordCacheLoader;
     private final BizVocabLibraryMapper vocabLibraryMapper;
@@ -97,49 +101,23 @@ public class ArticleServiceImpl implements ArticleService {
         AiProcessingContext processingContext = new AiProcessingContext(userId, articleId, processingNo);
         String originalFilename = getOriginalFilename(file);
         String fileType = getFileType(originalFilename);
+        validateUpload(originalFilename, fileType, file.getSize());
+        String contentType = normalizeContentType(file.getContentType());
         String title = getBaseName(originalFilename);
         String filePath = ARTICLE_DIR + userId + "/" + articleId + "_original." + fileType;
         log.info("开始上传文章: userId={}, articleId={}, filename={}, fileType={}, fileSize={}",
                 userId, articleId, originalFilename, fileType, file.getSize());
 
-        byte[] fileBytes;
-        try {
-            fileBytes = file.getBytes();
-        } catch (Exception e) {
-            log.error("读取上传文件失败: userId={}, filename={}", userId, originalFilename, e);
-            throw new ClientException(BaseErrorCode.FILE_PARSE_FAILED);
-        }
-
-        BizArticlesDO article = BizArticlesDO.builder()
-                .id(articleId)
-                .userId(userId)
-                .title(title)
-                .originalFilename(originalFilename)
-                .fileType(fileType)
-                .mimeType(file.getContentType())
-                .fileSize(file.getSize())
-                .fileHash(sha256Hex(fileBytes))
-                .filePath(filePath)
-                .parseStatus(PARSE_STATUS_PROCESSING)
-                .translationStatus(TRANSLATION_STATUS_PENDING)
-                .analysisStatus(ANALYSIS_STATUS_PENDING)
-                .status(STATUS_NORMAL)
-                .build();
+        BizArticlesDO article = buildPendingArticle(
+                articleId, userId, title, originalFilename, fileType, contentType, file.getSize(), filePath);
 
         try {
             creditReservationService.createInitialReservation(processingContext);
             s3Util.uploadFile(file, filePath);
             log.info("文章原文件上传成功: userId={}, articleId={}, filePath={}", userId, articleId, filePath);
-            articleProcessingService.processUploadedArticle(
-                    article, fileBytes, originalFilename, file.getContentType(), processingContext);
+            articleProcessingService.processUploadedArticle(article, processingContext);
             log.info("文章异步处理任务提交成功: userId={}, articleId={}", userId, articleId);
-            return ArticleUploadRespDTO.builder()
-                    .articleId(articleId)
-                    .title(title)
-                    .languageCode("unknown")
-                    .parseStatus(PARSE_STATUS_PROCESSING)
-                    .translationStatus(TRANSLATION_STATUS_PENDING)
-                    .build();
+            return toUploadResp(articleId, title);
         } catch (ClientException e) {
             creditReservationService.release(processingNo);
             article.setParseStatus(PARSE_STATUS_FAILED);
@@ -151,6 +129,107 @@ public class ArticleServiceImpl implements ArticleService {
             bizArticlesMapper.updateById(article);
             log.error("文章上传失败: userId={}, articleId={}", userId, articleId, e);
             throw new ClientException(BaseErrorCode.FILE_UPLOAD_FAILED);
+        }
+    }
+
+    /**
+     * 初始化文章直传会话
+     *
+     * @param reqDTO 上传文件信息
+     * @return 预签名上传信息
+     */
+    @Override
+    public ArticleUploadInitRespDTO initializeArticleUpload(ArticleUploadInitReqDTO reqDTO) {
+        String userId = getCurrentUserId();
+        String originalFilename = reqDTO.getFilename().trim();
+        String fileType = getFileType(originalFilename);
+        validateUpload(originalFilename, fileType, reqDTO.getFileSize());
+        String contentType = normalizeContentType(reqDTO.getContentType());
+        String articleId = IdWorker.getIdStr();
+        String objectKey = ARTICLE_UPLOAD_DIR + userId + "/" + articleId + "_original." + fileType;
+        articleUploadSessionCache.create(new ArticleUploadSession(
+                articleId,
+                userId,
+                objectKey,
+                originalFilename,
+                fileType,
+                contentType,
+                reqDTO.getFileSize(),
+                "PENDING"));
+        String uploadUrl = s3Util.createPresignedUploadUrl(
+                objectKey, contentType, com.btea.lexiflow.article.constant.ArticleRedisConstant.PRESIGNED_UPLOAD_TTL);
+        return ArticleUploadInitRespDTO.builder()
+                .articleId(articleId)
+                .uploadUrl(uploadUrl)
+                .contentType(contentType)
+                .expiresAt(Date.from(Instant.now().plus(
+                        com.btea.lexiflow.article.constant.ArticleRedisConstant.PRESIGNED_UPLOAD_TTL)))
+                .build();
+    }
+
+    /**
+     * 确认文章直传完成并提交异步处理
+     *
+     * @param articleId 文章ID
+     * @return 上传响应参数
+     */
+    @Override
+    public ArticleUploadRespDTO completeArticleUpload(String articleId) {
+        String userId = getCurrentUserId();
+        ArticleUploadSession session = getUploadSession(articleId, userId);
+        if ("COMPLETED".equals(session.status())) {
+            return toUploadResp(articleId, getBaseName(session.filename()));
+        }
+        long actualSize = s3Util.headObject(session.objectKey()).contentLength();
+        if (actualSize != session.fileSize() || actualSize <= 0L || actualSize > MAX_UPLOAD_FILE_SIZE) {
+            s3Util.deleteFile(session.objectKey());
+            articleUploadSessionCache.delete(articleId);
+            throw new ClientException(BaseErrorCode.ARTICLE_UPLOAD_INVALID);
+        }
+        long claimResult = articleUploadSessionCache.claim(articleId);
+        if (claimResult == 2L) {
+            return toUploadResp(articleId, getBaseName(session.filename()));
+        }
+        if (claimResult != 1L) {
+            throw new ClientException(claimResult == 0L
+                    ? BaseErrorCode.ARTICLE_UPLOAD_SESSION_NOT_FOUND
+                    : BaseErrorCode.ARTICLE_UPLOAD_CONFLICT);
+        }
+
+        String processingNo = IdWorker.getIdStr();
+        AiProcessingContext context = new AiProcessingContext(userId, articleId, processingNo);
+        String finalObjectKey = ARTICLE_DIR + userId + "/" + articleId + "_original." + session.fileType();
+        BizArticlesDO article = buildPendingArticle(
+                articleId,
+                userId,
+                getBaseName(session.filename()),
+                session.filename(),
+                session.fileType(),
+                session.contentType(),
+                session.fileSize(),
+                finalObjectKey);
+        boolean reservationCreated = false;
+        boolean objectCopied = false;
+        try {
+            creditReservationService.createInitialReservation(context);
+            reservationCreated = true;
+            s3Util.copyFile(session.objectKey(), finalObjectKey);
+            objectCopied = true;
+            articleUploadSessionCache.markCompleted(articleId);
+            articleProcessingService.processUploadedArticle(article, context);
+            log.info("文章直传完成并提交异步处理: userId={}, articleId={}, filePath={}",
+                    userId, articleId, finalObjectKey);
+            s3Util.deleteFile(session.objectKey());
+            return toUploadResp(articleId, article.getTitle());
+        } catch (RuntimeException e) {
+            if (reservationCreated) {
+                creditReservationService.release(processingNo);
+            }
+            if (objectCopied) {
+                s3Util.deleteFile(finalObjectKey);
+            }
+            articleUploadSessionCache.releaseClaim(articleId);
+            throw e;
         }
     }
 
@@ -794,18 +873,59 @@ public class ArticleServiceImpl implements ArticleService {
         return index < 0 ? filename : filename.substring(0, index);
     }
 
-    private String sha256Hex(byte[] bytes) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(bytes);
-            StringBuilder hex = new StringBuilder();
-            for (byte b : hash) {
-                hex.append(String.format("%02x", b));
-            }
-            return hex.toString();
-        } catch (Exception e) {
-            throw new ClientException(BaseErrorCode.SERVICE_ERROR);
+    private void validateUpload(String filename, String fileType, long fileSize) {
+        if (filename.isBlank() || !SUPPORTED_FILE_TYPES.contains(fileType)
+                || fileSize <= 0L || fileSize > MAX_UPLOAD_FILE_SIZE) {
+            throw new ClientException(BaseErrorCode.ARTICLE_UPLOAD_INVALID);
         }
+    }
+
+    private String normalizeContentType(String contentType) {
+        return contentType == null || contentType.isBlank()
+                ? "application/octet-stream"
+                : contentType.trim();
+    }
+
+    private ArticleUploadSession getUploadSession(String articleId, String userId) {
+        ArticleUploadSession session = articleUploadSessionCache.get(articleId);
+        if (session == null || !userId.equals(session.userId())) {
+            throw new ClientException(BaseErrorCode.ARTICLE_UPLOAD_SESSION_NOT_FOUND);
+        }
+        return session;
+    }
+
+    private BizArticlesDO buildPendingArticle(String articleId,
+                                              String userId,
+                                              String title,
+                                              String originalFilename,
+                                              String fileType,
+                                              String contentType,
+                                              long fileSize,
+                                              String filePath) {
+        return BizArticlesDO.builder()
+                .id(articleId)
+                .userId(userId)
+                .title(title)
+                .originalFilename(originalFilename)
+                .fileType(fileType)
+                .mimeType(contentType)
+                .fileSize(fileSize)
+                .filePath(filePath)
+                .parseStatus(PARSE_STATUS_PROCESSING)
+                .translationStatus(TRANSLATION_STATUS_PENDING)
+                .analysisStatus(ANALYSIS_STATUS_PENDING)
+                .status(STATUS_NORMAL)
+                .build();
+    }
+
+    private ArticleUploadRespDTO toUploadResp(String articleId, String title) {
+        return ArticleUploadRespDTO.builder()
+                .articleId(articleId)
+                .title(title)
+                .languageCode("unknown")
+                .parseStatus(PARSE_STATUS_PROCESSING)
+                .translationStatus(TRANSLATION_STATUS_PENDING)
+                .build();
     }
 
 }

@@ -13,6 +13,21 @@ public final class ArticleRedisConstant {
     }
 
     /**
+     * 文章上传会话缓存键前缀
+     */
+    public static final String UPLOAD_SESSION_KEY_PREFIX = "lexiflow:article:upload-session:";
+
+    /**
+     * 文章上传会话有效时间
+     */
+    public static final Duration UPLOAD_SESSION_TTL = Duration.ofMinutes(30);
+
+    /**
+     * S3预签名上传地址有效时间
+     */
+    public static final Duration PRESIGNED_UPLOAD_TTL = Duration.ofMinutes(15);
+
+    /**
      * 文章缓存键前缀
      */
     public static final String CACHE_KEY_PREFIX = "lexiflow:cache:v2:article:";

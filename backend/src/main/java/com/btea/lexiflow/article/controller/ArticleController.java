@@ -1,11 +1,13 @@
 package com.btea.lexiflow.article.controller;
 
 import com.btea.lexiflow.article.dto.req.ArticleAnalyzeReqDTO;
+import com.btea.lexiflow.article.dto.req.ArticleUploadInitReqDTO;
 import com.btea.lexiflow.article.dto.resp.ArticleAnalyzeRespDTO;
 import com.btea.lexiflow.article.dto.resp.ArticleDetailRespDTO;
 import com.btea.lexiflow.article.dto.resp.ArticleListRespDTO;
 import com.btea.lexiflow.article.dto.resp.ArticleProcessingDetailRespDTO;
 import com.btea.lexiflow.article.dto.resp.ArticleUploadRespDTO;
+import com.btea.lexiflow.article.dto.resp.ArticleUploadInitRespDTO;
 import com.btea.lexiflow.article.dto.resp.ArticleVocabOccurrenceRespDTO;
 import com.btea.lexiflow.article.dto.resp.ArticleVocabRespDTO;
 import com.btea.lexiflow.article.service.ArticleService;
@@ -46,6 +48,29 @@ public class ArticleController {
     @PostMapping("/upload")
     public Result<ArticleUploadRespDTO> uploadArticle(@RequestParam("file") MultipartFile file) {
         return Results.success(articleService.uploadArticle(file));
+    }
+
+    /**
+     * 初始化文章直传会话
+     *
+     * @param reqDTO 上传文件信息
+     * @return 预签名上传信息
+     */
+    @PostMapping("/uploads")
+    public Result<ArticleUploadInitRespDTO> initializeArticleUpload(
+            @RequestBody @Valid ArticleUploadInitReqDTO reqDTO) {
+        return Results.success(articleService.initializeArticleUpload(reqDTO));
+    }
+
+    /**
+     * 确认文章直传完成
+     *
+     * @param articleId 文章ID
+     * @return 上传响应参数
+     */
+    @PostMapping("/uploads/{articleId}/complete")
+    public Result<ArticleUploadRespDTO> completeArticleUpload(@PathVariable String articleId) {
+        return Results.success(articleService.completeArticleUpload(articleId));
     }
 
     /**

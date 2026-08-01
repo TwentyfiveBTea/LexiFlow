@@ -43,6 +43,9 @@ public enum BaseErrorCode implements IErrorCode {
     ARTICLE_TRANSLATION_FAILED("0004303", "文章翻译失败"),
     AI_RESPONSE_PARSE_FAILED("0004304", "AI响应解析失败"),
     ARTICLE_LANGUAGE_NOT_SUPPORTED("0004305", "暂不支持该文章语言"),
+    ARTICLE_UPLOAD_INVALID("0004306", "上传文件信息无效"),
+    ARTICLE_UPLOAD_SESSION_NOT_FOUND("0004307", "上传会话不存在或已过期"),
+    ARTICLE_UPLOAD_CONFLICT("0004308", "上传任务正在处理，请勿重复提交"),
 
     // 词汇处理（0005xxx）
     VOCAB_NOT_FOUND("0005300", "词汇不存在"),

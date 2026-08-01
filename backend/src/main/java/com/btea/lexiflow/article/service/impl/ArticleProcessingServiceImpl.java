@@ -21,7 +21,10 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.util.Date;
 
@@ -51,26 +54,29 @@ public class ArticleProcessingServiceImpl implements ArticleProcessingService {
      * 异步处理已上传文章
      *
      * @param article 文章记录
-     * @param fileBytes 文件字节数组
-     * @param originalFilename 原始文件名
-     * @param contentType 文件 MIME 类型
      * @param context AI处理计费上下文
      */
     @Async("articleTaskExecutor")
     @Transactional(rollbackFor = Exception.class)
     @Override
     public void processUploadedArticle(BizArticlesDO article,
-                                       byte[] fileBytes,
-                                       String originalFilename,
-                                       String contentType,
                                        AiProcessingContext context) {
-        log.info("开始异步处理文章: userId={}, articleId={}, filename={}", article.getUserId(), article.getId(), originalFilename);
+        log.info("开始异步处理文章: userId={}, articleId={}, filename={}",
+                article.getUserId(), article.getId(), article.getOriginalFilename());
+        Path tempDirectory = null;
         try {
+            tempDirectory = Files.createTempDirectory("lexiflow-article-");
+            Path localFile = tempDirectory.resolve("source." + article.getFileType());
+            s3Util.downloadToFile(article.getFilePath(), localFile);
+            if (Files.size(localFile) != article.getFileSize()) {
+                throw new ClientException(BaseErrorCode.ARTICLE_UPLOAD_INVALID);
+            }
+            article.setFileHash(sha256Hex(localFile));
             bizArticlesMapper.insert(article);
             log.info("文章记录创建成功: userId={}, articleId={}", article.getUserId(), article.getId());
 
             String originalContent = articleTextExtractor.extractText(
-                    fileBytes, originalFilename, contentType, context);
+                    localFile, article.getOriginalFilename(), article.getMimeType(), context);
             log.info("文章文本解析完成: userId={}, articleId={}, contentLength={}",
                     article.getUserId(), article.getId(), originalContent.length());
             String languageCode = articleLanguageDetector.detectLanguage(originalContent);
@@ -108,6 +114,8 @@ public class ArticleProcessingServiceImpl implements ArticleProcessingService {
             deleteOriginalFile(article);
             log.error("文章异步处理失败，数据库事务将回滚: userId={}, articleId={}", article.getUserId(), article.getId(), e);
             throw new ClientException(BaseErrorCode.SERVICE_ERROR);
+        } finally {
+            deleteTempDirectory(tempDirectory);
         }
     }
 
@@ -156,6 +164,43 @@ public class ArticleProcessingServiceImpl implements ArticleProcessingService {
             return hex.toString();
         } catch (Exception e) {
             throw new ClientException(BaseErrorCode.SERVICE_ERROR);
+        }
+    }
+
+    private String sha256Hex(Path file) {
+        try (InputStream inputStream = Files.newInputStream(file)) {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] buffer = new byte[64 * 1024];
+            int length;
+            while ((length = inputStream.read(buffer)) >= 0) {
+                if (length > 0) {
+                    digest.update(buffer, 0, length);
+                }
+            }
+            StringBuilder hex = new StringBuilder();
+            for (byte b : digest.digest()) {
+                hex.append(String.format("%02x", b));
+            }
+            return hex.toString();
+        } catch (Exception e) {
+            throw new ClientException(BaseErrorCode.SERVICE_ERROR);
+        }
+    }
+
+    private void deleteTempDirectory(Path tempDirectory) {
+        if (tempDirectory == null) {
+            return;
+        }
+        try (var paths = Files.walk(tempDirectory)) {
+            paths.sorted(java.util.Comparator.reverseOrder()).forEach(path -> {
+                try {
+                    Files.deleteIfExists(path);
+                } catch (Exception e) {
+                    log.warn("文章临时文件清理失败: path={}", path);
+                }
+            });
+        } catch (Exception e) {
+            log.warn("文章临时目录清理失败: path={}", tempDirectory);
         }
     }
 }
