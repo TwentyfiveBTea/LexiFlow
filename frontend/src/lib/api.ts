@@ -74,6 +74,35 @@ export interface CreditLedgerResponse {
   completedAt: string
 }
 
+export interface AdminLoginResponse {
+  userId: string
+  username: string
+  token: string
+}
+
+export interface AdminUserResponse {
+  userId: string
+  username: string
+  registeredAt: string
+}
+
+export interface AdminCreditsSummaryResponse {
+  lastDayCredits: number
+  lastThreeDaysCredits: number
+  lastSevenDaysCredits: number
+  lastThirtyDaysCredits: number
+}
+
+export interface AdminCreditUsageResponse {
+  userId: string
+  username: string | null
+  articleTitle: string | null
+  totalCredits: number
+  ocrCredits: number
+  translationCredits: number
+  completedAt: string
+}
+
 export interface ChangePasswordRequest {
   oldPassword: string
   newPassword: string
@@ -217,6 +246,11 @@ export const api = axios.create({
   timeout: 20_000,
 })
 
+const adminApi = axios.create({
+  baseURL: import.meta.env.VITE_API_BASE_URL ?? '/api/v1',
+  timeout: 20_000,
+})
+
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('lexiflow.token')
   if (token) config.headers.Authorization = `Bearer ${token}`
@@ -230,6 +264,44 @@ api.interceptors.response.use((response) => {
   }
   return response
 })
+
+adminApi.interceptors.request.use((config) => {
+  const token = localStorage.getItem('lexiflow.admin.token')
+  if (token) config.headers.Authorization = `Bearer ${token}`
+  return config
+})
+
+adminApi.interceptors.response.use((response) => {
+  const payload = response.data as ApiResult<unknown>
+  if (payload?.code && payload.code !== '0000000') {
+    return Promise.reject(new Error(payload.message || '请求失败'))
+  }
+  return response
+})
+
+export async function adminLogin(payload: { account: string; password: string }) {
+  const response = await adminApi.post<ApiResult<AdminLoginResponse>>('/admin/auth/login', payload)
+  return response.data.data
+}
+
+export async function getAdminUsers(page: number, pageSize = 20) {
+  const response = await adminApi.get<ApiResult<PageResponse<AdminUserResponse>>>('/admin/users', { params: { page, pageSize } })
+  return response.data.data
+}
+
+export async function getAdminCreditsSummary() {
+  const response = await adminApi.get<ApiResult<AdminCreditsSummaryResponse>>('/admin/credits/summary')
+  return response.data.data
+}
+
+export async function getAdminCreditUsage(page: number, pageSize = 20) {
+  const response = await adminApi.get<ApiResult<PageResponse<AdminCreditUsageResponse>>>('/admin/credits/usage', { params: { page, pageSize } })
+  return response.data.data
+}
+
+export async function grantAdminCredits(payload: { userId: string; credits: number }) {
+  await adminApi.post<ApiResult<void>>('/admin/credits/grant', payload)
+}
 
 export async function getUserProfile() {
   const response = await api.get<ApiResult<UserProfileResponse>>('/user/profile')

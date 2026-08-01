@@ -9,6 +9,7 @@ const router = createRouter({
     { path: '/', redirect: '/dashboard' },
     { path: '/login', name: 'login', component: () => import('@/views/LoginView.vue'), meta: { public: true, title: '登录' } },
     { path: '/register', name: 'register', component: () => import('@/views/RegisterView.vue'), meta: { public: true, title: '注册' } },
+    { path: '/admin/login', name: 'admin-login', component: () => import('@/views/AdminLoginView.vue'), meta: { admin: true, adminPublic: true, title: '管理员登录' } },
     { path: '/terms', name: 'terms', component: () => import('@/views/LegalDocumentView.vue'), props: { kind: 'terms' }, meta: { public: true, allowAuthenticated: true, title: '服务条款' } },
     { path: '/privacy', name: 'privacy', component: () => import('@/views/LegalDocumentView.vue'), props: { kind: 'privacy' }, meta: { public: true, allowAuthenticated: true, title: '隐私政策' } },
     {
@@ -25,12 +26,29 @@ const router = createRouter({
         { path: 'settings', name: 'settings', component: () => import('@/views/SettingsView.vue'), meta: { title: '设置' } },
       ],
     },
+    {
+      path: '/admin',
+      component: () => import('@/views/AdminLayout.vue'),
+      meta: { admin: true },
+      children: [
+        { path: '', redirect: '/admin/overview' },
+        { path: 'overview', name: 'admin-overview', component: () => import('@/views/AdminOverviewView.vue'), meta: { admin: true, title: '管理员总览' } },
+        { path: 'credits', name: 'admin-credits', component: () => import('@/views/AdminCreditsView.vue'), meta: { admin: true, title: 'Credits使用' } },
+        { path: 'grant', name: 'admin-grant', component: () => import('@/views/AdminGrantView.vue'), meta: { admin: true, title: '赠送Credits' } },
+      ],
+    },
     { path: '/reader/:id', name: 'reader', component: () => import('@/views/ReaderView.vue'), meta: { title: '精读' } },
     { path: '/:pathMatch(.*)*', redirect: '/dashboard' },
   ],
 })
 
 router.beforeEach((to) => {
+  const isAdminRoute = to.matched.some((record) => record.meta.admin)
+  if (isAdminRoute) {
+    const adminToken = Boolean(localStorage.getItem('lexiflow.admin.token'))
+    if (to.meta.adminPublic) return adminToken ? { name: 'admin-overview' } : true
+    return adminToken ? true : { name: 'admin-login' }
+  }
   const isAuthenticated = Boolean(localStorage.getItem('lexiflow.token'))
   if (!to.meta.public && !isAuthenticated) return { name: 'login', query: { redirect: to.fullPath } }
   if (to.meta.public && isAuthenticated && !to.meta.allowAuthenticated) return { name: 'dashboard' }
