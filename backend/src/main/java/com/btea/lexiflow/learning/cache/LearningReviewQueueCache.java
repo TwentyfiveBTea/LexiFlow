@@ -10,7 +10,6 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Component;
 
-import java.util.ArrayList;
 import java.util.List;
 
 import static com.btea.lexiflow.learning.constant.LearningRedisConstant.REVIEW_QUEUE_KEY_PREFIX;
@@ -23,18 +22,24 @@ import static com.btea.lexiflow.learning.constant.LearningRedisConstant.REVIEW_Q
 @RequiredArgsConstructor
 public class LearningReviewQueueCache {
 
-    private static final DefaultRedisScript<Long> INITIALIZE_QUEUE_SCRIPT = new DefaultRedisScript<>("""
+    private static final DefaultRedisScript<Long> MERGE_QUEUE_SCRIPT = new DefaultRedisScript<>("""
+            local existing = {}
+            local queue = redis.call('LRANGE', KEYS[1], 0, -1)
+            for _, entry in ipairs(queue) do
+                existing[entry] = true
+            end
+            local added = 0
+            for index = 2, #ARGV do
+                if not existing[ARGV[index]] then
+                    redis.call('RPUSH', KEYS[1], ARGV[index])
+                    existing[ARGV[index]] = true
+                    added = added + 1
+                end
+            end
             if redis.call('LLEN', KEYS[1]) > 0 then
                 redis.call('EXPIRE', KEYS[1], ARGV[1])
-                return 0
             end
-            for index = 2, #ARGV do
-                redis.call('RPUSH', KEYS[1], ARGV[index])
-            end
-            if #ARGV > 1 then
-                redis.call('EXPIRE', KEYS[1], ARGV[1])
-            end
-            return 1
+            return added
             """, Long.class);
 
     private static final DefaultRedisScript<Long> ADVANCE_QUEUE_SCRIPT = new DefaultRedisScript<>("""
@@ -76,18 +81,20 @@ public class LearningReviewQueueCache {
     }
 
     /**
-     * 当当前用户没有未完成队列时初始化队列；已有队列时保留原队列。
+     * 将尚未进入当前复习队列的待复习词追加到队尾
      *
      * @param userId 用户ID
-     * @param entries 初始词汇标识
-     * @return 初始化后或已有的复习队列
+     * @param entries 待复习词汇标识
+     * @return 合并后的复习队列
      */
-    public List<String> initializeIfAbsent(String userId, List<String> entries) {
+    public List<String> mergeMissing(String userId, List<String> entries) {
         String key = queueKey(userId);
-        List<String> arguments = new ArrayList<>(entries.size() + 1);
-        arguments.add(String.valueOf(REVIEW_QUEUE_TTL.toSeconds()));
-        arguments.addAll(entries);
-        stringRedisTemplate.execute(INITIALIZE_QUEUE_SCRIPT, List.of(key), arguments.toArray(String[]::new));
+        String[] arguments = new String[entries.size() + 1];
+        arguments[0] = String.valueOf(REVIEW_QUEUE_TTL.toSeconds());
+        for (int index = 0; index < entries.size(); index++) {
+            arguments[index + 1] = entries.get(index);
+        }
+        stringRedisTemplate.execute(MERGE_QUEUE_SCRIPT, List.of(key), arguments);
         return getQueue(userId);
     }
 

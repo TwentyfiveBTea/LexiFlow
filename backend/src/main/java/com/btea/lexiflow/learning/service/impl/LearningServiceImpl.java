@@ -128,7 +128,7 @@ public class LearningServiceImpl implements LearningService {
     @Override
     public List<DueWordRespDTO> listReviewQueue() {
         String userId = getCurrentUserId();
-        return toReviewQueueResponses(userId, reviewQueueCache.getQueue(userId));
+        return toReviewQueueResponses(userId, mergeDueWordsIntoQueue(userId));
     }
 
     /**
@@ -140,14 +140,20 @@ public class LearningServiceImpl implements LearningService {
     @Transactional(rollbackFor = Exception.class)
     public List<DueWordRespDTO> startReviewSession() {
         String userId = getCurrentUserId();
-        List<String> queue = reviewQueueCache.getQueue(userId);
-        if (queue.isEmpty()) {
-            List<DueWordRespDTO> dueWords = listDueWords();
-            queue = reviewQueueCache.initializeIfAbsent(userId, dueWords.stream()
-                    .map(word -> queueEntry(word.getLanguageCode(), word.getWordId()))
-                    .toList());
-        }
-        return toReviewQueueResponses(userId, queue);
+        return toReviewQueueResponses(userId, mergeDueWordsIntoQueue(userId));
+    }
+
+    /**
+     * 将全部语言中新到期的词汇合并到当前复习队列
+     *
+     * @param userId 用户ID
+     * @return 合并后的复习队列
+     */
+    private List<String> mergeDueWordsIntoQueue(String userId) {
+        List<String> dueEntries = listDueWords().stream()
+                .map(word -> queueEntry(word.getLanguageCode(), word.getWordId()))
+                .toList();
+        return reviewQueueCache.mergeMissing(userId, dueEntries);
     }
 
     /**
