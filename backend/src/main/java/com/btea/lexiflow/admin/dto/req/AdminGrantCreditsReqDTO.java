@@ -1,8 +1,3 @@
-/**
- * @Author: TwentyfiveBTea
- * @Date: 2026/7/24
- * @Description: 管理员赠送Credits请求参数
- */
 package com.btea.lexiflow.admin.dto.req;
 
 import jakarta.validation.constraints.Max;
@@ -12,7 +7,9 @@ import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 /**
- * 管理员赠送Credits请求参数。
+ * @Author: TwentyfiveBTea
+ * @Date: 2026/7/24
+ * @Description: 管理员赠送Credits请求参数
  */
 @Data
 public class AdminGrantCreditsReqDTO {

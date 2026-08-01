@@ -1,15 +1,12 @@
-/**
- * @Author: TwentyfiveBTea
- * @Date: 2026/7/24
- * @Description: 管理员Credits用量汇总响应参数
- */
 package com.btea.lexiflow.admin.dto.resp;
 
 import lombok.Builder;
 import lombok.Data;
 
 /**
- * 管理员Credits用量汇总响应参数。
+ * @Author: TwentyfiveBTea
+ * @Date: 2026/7/24
+ * @Description: 管理员Credits用量汇总响应参数
  */
 @Data
 @Builder

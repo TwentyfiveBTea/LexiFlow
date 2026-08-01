@@ -1,8 +1,3 @@
-/**
- * @Author: TwentyfiveBTea
- * @Date: 2026/7/24
- * @Description: 管理员用户列表响应参数
- */
 package com.btea.lexiflow.admin.dto.resp;
 
 import lombok.AllArgsConstructor;
@@ -13,7 +8,9 @@ import lombok.NoArgsConstructor;
 import java.util.Date;
 
 /**
- * 管理员用户列表响应参数。
+ * @Author: TwentyfiveBTea
+ * @Date: 2026/7/24
+ * @Description: 管理员用户列表响应参数
  */
 @Data
 @Builder

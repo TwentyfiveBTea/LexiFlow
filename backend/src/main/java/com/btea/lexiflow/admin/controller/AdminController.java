@@ -1,8 +1,3 @@
-/**
- * @Author: TwentyfiveBTea
- * @Date: 2026/7/24
- * @Description: 管理员控制器
- */
 package com.btea.lexiflow.admin.controller;
 
 import com.btea.lexiflow.admin.dto.req.AdminGrantCreditsReqDTO;
@@ -23,7 +18,9 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 管理员控制器。
+ * @Author: TwentyfiveBTea
+ * @Date: 2026/7/24
+ * @Description: 管理员控制器
  */
 @RestController
 @RequiredArgsConstructor
@@ -33,7 +30,7 @@ public class AdminController {
     private final AdminService adminService;
 
     /**
-     * 分页查询用户注册信息。
+     * 分页查询用户注册信息
      *
      * @param page 页码
      * @param pageSize 每页数量
@@ -46,7 +43,7 @@ public class AdminController {
     }
 
     /**
-     * 查询Credits使用汇总。
+     * 查询Credits使用汇总
      *
      * @return Credits使用汇总
      */
@@ -56,7 +53,7 @@ public class AdminController {
     }
 
     /**
-     * 分页查询全部用户Credits使用记录。
+     * 分页查询全部用户Credits使用记录
      *
      * @param page 页码
      * @param pageSize 每页数量
@@ -69,7 +66,7 @@ public class AdminController {
     }
 
     /**
-     * 向指定用户赠送Credits。
+     * 向指定用户赠送Credits
      *
      * @param reqDTO 赠送Credits请求参数
      * @return 操作结果
