@@ -43,6 +43,26 @@ public class LearningController {
     }
 
     /**
+     * 查询当前用户尚未完成的复习会话队列。
+     *
+     * @return 当前复习会话队列
+     */
+    @GetMapping("/review-session")
+    public Result<List<DueWordRespDTO>> listReviewQueue() {
+        return Results.success(learningService.listReviewQueue());
+    }
+
+    /**
+     * 获取或创建当前用户的复习会话队列。
+     *
+     * @return 当前复习会话队列
+     */
+    @PostMapping("/review-session")
+    public Result<List<DueWordRespDTO>> startReviewSession() {
+        return Results.success(learningService.startReviewSession());
+    }
+
+    /**
      * 提交单词复习按钮结果并更新学习进度
      *
      * @param wordId 单词ID
@@ -54,6 +74,19 @@ public class LearningController {
                                    @RequestBody @Valid WordReviewReqDTO reqDTO) {
         learningService.reviewWord(wordId, reqDTO);
         return Results.success();
+    }
+
+    /**
+     * 提交当前复习会话队列的单词结果。
+     *
+     * @param wordId 单词ID
+     * @param reqDTO 复习结果请求参数
+     * @return 更新后的复习会话队列
+     */
+    @PostMapping("/review-session/words/{wordId}/review")
+    public Result<List<DueWordRespDTO>> reviewSessionWord(@PathVariable Long wordId,
+                                                           @RequestBody @Valid WordReviewReqDTO reqDTO) {
+        return Results.success(learningService.reviewSessionWord(wordId, reqDTO));
     }
 
 }

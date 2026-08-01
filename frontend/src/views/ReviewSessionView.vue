@@ -3,12 +3,13 @@ import { ArrowLeft, Check, CircleAlert, Eye, EyeOff } from 'lucide-vue-next'
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { words } from '@/data/demo'
-import { getDueWords, reviewWord } from '@/lib/api'
+import { reviewSessionWord, startReviewSession } from '@/lib/api'
 import type { DueWordResponse } from '@/lib/api'
 
 const router = useRouter()
 const sessionWords = ref<DueWordResponse[]>([])
-const currentIndex = ref(0)
+const reviewedCount = ref(0)
+const sessionTotal = ref(0)
 const loading = ref(true)
 const submitting = ref(false)
 const error = ref('')
@@ -32,9 +33,9 @@ const demoWords: DueWordResponse[] = words.map((word) => ({
   translations: word.translations,
 }))
 
-const currentWord = computed(() => sessionWords.value[currentIndex.value])
-const progressLabel = computed(() => sessionWords.value.length ? `${currentIndex.value + 1} / ${sessionWords.value.length}` : '0 / 0')
-const progressPercent = computed(() => sessionWords.value.length ? (currentIndex.value / sessionWords.value.length) * 100 : 0)
+const currentWord = computed(() => sessionWords.value[0])
+const progressLabel = computed(() => sessionWords.value.length ? `${reviewedCount.value + 1} / ${sessionTotal.value}` : '0 / 0')
+const progressPercent = computed(() => sessionTotal.value ? (reviewedCount.value / sessionTotal.value) * 100 : 0)
 
 function parseTranslations(value: string | null): TranslationItem[] {
   if (!value) return []
@@ -62,11 +63,15 @@ async function loadSession() {
   error.value = ''
   usingDemoData.value = false
   try {
-    sessionWords.value = await getDueWords()
+    sessionWords.value = await startReviewSession()
+    reviewedCount.value = 0
+    sessionTotal.value = sessionWords.value.length
   } catch {
     if (import.meta.env.DEV) {
       usingDemoData.value = true
       sessionWords.value = demoWords
+      reviewedCount.value = 0
+      sessionTotal.value = demoWords.length
     } else {
       error.value = '复习单词加载失败，请稍后重试'
     }
@@ -80,23 +85,24 @@ async function submitRating(rating: 'UNKNOWN' | 'VAGUE' | 'KNOWN') {
   submitting.value = true
   error.value = ''
   try {
-    await reviewWord(currentWord.value.wordId, currentWord.value.languageCode, rating)
-  } catch {
-    if (!usingDemoData.value && !import.meta.env.DEV) {
-      error.value = '提交复习结果失败，请重试'
-      submitting.value = false
-      return
+    if (usingDemoData.value) {
+      const reviewedWord = currentWord.value
+      sessionWords.value.shift()
+      if (rating !== 'KNOWN') sessionWords.value.push(reviewedWord)
+    } else {
+      sessionWords.value = await reviewSessionWord(currentWord.value.wordId, currentWord.value.languageCode, rating)
     }
+  } catch {
+    error.value = '提交复习结果失败，请重试'
+    submitting.value = false
+    return
   }
 
-  const reviewedWord = currentWord.value
-  if (rating !== 'KNOWN') {
-    sessionWords.value.push(reviewedWord)
-  }
-  if (currentIndex.value >= sessionWords.value.length - 1) {
+  reviewedCount.value += 1
+  if (rating !== 'KNOWN') sessionTotal.value += 1
+  if (!sessionWords.value.length) {
     await router.replace('/review')
   } else {
-    currentIndex.value += 1
     showMeaning.value = false
   }
   submitting.value = false

@@ -7,6 +7,7 @@ import com.btea.lexiflow.common.convention.exception.ClientException;
 import com.btea.lexiflow.common.cache.AfterCommitExecutor;
 import com.btea.lexiflow.learning.dao.entity.RelUserWordProgressDO;
 import com.btea.lexiflow.learning.dao.mapper.RelUserWordProgressMapper;
+import com.btea.lexiflow.learning.cache.LearningReviewQueueCache;
 import com.btea.lexiflow.learning.dto.req.WordReviewReqDTO;
 import com.btea.lexiflow.learning.dto.resp.DueWordRespDTO;
 import com.btea.lexiflow.learning.service.LearningService;
@@ -31,6 +32,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -44,6 +46,7 @@ import java.util.stream.Collectors;
 public class LearningServiceImpl implements LearningService {
 
     private final RelUserWordProgressMapper progressMapper;
+    private final LearningReviewQueueCache reviewQueueCache;
     private final RelVocabLibraryWordMapper libraryWordMapper;
     private final BizVocabLibraryMapper libraryMapper;
     private final VocabQueryCache vocabQueryCache;
@@ -118,6 +121,36 @@ public class LearningServiceImpl implements LearningService {
     }
 
     /**
+     * 查询当前用户尚未完成的复习会话队列。
+     *
+     * @return 当前复习会话队列，无会话时返回空列表
+     */
+    @Override
+    public List<DueWordRespDTO> listReviewQueue() {
+        String userId = getCurrentUserId();
+        return toReviewQueueResponses(userId, reviewQueueCache.getQueue(userId));
+    }
+
+    /**
+     * 获取或创建当前用户的复习会话队列。
+     *
+     * @return 当前复习会话队列
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public List<DueWordRespDTO> startReviewSession() {
+        String userId = getCurrentUserId();
+        List<String> queue = reviewQueueCache.getQueue(userId);
+        if (queue.isEmpty()) {
+            List<DueWordRespDTO> dueWords = listDueWords();
+            queue = reviewQueueCache.initializeIfAbsent(userId, dueWords.stream()
+                    .map(word -> queueEntry(word.getLanguageCode(), word.getWordId()))
+                    .toList());
+        }
+        return toReviewQueueResponses(userId, queue);
+    }
+
+    /**
      * 提交单词复习按钮结果并按照SM-2规则更新学习进度
 
      * @param wordId 单词ID
@@ -127,6 +160,44 @@ public class LearningServiceImpl implements LearningService {
     @Transactional(rollbackFor = Exception.class)
     public void reviewWord(Long wordId, WordReviewReqDTO reqDTO) {
         String userId = getCurrentUserId();
+        updateWordProgress(userId, wordId, reqDTO);
+        afterCommitExecutor.execute(() -> vocabQueryCache.invalidateUser(userId));
+    }
+
+    /**
+     * 提交当前复习会话队列的单词结果，并更新队列顺序。
+     *
+     * @param wordId 单词ID
+     * @param reqDTO 复习结果请求参数
+     * @return 更新后的复习会话队列
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public List<DueWordRespDTO> reviewSessionWord(Long wordId, WordReviewReqDTO reqDTO) {
+        String userId = getCurrentUserId();
+        String language = normalizeLanguage(reqDTO.getLanguageCode());
+        List<String> queue = reviewQueueCache.getQueue(userId);
+        String entry = queueEntry(language, wordId);
+        if (queue.isEmpty() || !entry.equals(queue.get(0))) {
+            throw new ClientException(BaseErrorCode.WORD_REVIEW_QUEUE_CONFLICT);
+        }
+        int quality = updateWordProgress(userId, wordId, reqDTO);
+        if (!reviewQueueCache.advanceHead(userId, entry, quality < 5)) {
+            throw new ClientException(BaseErrorCode.WORD_REVIEW_QUEUE_CONFLICT);
+        }
+        afterCommitExecutor.execute(() -> vocabQueryCache.invalidateUser(userId));
+        return toReviewQueueResponses(userId, reviewQueueCache.getQueue(userId));
+    }
+
+    /**
+     * 更新用户单词学习进度。
+     *
+     * @param userId 用户ID
+     * @param wordId 单词ID
+     * @param reqDTO 复习结果请求参数
+     * @return SM-2质量评分
+     */
+    private int updateWordProgress(String userId, Long wordId, WordReviewReqDTO reqDTO) {
         String language = normalizeLanguage(reqDTO.getLanguageCode());
         // 在事务内锁定当前用户的进度行，防止并发复习相互覆盖
         RelUserWordProgressDO progress = progressMapper.selectForUpdate(userId, wordId, language);
@@ -159,7 +230,91 @@ public class LearningServiceImpl implements LearningService {
         progress.setStatus(quality == 5 && reviewCount >= VocabConstant.MASTERED_REVIEW_COUNT
                 ? VocabConstant.WORD_STATUS_MASTERED : VocabConstant.WORD_STATUS_LEARNING);
         progressMapper.updateById(progress);
-        afterCommitExecutor.execute(() -> vocabQueryCache.invalidateUser(userId));
+        return quality;
+    }
+
+    /**
+     * 将当前复习队列转换为包含词汇信息的响应列表。
+     *
+     * @param userId 用户ID
+     * @param queue 当前复习队列
+     * @return 待复习单词响应列表
+     */
+    private List<DueWordRespDTO> toReviewQueueResponses(String userId, List<String> queue) {
+        if (queue.isEmpty()) {
+            return List.of();
+        }
+        List<QueueWord> queueWords = queue.stream().map(this::parseQueueEntry).filter(Objects::nonNull).toList();
+        if (queueWords.isEmpty()) {
+            return List.of();
+        }
+        List<Long> wordIds = queueWords.stream().map(QueueWord::wordId).distinct().toList();
+        List<RelVocabLibraryWordDO> relations = libraryWordMapper.selectList(
+                new LambdaQueryWrapper<RelVocabLibraryWordDO>()
+                        .eq(RelVocabLibraryWordDO::getUserId, userId)
+                        .eq(RelVocabLibraryWordDO::getStatus, VocabConstant.STATUS_NORMAL)
+                        .in(RelVocabLibraryWordDO::getWordId, wordIds));
+        Map<String, RelVocabLibraryWordDO> relationsByWord = relations.stream()
+                .collect(Collectors.toMap(
+                        relation -> relation.getLanguageCode() + ":" + relation.getWordId(),
+                        relation -> relation,
+                        (first, ignored) -> first,
+                        LinkedHashMap::new));
+        Map<String, RelUserWordProgressDO> progressesByWord = progressMapper.selectList(
+                        new LambdaQueryWrapper<RelUserWordProgressDO>()
+                                .eq(RelUserWordProgressDO::getUserId, userId)
+                                .eq(RelUserWordProgressDO::getLibraryStatus, VocabConstant.STATUS_NORMAL)
+                                .in(RelUserWordProgressDO::getWordId, wordIds))
+                .stream()
+                .collect(Collectors.toMap(
+                        progress -> progress.getLanguageCode() + ":" + progress.getWordId(),
+                        progress -> progress));
+        List<QueueWord> validQueue = queueWords.stream()
+                .filter(item -> {
+                    String key = item.languageCode() + ":" + item.wordId();
+                    return relationsByWord.containsKey(key) && progressesByWord.containsKey(key);
+                })
+                .toList();
+        List<RelUserWordProgressDO> orderedProgresses = validQueue.stream()
+                .map(item -> progressesByWord.get(item.languageCode() + ":" + item.wordId()))
+                .toList();
+        return toDueResponses(userId, orderedProgresses, relationsByWord);
+    }
+
+    /**
+     * 生成Redis复习队列中的词汇标识。
+     *
+     * @param languageCode 语言标识
+     * @param wordId 单词ID
+     * @return 词汇标识
+     */
+    private String queueEntry(String languageCode, Long wordId) {
+        return languageCode + ":" + wordId;
+    }
+
+    /**
+     * 解析Redis复习队列中的词汇标识。
+     *
+     * @param entry 词汇标识
+     * @return 词汇队列元素，格式不合法时返回null
+     */
+    private QueueWord parseQueueEntry(String entry) {
+        if (entry == null) {
+            return null;
+        }
+        int separator = entry.indexOf(':');
+        if (separator <= 0 || separator >= entry.length() - 1) {
+            return null;
+        }
+        try {
+            return new QueueWord(normalizeLanguage(entry.substring(0, separator)),
+                    Long.parseLong(entry.substring(separator + 1)));
+        } catch (RuntimeException ignored) {
+            return null;
+        }
+    }
+
+    private record QueueWord(String languageCode, Long wordId) {
     }
 
     /**

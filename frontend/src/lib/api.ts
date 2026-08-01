@@ -277,6 +277,21 @@ export async function reviewWord(wordId: number, languageCode: 'en' | 'ja', rati
   await api.post<ApiResult<void>>(`/learning/words/${wordId}/review`, { languageCode, rating })
 }
 
+export async function getReviewQueue() {
+  const response = await api.get<ApiResult<DueWordResponse[]>>('/learning/review-session')
+  return response.data.data
+}
+
+export async function startReviewSession() {
+  const response = await api.post<ApiResult<DueWordResponse[]>>('/learning/review-session')
+  return response.data.data
+}
+
+export async function reviewSessionWord(wordId: number, languageCode: 'en' | 'ja', rating: 'UNKNOWN' | 'VAGUE' | 'KNOWN') {
+  const response = await api.post<ApiResult<DueWordResponse[]>>(`/learning/review-session/words/${wordId}/review`, { languageCode, rating })
+  return response.data.data
+}
+
 export async function getArticleDetail(articleId: string) {
   const response = await api.get<ApiResult<ArticleDetailResponse>>(`/article/${articleId}`)
   return response.data.data

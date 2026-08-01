@@ -3,7 +3,7 @@ import { ArrowRight, BookOpenCheck, RefreshCw } from 'lucide-vue-next'
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { words } from '@/data/demo'
-import { getDueWords } from '@/lib/api'
+import { getDueWords, getReviewQueue } from '@/lib/api'
 import type { DueWordResponse } from '@/lib/api'
 
 const router = useRouter()
@@ -57,7 +57,8 @@ async function loadDueWords() {
   error.value = ''
   usingDemoData.value = false
   try {
-    dueWords.value = await getDueWords()
+    const reviewQueue = await getReviewQueue()
+    dueWords.value = reviewQueue.length ? reviewQueue : await getDueWords()
   } catch {
     if (import.meta.env.DEV) {
       usingDemoData.value = true

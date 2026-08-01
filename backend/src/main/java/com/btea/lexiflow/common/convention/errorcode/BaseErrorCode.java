@@ -59,6 +59,7 @@ public enum BaseErrorCode implements IErrorCode {
     // 单词学习（0006xxx）
     WORD_PROGRESS_NOT_FOUND("0006300", "单词学习进度不存在"),
     WORD_REVIEW_QUALITY_INVALID("0006301", "复习结果无效"),
+    WORD_REVIEW_QUEUE_CONFLICT("0006302", "复习队列已变化，请刷新后继续"),
 
     // 支付与Credits（0007xxx）
     PAYMENT_CONFIG_INVALID("0007300", "支付配置无效"),
