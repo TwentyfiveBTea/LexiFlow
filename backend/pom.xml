@@ -31,6 +31,7 @@
         <tika.version>3.0.0</tika.version>
         <pdfbox.version>3.0.5</pdfbox.version>
         <stanford-corenlp.version>4.5.7</stanford-corenlp.version>
+        <kuromoji.version>0.9.0</kuromoji.version>
         <icu4j.version>75.1</icu4j.version>
         <hutool.version>5.8.31</hutool.version>
         <langchain4j.version>1.0.0-beta5</langchain4j.version>
@@ -141,6 +142,13 @@
             <artifactId>stanford-corenlp</artifactId>
             <version>${stanford-corenlp.version}</version>
             <classifier>models</classifier>
+        </dependency>
+
+        <!-- 日文 NLP：分词、词性标注、词形还原 -->
+        <dependency>
+            <groupId>com.atilika.kuromoji</groupId>
+            <artifactId>kuromoji-ipadic</artifactId>
+            <version>${kuromoji.version}</version>
         </dependency>
 
         <!-- Unicode 标准化 -->

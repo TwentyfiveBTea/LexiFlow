@@ -9,6 +9,8 @@ import com.btea.lexiflow.vocab.dao.entity.BizVocabJpDO;
 import com.btea.lexiflow.vocab.dao.mapper.BizVocabEnMapper;
 import com.btea.lexiflow.vocab.dao.mapper.BizVocabJpMapper;
 import com.btea.lexiflow.vocab.util.VocabLevelUtil;
+import com.atilika.kuromoji.ipadic.Token;
+import com.atilika.kuromoji.ipadic.Tokenizer;
 import edu.stanford.nlp.ling.CoreAnnotations;
 import edu.stanford.nlp.ling.CoreLabel;
 import edu.stanford.nlp.pipeline.Annotation;
@@ -42,10 +44,14 @@ import static com.btea.lexiflow.article.constant.ArticleConstant.VOCAB_QUERY_BAT
 @RequiredArgsConstructor
 public class ArticleVocabAnalyzer {
 
+    public static final String JAPANESE_ANALYSIS_PROVIDER = "kuromoji-ipadic";
+    public static final String JAPANESE_ANALYSIS_VERSION = "0.9.0-source-v1";
+
     private final BizVocabEnMapper bizVocabEnMapper;
     private final BizVocabJpMapper bizVocabJpMapper;
 
     private volatile StanfordCoreNLP englishPipeline;
+    private final Tokenizer japaneseTokenizer = new Tokenizer();
 
     /**
      * 分析文章词汇
@@ -151,40 +157,55 @@ public class ArticleVocabAnalyzer {
     private List<ArticleVocabMatch> analyzeJapaneseText(List<SourceSegment> sourceSegments,
                                                         String analysisLevel) throws Exception {
         String databaseLevel = VocabLevelUtil.toDatabaseLevel("ja", analysisLevel);
-        List<BizVocabJpDO> vocabList = bizVocabJpMapper.selectList(new LambdaQueryWrapper<BizVocabJpDO>()
-                .eq(BizVocabJpDO::getLevel, databaseLevel));
-        if (vocabList.isEmpty()) {
+        Set<String> candidates = new LinkedHashSet<>();
+        List<JapaneseSegmentAnalysis> analyses = new ArrayList<>();
+        for (SourceSegment sourceSegment : sourceSegments) {
+            List<Token> tokens = japaneseTokenizer.tokenize(sourceSegment.text());
+            analyses.add(new JapaneseSegmentAnalysis(sourceSegment, tokens));
+            for (Token token : tokens) {
+                addJapaneseCandidate(candidates, token.getSurface());
+                addJapaneseCandidate(candidates, token.getBaseForm());
+            }
+        }
+        if (candidates.isEmpty()) {
+            return List.of();
+        }
+        Map<String, BizVocabJpDO> vocabMap = getJapaneseVocabMap(candidates, databaseLevel);
+        if (vocabMap.isEmpty() && !hasJapaneseLevel(databaseLevel)) {
             throw new ClientException(BaseErrorCode.VOCAB_NOT_FOUND);
         }
         Map<Long, ArticleVocabMatch> matchMap = new LinkedHashMap<>();
-        for (BizVocabJpDO vocab : vocabList) {
-            for (SourceSegment sourceSegment : sourceSegments) {
-                String sourceText = sourceSegment.text();
-                int fromIndex = 0;
-                while (fromIndex < sourceText.length()) {
-                    int localStart = sourceText.indexOf(vocab.getWord(), fromIndex);
-                    if (localStart < 0) {
-                        break;
-                    }
-                    int localEnd = localStart + vocab.getWord().length();
-                    int start = sourceSegment.startOffset() + localStart;
-                    int end = sourceSegment.startOffset() + localEnd;
-                    SentenceRange sentenceRange = findSentenceRange(sourceText, localStart, localEnd);
-                    ArticleVocabOccurrence occurrence = ArticleVocabOccurrence.builder()
-                            .matchedText(vocab.getWord())
-                            .normalizedText(vocab.getWord())
-                            .posType("other")
-                            .sentence(sourceText.substring(sentenceRange.getStartOffset(), sentenceRange.getEndOffset()))
-                            .sentenceStartOffset(sourceSegment.startOffset() + sentenceRange.getStartOffset())
-                            .sentenceEndOffset(sourceSegment.startOffset() + sentenceRange.getEndOffset())
-                            .startOffset(start)
-                            .endOffset(end)
-                            .analysisProvider("simple")
-                            .analysisVersion("2.0-source-only")
-                            .build();
-                    addOccurrence(matchMap, vocab.getId(), vocab.getWord(), vocab.getWord(), occurrence);
-                    fromIndex = localEnd;
+        for (JapaneseSegmentAnalysis analysis : analyses) {
+            SourceSegment sourceSegment = analysis.sourceSegment();
+            String sourceText = sourceSegment.text();
+            for (Token token : analysis.tokens()) {
+                String matchedText = normalizeJapanese(token.getSurface());
+                String baseForm = normalizeJapanese(token.getBaseForm());
+                BizVocabJpDO vocab = vocabMap.get(baseForm);
+                if (vocab == null) {
+                    vocab = vocabMap.get(matchedText);
                 }
+                if (vocab == null) {
+                    continue;
+                }
+                int localStart = token.getPosition();
+                int localEnd = localStart + matchedText.length();
+                SentenceRange sentenceRange = findSentenceRange(sourceText, localStart, localEnd);
+                ArticleVocabOccurrence occurrence = ArticleVocabOccurrence.builder()
+                        .matchedText(matchedText)
+                        .normalizedText(vocab.getWord())
+                        .posTag(buildJapanesePosTag(token))
+                        .posType(convertJapanesePos(token))
+                        .morphFeatures(buildJapaneseMorphFeatures(token))
+                        .sentence(sourceText.substring(sentenceRange.getStartOffset(), sentenceRange.getEndOffset()))
+                        .sentenceStartOffset(sourceSegment.startOffset() + sentenceRange.getStartOffset())
+                        .sentenceEndOffset(sourceSegment.startOffset() + sentenceRange.getEndOffset())
+                        .startOffset(sourceSegment.startOffset() + localStart)
+                        .endOffset(sourceSegment.startOffset() + localEnd)
+                        .analysisProvider(JAPANESE_ANALYSIS_PROVIDER)
+                        .analysisVersion(JAPANESE_ANALYSIS_VERSION)
+                        .build();
+                addOccurrence(matchMap, vocab.getId(), vocab.getWord(), matchedText, occurrence);
             }
         }
         return toSortedMatches(matchMap);
@@ -226,6 +247,83 @@ public class ArticleVocabAnalyzer {
     private boolean hasEnglishLevel(String databaseLevel) {
         return bizVocabEnMapper.selectCount(new LambdaQueryWrapper<BizVocabEnDO>()
                 .eq(BizVocabEnDO::getLevel, databaseLevel)) > 0;
+    }
+
+    private Map<String, BizVocabJpDO> getJapaneseVocabMap(Set<String> words, String databaseLevel) {
+        Map<String, BizVocabJpDO> result = new HashMap<>();
+        for (List<String> batch : partition(new ArrayList<>(words))) {
+            List<BizVocabJpDO> vocabList = bizVocabJpMapper.selectList(new LambdaQueryWrapper<BizVocabJpDO>()
+                    .eq(BizVocabJpDO::getLevel, databaseLevel)
+                    .in(BizVocabJpDO::getWord, batch));
+            for (BizVocabJpDO vocab : vocabList) {
+                result.merge(normalizeJapanese(vocab.getWord()), vocab,
+                        (left, right) -> left.getId() <= right.getId() ? left : right);
+            }
+        }
+        return result;
+    }
+
+    private boolean hasJapaneseLevel(String databaseLevel) {
+        return bizVocabJpMapper.selectCount(new LambdaQueryWrapper<BizVocabJpDO>()
+                .eq(BizVocabJpDO::getLevel, databaseLevel)) > 0;
+    }
+
+    private void addJapaneseCandidate(Set<String> candidates, String text) {
+        String candidate = normalizeJapanese(text);
+        if (!candidate.isEmpty()) {
+            candidates.add(candidate);
+        }
+    }
+
+    private String normalizeJapanese(String text) {
+        if (text == null) {
+            return "";
+        }
+        String normalized = text.trim();
+        return "*".equals(normalized) ? "" : normalized;
+    }
+
+    private String buildJapanesePosTag(Token token) {
+        return java.util.stream.Stream.of(token.getPartOfSpeechLevel1(), token.getPartOfSpeechLevel2(),
+                        token.getPartOfSpeechLevel3(), token.getPartOfSpeechLevel4())
+                .filter(each -> each != null && !each.isBlank() && !"*".equals(each))
+                .collect(Collectors.joining("-"));
+    }
+
+    private String convertJapanesePos(Token token) {
+        String primary = token.getPartOfSpeechLevel1();
+        String secondary = token.getPartOfSpeechLevel2();
+        if ("名詞".equals(primary) && "代名詞".equals(secondary)) {
+            return "pron";
+        }
+        return switch (primary) {
+            case "名詞" -> "noun";
+            case "動詞" -> "verb";
+            case "形容詞" -> "adj";
+            case "副詞" -> "adv";
+            case "連体詞" -> "det";
+            case "助詞" -> "particle";
+            case "助動詞" -> "aux";
+            case "接続詞" -> "conj";
+            case "感動詞" -> "intj";
+            case "記号" -> "punct";
+            default -> "other";
+        };
+    }
+
+    private String buildJapaneseMorphFeatures(Token token) {
+        List<String> features = new ArrayList<>();
+        addJapaneseFeature(features, "baseForm", token.getBaseForm());
+        addJapaneseFeature(features, "conjugationType", token.getConjugationType());
+        addJapaneseFeature(features, "conjugationForm", token.getConjugationForm());
+        return String.join(";", features);
+    }
+
+    private void addJapaneseFeature(List<String> features, String name, String value) {
+        String normalized = normalizeJapanese(value);
+        if (!normalized.isEmpty()) {
+            features.add(name + "=" + normalized);
+        }
     }
 
     private StanfordCoreNLP getEnglishPipeline() {
@@ -317,5 +415,8 @@ public class ArticleVocabAnalyzer {
     }
 
     private record EnglishSegmentAnalysis(SourceSegment sourceSegment, List<CoreMap> sentences) {
+    }
+
+    private record JapaneseSegmentAnalysis(SourceSegment sourceSegment, List<Token> tokens) {
     }
 }

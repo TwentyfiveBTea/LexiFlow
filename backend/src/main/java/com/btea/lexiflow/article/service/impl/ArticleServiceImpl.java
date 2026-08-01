@@ -252,7 +252,7 @@ public class ArticleServiceImpl implements ArticleService {
         }
 
         List<ArticleVocabRespDTO> existingVocabs = listArticleVocabs(articleId, analysisLevel);
-        if (!existingVocabs.isEmpty()) {
+        if (!existingVocabs.isEmpty() && isAnalysisReusable(article, userId, analysisLevel)) {
             log.info("复用文章词汇分析结果: userId={}, articleId={}, analysisLevel={}, matchedWordCount={}",
                     userId, articleId, analysisLevel, existingVocabs.size());
             return ArticleAnalyzeRespDTO.builder()
@@ -263,6 +263,10 @@ public class ArticleServiceImpl implements ArticleService {
                     .matchedWordCount(existingVocabs.size())
                     .vocabs(existingVocabs)
                     .build();
+        }
+        if (!existingVocabs.isEmpty()) {
+            log.info("文章词汇分析版本已更新，重新生成结果: userId={}, articleId={}, analysisLevel={}",
+                    userId, articleId, analysisLevel);
         }
 
         String analysisKey = articleId + ":" + analysisLevel;
@@ -506,21 +510,13 @@ public class ArticleServiceImpl implements ArticleService {
     @Override
     public List<String> listArticleVocabLevels(String articleId) {
         String userId = getCurrentUserId();
-        getArticleDetail(articleId);
+        BizArticlesDO article = getUserArticle(articleId, userId);
         long cacheVersion = articleQueryCache.getArticleVersion(userId, articleId);
         List<String> cached = articleQueryCache.getVocabLevels(userId, articleId, cacheVersion);
-        if (cached != null) {
+        if (cached != null && !"ja".equals(article.getLanguageCode())) {
             return cached;
         }
-        List<RelArticleVocabDO> articleVocabs = relArticleVocabMapper.selectList(
-                new LambdaQueryWrapper<RelArticleVocabDO>()
-                        .select(RelArticleVocabDO::getAnalysisLevel)
-                        .eq(RelArticleVocabDO::getArticleId, articleId)
-                        .eq(RelArticleVocabDO::getUserId, userId)
-                        .groupBy(RelArticleVocabDO::getAnalysisLevel)
-                        .orderByAsc(RelArticleVocabDO::getAnalysisLevel));
-        List<String> levels = articleVocabs.stream()
-                .map(RelArticleVocabDO::getAnalysisLevel)
+        List<String> levels = listReusableAnalysisLevels(article, userId).stream()
                 .filter(Objects::nonNull)
                 .map(String::trim)
                 .filter(each -> !each.isEmpty())
@@ -531,6 +527,35 @@ public class ArticleServiceImpl implements ArticleService {
         log.info("获取文章词汇等级成功: userId={}, articleId={}, levels={}", userId, articleId, levels);
         articleQueryCache.putVocabLevels(userId, articleId, cacheVersion, levels);
         return levels;
+    }
+
+    private List<String> listReusableAnalysisLevels(BizArticlesDO article, String userId) {
+        if ("ja".equals(article.getLanguageCode())) {
+            return relArticleVocabOccurrenceMapper.selectList(
+                            new LambdaQueryWrapper<RelArticleVocabOccurrenceDO>()
+                                    .select(RelArticleVocabOccurrenceDO::getAnalysisLevel)
+                                    .eq(RelArticleVocabOccurrenceDO::getArticleId, article.getId())
+                                    .eq(RelArticleVocabOccurrenceDO::getUserId, userId)
+                                    .eq(RelArticleVocabOccurrenceDO::getAnalysisProvider,
+                                            ArticleVocabAnalyzer.JAPANESE_ANALYSIS_PROVIDER)
+                                    .eq(RelArticleVocabOccurrenceDO::getAnalysisVersion,
+                                            ArticleVocabAnalyzer.JAPANESE_ANALYSIS_VERSION)
+                                    .groupBy(RelArticleVocabOccurrenceDO::getAnalysisLevel)
+                                    .orderByAsc(RelArticleVocabOccurrenceDO::getAnalysisLevel))
+                    .stream()
+                    .map(RelArticleVocabOccurrenceDO::getAnalysisLevel)
+                    .toList();
+        }
+        return relArticleVocabMapper.selectList(
+                        new LambdaQueryWrapper<RelArticleVocabDO>()
+                                .select(RelArticleVocabDO::getAnalysisLevel)
+                                .eq(RelArticleVocabDO::getArticleId, article.getId())
+                                .eq(RelArticleVocabDO::getUserId, userId)
+                                .groupBy(RelArticleVocabDO::getAnalysisLevel)
+                                .orderByAsc(RelArticleVocabDO::getAnalysisLevel))
+                .stream()
+                .map(RelArticleVocabDO::getAnalysisLevel)
+                .toList();
     }
 
     /**
@@ -820,6 +845,27 @@ public class ArticleServiceImpl implements ArticleService {
                 .eq(RelArticleVocabDO::getArticleId, articleId)
                 .eq(RelArticleVocabDO::getUserId, userId)
                 .eq(RelArticleVocabDO::getAnalysisLevel, analysisLevel));
+    }
+
+    private boolean isAnalysisReusable(BizArticlesDO article, String userId, String analysisLevel) {
+        if (!"ja".equals(article.getLanguageCode())) {
+            return true;
+        }
+        LambdaQueryWrapper<RelArticleVocabOccurrenceDO> baseQuery = new LambdaQueryWrapper<RelArticleVocabOccurrenceDO>()
+                .eq(RelArticleVocabOccurrenceDO::getArticleId, article.getId())
+                .eq(RelArticleVocabOccurrenceDO::getUserId, userId)
+                .eq(RelArticleVocabOccurrenceDO::getAnalysisLevel, analysisLevel);
+        long totalCount = relArticleVocabOccurrenceMapper.selectCount(baseQuery);
+        long currentCount = relArticleVocabOccurrenceMapper.selectCount(
+                new LambdaQueryWrapper<RelArticleVocabOccurrenceDO>()
+                        .eq(RelArticleVocabOccurrenceDO::getArticleId, article.getId())
+                        .eq(RelArticleVocabOccurrenceDO::getUserId, userId)
+                        .eq(RelArticleVocabOccurrenceDO::getAnalysisLevel, analysisLevel)
+                        .eq(RelArticleVocabOccurrenceDO::getAnalysisProvider,
+                                ArticleVocabAnalyzer.JAPANESE_ANALYSIS_PROVIDER)
+                        .eq(RelArticleVocabOccurrenceDO::getAnalysisVersion,
+                                ArticleVocabAnalyzer.JAPANESE_ANALYSIS_VERSION));
+        return totalCount > 0 && totalCount == currentCount;
     }
 
     private Map<Long, ArticleVocabDetail> getVocabDetailMap(String languageCode, Set<Long> wordIds) {
