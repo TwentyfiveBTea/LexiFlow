@@ -13,6 +13,7 @@ const fileInput = ref<HTMLInputElement | null>(null)
 const notice = ref('')
 const uploadError = ref('')
 const uploading = ref(false)
+const uploadProgress = ref(0)
 const dueWordCount = ref(24)
 const recentArticles = ref<Array<Pick<ArticleListResponse, 'articleId' | 'title' | 'languageCode' | 'createdAt'>>>(
   articles.slice(0, 2).map((article) => ({
@@ -23,6 +24,8 @@ const recentArticles = ref<Array<Pick<ArticleListResponse, 'articleId' | 'title'
   })),
 )
 const weekday = computed(() => new Intl.DateTimeFormat('en-US', { weekday: 'long' }).format(new Date()).toUpperCase())
+const uploadLabel = computed(() => uploading.value ? `正在上传文章 ${uploadProgress.value}%` : '上传 PDF、DOCX、TXT、Markdown 或 HTML 文件')
+const maxUploadFileSize = 50 * 1024 * 1024
 
 onMounted(async () => {
   const [recentResult, dueCountResult] = await Promise.allSettled([getRecentArticles(), getTodayDueWordCount()])
@@ -60,12 +63,18 @@ async function upload(event: Event) {
   const target = event.target as HTMLInputElement
   const file = target.files?.[0]
   if (!file || uploading.value) return
+  if (file.size > maxUploadFileSize) {
+    uploadError.value = '文件大小不能超过50MB'
+    target.value = ''
+    return
+  }
 
   uploading.value = true
+  uploadProgress.value = 0
   notice.value = ''
   uploadError.value = ''
   try {
-    const result = await uploadArticle(file)
+    const result = await uploadArticle(file, (percent) => { uploadProgress.value = percent })
     notice.value = `${result.title} 已上传，文章正在后台处理`
     recentArticles.value = [{
       articleId: result.articleId,
@@ -77,6 +86,7 @@ async function upload(event: Event) {
     uploadError.value = error instanceof Error ? error.message : '文章上传失败，请稍后重试'
   } finally {
     uploading.value = false
+    uploadProgress.value = 0
     target.value = ''
   }
 }
@@ -97,7 +107,8 @@ async function upload(event: Event) {
             <span class="section-icon"><BookOpen :size="21" /></span>
             <div><h2 class="serif">开始阅读</h2><p>上传外语文章，开启深度精读（目前属于内测版本，仅支持英语和日语）</p></div>
           </div>
-          <button class="file-drop" :disabled="uploading" @click="fileInput?.click()"><Upload :size="19" /><span>{{ uploading ? '正在上传文章…' : '上传 PDF、DOCX、TXT、Markdown 或 HTML 文件' }}</span></button>
+          <button class="file-drop" :disabled="uploading" @click="fileInput?.click()"><Upload :size="19" /><span>{{ uploadLabel }}</span></button>
+          <div v-if="uploading" class="upload-progress" role="progressbar" :aria-valuenow="uploadProgress" aria-valuemin="0" aria-valuemax="100"><span :style="{ width: `${uploadProgress}%` }"></span></div>
           <input ref="fileInput" class="hidden" type="file" accept=".pdf,.doc,.docx,.txt,.md,.html,.htm" @change="upload" />
           <p v-if="notice" class="notice">{{ notice }}</p>
           <p v-if="uploadError" class="upload-error" role="alert">{{ uploadError }}</p>
@@ -139,6 +150,7 @@ async function upload(event: Event) {
 .file-drop { width: 100%; min-height: 48px; margin-top: 24px; display: flex; align-items: center; justify-content: center; gap: 8px; border: 1px dashed var(--outline); border-radius: 7px; color: var(--ink-muted); background: transparent; }
 .file-drop span { font-size: 13px; }
 .file-drop:hover { color: var(--primary); border-color: var(--primary); background: var(--surface-low); }
+.file-drop:disabled { cursor: wait; }.upload-progress { height: 3px; overflow: hidden; margin-top: 8px; border-radius: 3px; background: var(--surface-high); }.upload-progress span { display: block; height: 100%; border-radius: inherit; background: var(--primary); transition: width .18s ease; }
 .hidden { display: none; }
 .notice { margin: 12px 0 0; color: var(--success); font-size: 13px; }
 .upload-error { margin: 12px 0 0; color: var(--error); font-size: 13px; }

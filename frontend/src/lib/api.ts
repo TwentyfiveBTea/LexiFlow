@@ -48,6 +48,13 @@ export interface ArticleUploadResponse {
   translationStatus: number
 }
 
+export interface ArticleUploadInitResponse {
+  articleId: string
+  uploadUrl: string
+  contentType: string
+  expiresAt: string
+}
+
 export interface ArticleProcessingDetailResponse {
   wordCount: number
   parseStatus: number
@@ -387,10 +394,34 @@ export async function getArticleProcessingDetail(articleId: string) {
   return response.data.data
 }
 
-export async function uploadArticle(file: File) {
-  const formData = new FormData()
-  formData.append('file', file)
-  const response = await api.post<ApiResult<ArticleUploadResponse>>('/article/upload', formData)
+function uploadFileToStorage(uploadUrl: string, contentType: string, file: File, onProgress?: (percent: number) => void) {
+  return new Promise<void>((resolve, reject) => {
+    const request = new XMLHttpRequest()
+    request.open('PUT', uploadUrl)
+    request.setRequestHeader('Content-Type', contentType)
+    request.upload.onprogress = (event) => {
+      if (event.lengthComputable) {
+        onProgress?.(Math.round(event.loaded * 100 / event.total))
+      }
+    }
+    request.onload = () => {
+      if (request.status >= 200 && request.status < 300) resolve()
+      else reject(new Error('文件上传到对象存储失败'))
+    }
+    request.onerror = () => reject(new Error('无法连接对象存储，请检查网络或跨域配置'))
+    request.send(file)
+  })
+}
+
+export async function uploadArticle(file: File, onProgress?: (percent: number) => void) {
+  const initResponse = await api.post<ApiResult<ArticleUploadInitResponse>>('/article/uploads', {
+    filename: file.name,
+    contentType: file.type || 'application/octet-stream',
+    fileSize: file.size,
+  })
+  const upload = initResponse.data.data
+  await uploadFileToStorage(upload.uploadUrl, upload.contentType, file, onProgress)
+  const response = await api.post<ApiResult<ArticleUploadResponse>>(`/article/uploads/${upload.articleId}/complete`)
   return response.data.data
 }
 
