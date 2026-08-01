@@ -51,6 +51,11 @@ public class BizUsersDO {
     private String avatar;
 
     /**
+     * 用户角色：USER=普通用户，ADMIN=管理员
+     */
+    private String role;
+
+    /**
      * 账号状态：0=禁用，1=正常，2=已注销
      */
     private Integer status;

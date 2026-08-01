@@ -24,4 +24,14 @@ public final class UserConstant {
      * 账号状态：已注销
      */
     public static final int STATUS_CANCELED = 2;
+
+    /**
+     * 普通用户角色
+     */
+    public static final String ROLE_USER = "USER";
+
+    /**
+     * 管理员角色
+     */
+    public static final String ROLE_ADMIN = "ADMIN";
 }

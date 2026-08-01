@@ -84,6 +84,7 @@ public class UserAuthServiceImpl implements UserAuthService {
                 .username(reqDTO.getUsername())
                 .passwordHash(BCrypt.hashpw(reqDTO.getPassword()))
                 .avatar(UserProfileConstant.DEFAULT_AVATAR)
+                .role(UserConstant.ROLE_USER)
                 .status(UserConstant.STATUS_NORMAL)
                 .build();
         bizUsersMapper.insert(user);

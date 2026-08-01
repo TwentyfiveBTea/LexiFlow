@@ -61,6 +61,11 @@ public enum BaseErrorCode implements IErrorCode {
     WORD_REVIEW_QUALITY_INVALID("0006301", "复习结果无效"),
     WORD_REVIEW_QUEUE_CONFLICT("0006302", "复习队列已变化，请刷新后继续"),
 
+    // 管理员（0008xxx）
+    ADMIN_LOGIN_FAILED("0008300", "管理员账号或密码错误"),
+    ADMIN_ACCESS_DENIED("0008301", "无管理员访问权限"),
+    ADMIN_GRANT_AMOUNT_INVALID("0008302", "赠送Credits数量必须为1到10000000之间的整数"),
+
     // 支付与Credits（0007xxx）
     PAYMENT_CONFIG_INVALID("0007300", "支付配置无效"),
     PAYMENT_AMOUNT_INVALID("0007301", "充值金额必须为1到100之间的整数"),
