@@ -207,7 +207,7 @@ onMounted(() => { void loadDetail() })
     <section v-else class="word-table surface fade-in">
       <div class="table-head"><span>单词</span><span>释义</span><span>发音</span><span>等级</span><span>加入时间</span><span aria-hidden="true"></span></div>
       <article v-for="word in filteredWords" :key="word.libraryWordId" class="word-row">
-        <div class="term"><div class="term-text"><small v-if="word.kana">{{ word.kana }}</small><strong class="serif">{{ word.word }}</strong></div></div>
+        <div class="term"><div class="term-text"><strong class="serif">{{ word.word }}</strong></div></div>
         <div class="meaning">
           <template v-if="parseTranslations(word.translations).length">
             <div v-for="(item, index) in parseTranslations(word.translations)" :key="`${item.type}-${index}`" class="translation-item">
@@ -217,7 +217,7 @@ onMounted(() => { void loadDetail() })
           </template>
           <strong v-else class="empty-value">暂无释义</strong>
         </div>
-        <div class="pronunciation"><span v-if="word.us">US {{ formatPhonetic(word.us) }}</span><span v-if="word.uk">UK {{ formatPhonetic(word.uk) }}</span></div>
+        <div class="pronunciation"><span v-if="word.kana">{{ word.kana }}</span><span v-if="word.us">US {{ formatPhonetic(word.us) }}</span><span v-if="word.uk">UK {{ formatPhonetic(word.uk) }}</span></div>
         <div><span class="badge level-badge">{{ word.level }}</span></div>
         <div class="added-at">{{ formatDate(word.addedAt) }}</div>
         <button class="delete-word icon-btn" type="button" :aria-label="`从词汇库删除 ${word.word}`" title="从词汇库删除" @click="requestDeleteWord(word)"><Trash2 :size="16" /></button>
