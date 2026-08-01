@@ -115,9 +115,8 @@ interface TranslationItem {
 const filteredWords = computed(() => {
   const keyword = query.value.trim().toLowerCase()
   return localWords.value.filter((word) => {
-    const searchable = [word.word, word.kana, word.us, word.uk, word.translations, word.phrases, word.translation, word.definition].join(' ').toLowerCase()
     return word.languageCode === collection.value.languageCode
-      && (!keyword || searchable.includes(keyword))
+      && (!keyword || word.word.toLowerCase().includes(keyword))
       && (!level.value || word.level === level.value)
   })
 })

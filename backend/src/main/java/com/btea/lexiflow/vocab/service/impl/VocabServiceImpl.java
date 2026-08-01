@@ -510,11 +510,7 @@ public class VocabServiceImpl implements VocabService {
         if (keyword.isEmpty()) {
             return true;
         }
-        String searchable = String.join(" ",
-                valueOrEmpty(word.getWord()), valueOrEmpty(word.getKana()), valueOrEmpty(word.getUs()),
-                valueOrEmpty(word.getUk()), valueOrEmpty(word.getTranslations()), valueOrEmpty(word.getPhrases()))
-                .toLowerCase(Locale.ROOT);
-        return searchable.contains(keyword);
+        return valueOrEmpty(word.getWord()).toLowerCase(Locale.ROOT).contains(keyword);
     }
 
     private String valueOrEmpty(String value) {
