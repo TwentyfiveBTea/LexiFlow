@@ -52,8 +52,7 @@ const expandedVocabId = ref<string | null>(null)
 const occurrences = ref<ArticleVocabOccurrenceResponse[]>([])
 const articleOccurrences = ref<ArticleVocabOccurrenceResponse[]>([])
 const libraryPickerFor = ref<string | null>(null)
-const addedLibraryNames = ref<Record<string, string>>({})
-const addMessages = ref<Record<string, string>>({})
+const addErrors = ref<Record<string, string>>({})
 const createLibraryOpen = ref(false)
 const createLibraryName = ref('')
 const createLibraryDescription = ref('')
@@ -99,6 +98,18 @@ function parseTranslations(value: string | null): TranslationItem[] {
 
 function translationPreview(value: string | null) {
   return parseTranslations(value).map((item) => item.translation).join('；') || '暂无释义'
+}
+
+function isAddedToLibrary(vocab: ArticleVocabResponse, libraryId: string) {
+  return (vocab.addedLibraryIds ?? []).includes(libraryId)
+}
+
+function hasAddedLibraries(vocab: ArticleVocabResponse) {
+  return (vocab.addedLibraryIds ?? []).length > 0
+}
+
+function addedLibraryLabel(vocab: ArticleVocabResponse) {
+  return (vocab.addedLibraryNames ?? []).join('、')
 }
 
 function formatPhonetic(value: string | null) {
@@ -213,7 +224,7 @@ async function togglePanelWord(vocab: ArticleVocabResponse) {
 
 function openLibraryPicker(vocab: ArticleVocabResponse) {
   libraryPickerFor.value = libraryPickerFor.value === vocab.articleVocabId ? null : vocab.articleVocabId
-  addMessages.value[vocab.articleVocabId] = ''
+  addErrors.value[vocab.articleVocabId] = ''
 }
 
 function openCreateLibrary() {
@@ -269,16 +280,23 @@ async function createLibrary() {
 }
 
 async function addToLibrary(vocab: ArticleVocabResponse, library: VocabLibraryResponse) {
+  if (isAddedToLibrary(vocab, library.libraryId)) return
   try {
     if (!usingDemoData.value) await addArticleVocabToLibrary(library.libraryId, articleId.value, vocab.articleVocabId)
     libraries.value = libraries.value.map((each) => each.libraryId === library.libraryId
       ? { ...each, wordCount: each.wordCount + 1, updatedAt: new Date().toISOString() }
       : each)
-    addedLibraryNames.value[vocab.articleVocabId] = library.name
-    addMessages.value[vocab.articleVocabId] = `已加入“${library.name}”`
+    articleVocabs.value = articleVocabs.value.map((each) => each.articleVocabId === vocab.articleVocabId
+      ? {
+          ...each,
+          addedLibraryIds: [...(each.addedLibraryIds ?? []), library.libraryId],
+          addedLibraryNames: [...(each.addedLibraryNames ?? []), library.name],
+        }
+      : each)
+    addErrors.value[vocab.articleVocabId] = ''
     libraryPickerFor.value = null
   } catch {
-    addMessages.value[vocab.articleVocabId] = '加入失败，请稍后重试'
+    addErrors.value[vocab.articleVocabId] = '加入失败，请稍后重试'
   }
 }
 
@@ -316,6 +334,8 @@ function demoVocabs(level: string): ArticleVocabResponse[] {
     us: word.us || null,
     uk: word.uk || null,
     kana: word.kana || null,
+    addedLibraryIds: [],
+    addedLibraryNames: [],
   }))
 }
 
@@ -466,9 +486,9 @@ onBeforeUnmount(() => {
                 </div>
                 <div v-if="occurrences.length" class="occurrence-list"><small>原文出现位置</small><p v-for="occurrence in occurrences.slice(0, 3)" :key="occurrence.occurrenceId">{{ occurrence.sentence }}</p></div>
                 <div class="add-area">
-                  <button class="save-word" type="button" :class="{ saved: addedLibraryNames[vocab.articleVocabId] }" @click.stop="openLibraryPicker(vocab)">
-                    <Check v-if="addedLibraryNames[vocab.articleVocabId]" :size="16" /><BookmarkPlus v-else :size="16" />
-                    {{ addedLibraryNames[vocab.articleVocabId] ? `已加入 · ${addedLibraryNames[vocab.articleVocabId]}` : '加入词库' }}
+                  <button class="save-word" type="button" :class="{ saved: hasAddedLibraries(vocab) }" @click.stop="openLibraryPicker(vocab)">
+                    <Check v-if="hasAddedLibraries(vocab)" :size="16" /><BookmarkPlus v-else :size="16" />
+                    {{ hasAddedLibraries(vocab) ? `已加入 · ${addedLibraryLabel(vocab)}` : '加入词库' }}
                   </button>
                   <Transition name="library-picker">
                     <div v-if="libraryPickerFor === vocab.articleVocabId" class="library-picker surface">
@@ -476,12 +496,12 @@ onBeforeUnmount(() => {
                         <strong>选择{{ vocab.languageCode === 'ja' ? '日语' : '英语' }}词汇库</strong>
                         <button class="create-library-trigger" type="button" aria-haspopup="dialog" @click.stop.prevent="openCreateLibrary"><Plus :size="14" />新建</button>
                       </div>
-                      <button v-for="library in compatibleLibraries" :key="library.libraryId" type="button" @click.stop="addToLibrary(vocab, library)"><span>{{ library.name }}</span><small>{{ library.wordCount.toLocaleString() }} 词</small></button>
+                      <button v-for="library in compatibleLibraries" :key="library.libraryId" type="button" :disabled="isAddedToLibrary(vocab, library.libraryId)" @click.stop="addToLibrary(vocab, library)"><span>{{ library.name }}</span><small>{{ isAddedToLibrary(vocab, library.libraryId) ? '已加入' : `${library.wordCount.toLocaleString()} 词` }}</small></button>
                       <p v-if="!compatibleLibraries.length">暂无同语言词汇库</p>
                     </div>
                   </Transition>
                 </div>
-                <p v-if="addMessages[vocab.articleVocabId]" class="add-message">{{ addMessages[vocab.articleVocabId] }}</p>
+                <p v-if="addErrors[vocab.articleVocabId]" class="add-error">{{ addErrors[vocab.articleVocabId] }}</p>
               </div>
             </Transition>
           </article>
@@ -519,7 +539,7 @@ onBeforeUnmount(() => {
 .word-index { display: grid; }.word-item { border-bottom: 1px solid rgba(199,196,192,.7); }.word-row { width: 100%; min-height: 62px; display: flex; align-items: center; gap: 10px; padding: 9px 8px; border: 0; color: var(--ink-muted); background: transparent; text-align: left; }.word-row:hover, .word-item.active > .word-row { color: var(--primary); background: var(--surface-low); }.word-row > span { min-width: 0; flex: 1; display: grid; gap: 3px; }.word-row strong { overflow: hidden; color: var(--ink); font-size: 16px; text-overflow: ellipsis; white-space: nowrap; }.word-row small { overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }.word-row > svg { flex: 0 0 auto; transition: transform .18s ease; }.word-item.active > .word-row > svg { transform: rotate(90deg); }
 .occurrence-list { display: grid; gap: 6px; padding: 10px; margin-top: 14px; border-left: 2px solid var(--secondary-soft); background: var(--surface-low); }.occurrence-list small { color: var(--secondary); font-size: 10px; font-weight: 750; }.occurrence-list p { margin: 0; color: var(--ink-muted); font-family: 'Literata', Georgia, serif; font-size: 11px; line-height: 1.55; }.occurrence-state { margin-top: 14px; color: var(--ink-muted); font-size: 11px; }
 .word-detail { padding: 8px 10px 16px; background: var(--surface-low); }.word-detail h3 { margin: 0; color: var(--primary); font-size: 22px; }.pronunciations { display: flex; flex-wrap: wrap; gap: 5px 12px; margin-top: 8px; color: var(--ink-muted); font-size: 11px; }.translations { display: grid; gap: 7px; padding-top: 13px; margin-top: 13px; border-top: 1px solid var(--outline); }.translations > div { display: grid; grid-template-columns: minmax(28px, auto) 1fr; align-items: baseline; gap: 8px; }.translations span { color: var(--secondary); font-size: 10.5px; font-weight: 750; }.translations strong { color: var(--ink); font-size: 12px; line-height: 1.5; font-weight: 600; }.translations p { margin: 0; color: var(--ink-muted); font-size: 12px; }
-.add-area { position: relative; }.save-word { width: 100%; min-height: 38px; display: flex; align-items: center; justify-content: center; gap: 7px; margin-top: 16px; border: 1px solid var(--outline); border-radius: 6px; color: var(--primary); background: var(--surface-lowest); font-size: 12px; font-weight: 700; }.save-word:hover { border-color: var(--primary); }.save-word.saved { color: var(--success); border-color: var(--success); }.library-picker { position: absolute; z-index: 12; left: 0; right: 0; top: calc(100% + 7px); display: grid; gap: 3px; padding: 8px; box-shadow: 0 14px 34px rgba(45,45,45,.14), 0 2px 8px rgba(45,45,45,.06); }.library-picker > strong { padding: 6px 8px 7px; color: var(--ink-muted); font-size: 10px; }.library-picker button { min-height: 38px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 9px; border: 0; border-radius: 5px; color: var(--ink); background: transparent; text-align: left; }.library-picker button:hover { background: var(--surface-low); }.library-picker button span { overflow: hidden; font-size: 12px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }.library-picker button small { flex: 0 0 auto; color: var(--ink-muted); font-size: 10px; }.library-picker p { margin: 8px; color: var(--ink-muted); font-size: 11px; }.add-message { margin: 9px 0 0; color: var(--success); font-size: 10.5px; text-align: center; }
+.add-area { position: relative; }.save-word { width: 100%; min-height: 38px; display: flex; align-items: center; justify-content: center; gap: 7px; margin-top: 16px; border: 1px solid var(--outline); border-radius: 6px; color: var(--primary); background: var(--surface-lowest); font-size: 12px; font-weight: 700; }.save-word:hover { border-color: var(--primary); }.save-word.saved { color: var(--success); border-color: var(--success); }.library-picker { position: absolute; z-index: 12; left: 0; right: 0; top: calc(100% + 7px); display: grid; gap: 3px; padding: 8px; box-shadow: 0 14px 34px rgba(45,45,45,.14), 0 2px 8px rgba(45,45,45,.06); }.library-picker > strong { padding: 6px 8px 7px; color: var(--ink-muted); font-size: 10px; }.library-picker button { min-height: 38px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 9px; border: 0; border-radius: 5px; color: var(--ink); background: transparent; text-align: left; }.library-picker button:hover:not(:disabled) { background: var(--surface-low); }.library-picker button:disabled { opacity: .58; cursor: default; }.library-picker button span { overflow: hidden; font-size: 12px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }.library-picker button small { flex: 0 0 auto; color: var(--ink-muted); font-size: 10px; }.library-picker p { margin: 8px; color: var(--ink-muted); font-size: 11px; }.add-error { margin: 9px 0 0; color: var(--error); font-size: 10.5px; text-align: center; }
 .library-picker-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 3px 0 6px 8px; }.library-picker-head > strong { min-width: 0; overflow: hidden; padding: 0; color: var(--ink-muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }.library-picker .create-library-trigger { min-height: 30px; flex: 0 0 auto; justify-content: center; gap: 5px; padding: 0 8px; border: 1px solid var(--outline); border-radius: 5px; color: var(--primary); font-size: 11px; font-weight: 650; }.library-picker .create-library-trigger:hover { border-color: var(--primary); background: var(--primary-soft); }
 .reader-create-backdrop { position: fixed; z-index: 70; inset: 0; display: grid; place-items: center; padding: 22px; background: rgba(27,28,28,.3); }.reader-create-modal { width: min(100%, 480px); padding: 30px; }.reader-create-modal .modal-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; margin-bottom: 23px; }.reader-create-modal .modal-heading h2 { margin: 0; color: var(--primary); font-size: 26px; }.reader-create-modal > .field-label { display: block; margin-top: 16px; }.reader-create-modal .field { width: 100%; background: white; font-size: 13px; }.fixed-language { height: 46px; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 3px; border: 1px solid var(--outline); border-radius: 7px; color: var(--primary); background: var(--surface-low); }.fixed-language strong { font-size: 13px; text-transform: lowercase; }.fixed-language span { font-size: 11px; }.reader-create-modal .description-label { display: flex; align-items: center; justify-content: space-between; margin-top: 16px; }.reader-create-modal .description-label .field-label { margin: 0 0 7px; }.reader-create-modal .description-label span { color: var(--ink-muted); font-size: 10px; }.reader-create-modal .description-field { min-height: 96px; padding-block: 11px; resize: vertical; line-height: 1.55; }.reader-create-modal .form-message { margin: 14px 0 0; color: var(--error); font-size: 12px; }.reader-create-modal .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
 .reader-state { min-height: 100vh; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 10px; color: var(--ink-muted); font-size: 13px; }.loading-line { width: 96px; height: 2px; position: relative; overflow: hidden; background: var(--surface-high); }.loading-line::after { position: absolute; inset: 0; content: ''; background: var(--primary); animation: loading 1s ease-in-out infinite; }@keyframes loading { 0% { transform: translateX(-100%) scaleX(.35); } 55% { transform: translateX(35%) scaleX(.65); } 100% { transform: translateX(110%) scaleX(.3); } }

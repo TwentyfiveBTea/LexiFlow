@@ -7,6 +7,7 @@ import com.btea.lexiflow.article.dao.entity.BizArticlesDO;
 import com.btea.lexiflow.article.dao.entity.RelArticleVocabDO;
 import com.btea.lexiflow.article.dao.mapper.BizArticlesMapper;
 import com.btea.lexiflow.article.dao.mapper.RelArticleVocabMapper;
+import com.btea.lexiflow.article.cache.ArticleQueryCache;
 import com.btea.lexiflow.common.context.UserContext;
 import com.btea.lexiflow.common.cache.AfterCommitExecutor;
 import com.btea.lexiflow.common.convention.errorcode.BaseErrorCode;
@@ -55,6 +56,7 @@ public class VocabServiceImpl implements VocabService {
     private final RelUserWordProgressMapper relUserWordProgressMapper;
     private final BizArticlesMapper bizArticlesMapper;
     private final RelArticleVocabMapper relArticleVocabMapper;
+    private final ArticleQueryCache articleQueryCache;
     private final VocabQueryCache vocabQueryCache;
     private final VocabWordCacheLoader vocabWordCacheLoader;
     private final AfterCommitExecutor afterCommitExecutor;
@@ -212,7 +214,7 @@ public class VocabServiceImpl implements VocabService {
             throw new ClientException(BaseErrorCode.VOCAB_LIBRARY_WORD_EXIST);
         }
         restoreProgress(userId, articleVocab.getWordId(), articleVocab.getLanguageCode());
-        invalidateAfterCommit(userId);
+        invalidateAfterCommit(userId, article.getId());
     }
 
     /**
@@ -481,6 +483,19 @@ public class VocabServiceImpl implements VocabService {
 
     private void invalidateAfterCommit(String userId) {
         afterCommitExecutor.execute(() -> vocabQueryCache.invalidateUser(userId));
+    }
+
+    /**
+     * 在提交后使词汇库和指定文章的词汇查询缓存失效。
+     *
+     * @param userId 用户ID
+     * @param articleId 文章ID
+     */
+    private void invalidateAfterCommit(String userId, String articleId) {
+        afterCommitExecutor.execute(() -> {
+            vocabQueryCache.invalidateUser(userId);
+            articleQueryCache.invalidateArticle(userId, articleId);
+        });
     }
 
     private String normalizeLevel(String languageCode, String level) {

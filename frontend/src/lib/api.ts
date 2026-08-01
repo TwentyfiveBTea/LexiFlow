@@ -123,6 +123,8 @@ export interface ArticleVocabResponse {
   us: string | null
   uk: string | null
   kana: string | null
+  addedLibraryIds?: string[]
+  addedLibraryNames?: string[]
 }
 
 export interface ArticleVocabOccurrenceResponse {

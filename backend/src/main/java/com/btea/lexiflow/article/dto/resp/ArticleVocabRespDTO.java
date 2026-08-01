@@ -5,6 +5,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
+
 /**
  * @Author: TwentyfiveBTea
  * @Date: 2026/7/4 16:43
@@ -75,4 +77,14 @@ public class ArticleVocabRespDTO {
      * 日语假名读音
      */
     private String kana;
+
+    /**
+     * 已加入的词汇库ID列表
+     */
+    private List<String> addedLibraryIds;
+
+    /**
+     * 已加入的词汇库名称列表
+     */
+    private List<String> addedLibraryNames;
 }

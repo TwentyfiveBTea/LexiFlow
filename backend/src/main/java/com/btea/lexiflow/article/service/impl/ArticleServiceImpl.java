@@ -27,6 +27,11 @@ import com.btea.lexiflow.pay.service.CreditReservationService;
 import com.btea.lexiflow.vocab.cache.VocabQueryCache;
 import com.btea.lexiflow.vocab.cache.VocabWordCacheEntry;
 import com.btea.lexiflow.vocab.cache.VocabWordCacheLoader;
+import com.btea.lexiflow.vocab.constant.VocabConstant;
+import com.btea.lexiflow.vocab.dao.entity.BizVocabLibraryDO;
+import com.btea.lexiflow.vocab.dao.entity.RelVocabLibraryWordDO;
+import com.btea.lexiflow.vocab.dao.mapper.BizVocabLibraryMapper;
+import com.btea.lexiflow.vocab.dao.mapper.RelVocabLibraryWordMapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -64,6 +69,8 @@ public class ArticleServiceImpl implements ArticleService {
     private final ArticleQueryCache articleQueryCache;
     private final VocabQueryCache vocabQueryCache;
     private final VocabWordCacheLoader vocabWordCacheLoader;
+    private final BizVocabLibraryMapper vocabLibraryMapper;
+    private final RelVocabLibraryWordMapper vocabLibraryWordMapper;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final Map<String, Boolean> activeAnalyses = new ConcurrentHashMap<>();
@@ -610,11 +617,21 @@ public class ArticleServiceImpl implements ArticleService {
         Map<Long, ArticleVocabDetail> vocabDetailMap = getVocabDetailMap(article.getLanguageCode(), articleVocabs.stream()
                 .map(RelArticleVocabDO::getWordId)
                 .collect(Collectors.toSet()));
+        Map<Long, List<String>> addedLibraryIdsByWord = getAddedLibraryIdsByWord(
+                userId,
+                article.getLanguageCode(),
+                articleVocabs.stream().map(RelArticleVocabDO::getWordId).collect(Collectors.toSet()));
+        Map<String, String> libraryNamesById = getLibraryNamesById(userId, addedLibraryIdsByWord.values().stream()
+                .flatMap(Collection::stream)
+                .collect(Collectors.toSet()));
         return articleVocabs.stream()
                 .map(each -> {
                     ArticleVocabDetail vocabDetail = vocabDetailMap.get(each.getWordId());
                     List<RelArticleVocabOccurrenceDO> validOccurrences = sourceOccurrences.get(each.getId());
                     RelArticleVocabOccurrenceDO firstOccurrence = validOccurrences.get(0);
+                    List<String> addedLibraryIds = addedLibraryIdsByWord.getOrDefault(each.getWordId(), List.of()).stream()
+                            .filter(libraryNamesById::containsKey)
+                            .toList();
                     return ArticleVocabRespDTO.builder()
                             .articleVocabId(each.getId())
                             .wordId(each.getWordId())
@@ -629,9 +646,54 @@ public class ArticleServiceImpl implements ArticleService {
                             .us(vocabDetail == null ? null : vocabDetail.us())
                             .uk(vocabDetail == null ? null : vocabDetail.uk())
                             .kana(vocabDetail == null ? null : vocabDetail.kana())
+                            .addedLibraryIds(addedLibraryIds)
+                            .addedLibraryNames(addedLibraryIds.stream().map(libraryNamesById::get).toList())
                             .build();
                 })
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * 批量查询文章词汇已加入的有效词汇库ID。
+     *
+     * @param userId 用户ID
+     * @param languageCode 语言标识
+     * @param wordIds 词汇ID集合
+     * @return 以词汇ID为键的词汇库ID列表
+     */
+    private Map<Long, List<String>> getAddedLibraryIdsByWord(String userId, String languageCode, Set<Long> wordIds) {
+        if (wordIds.isEmpty()) {
+            return Map.of();
+        }
+        return vocabLibraryWordMapper.selectList(new LambdaQueryWrapper<RelVocabLibraryWordDO>()
+                        .eq(RelVocabLibraryWordDO::getUserId, userId)
+                        .eq(RelVocabLibraryWordDO::getLanguageCode, languageCode)
+                        .eq(RelVocabLibraryWordDO::getStatus, VocabConstant.STATUS_NORMAL)
+                        .in(RelVocabLibraryWordDO::getWordId, wordIds))
+                .stream()
+                .collect(Collectors.groupingBy(
+                        RelVocabLibraryWordDO::getWordId,
+                        LinkedHashMap::new,
+                        Collectors.mapping(RelVocabLibraryWordDO::getLibraryId, Collectors.toList())));
+    }
+
+    /**
+     * 批量查询当前用户有效词汇库的名称。
+     *
+     * @param userId 用户ID
+     * @param libraryIds 词汇库ID集合
+     * @return 以词汇库ID为键的词汇库名称
+     */
+    private Map<String, String> getLibraryNamesById(String userId, Set<String> libraryIds) {
+        if (libraryIds.isEmpty()) {
+            return Map.of();
+        }
+        return vocabLibraryMapper.selectList(new LambdaQueryWrapper<BizVocabLibraryDO>()
+                        .eq(BizVocabLibraryDO::getUserId, userId)
+                        .eq(BizVocabLibraryDO::getStatus, VocabConstant.STATUS_NORMAL)
+                        .in(BizVocabLibraryDO::getId, libraryIds))
+                .stream()
+                .collect(Collectors.toMap(BizVocabLibraryDO::getId, BizVocabLibraryDO::getName));
     }
 
     private List<RelArticleVocabOccurrenceDO> querySourceOccurrences(BizArticlesDO article, String userId,
